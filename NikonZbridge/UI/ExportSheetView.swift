@@ -705,8 +705,13 @@ public struct ExportSheetView: View {
                 }
             }
             
+            #if os(macOS)
+            let bookmarkOptions: URL.BookmarkCreationOptions = .withSecurityScope
+            #else
+            let bookmarkOptions: URL.BookmarkCreationOptions = []
+            #endif
             let bookmark = try selectedURL.bookmarkData(
-                options: .withSecurityScope,
+                options: bookmarkOptions,
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )

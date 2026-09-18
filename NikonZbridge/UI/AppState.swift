@@ -39,6 +39,7 @@ public enum SortOrderOption: String, CaseIterable, Identifiable, Sendable {
     case sizeDesc = "По размеру"
     
     public var id: String { rawValue }
+    public var title: String { rawValue }
     
     public var iconName: String {
         switch self {
@@ -61,6 +62,7 @@ public enum RatingFilterOption: String, CaseIterable, Identifiable, Sendable {
     case unrated = "Без оценки"
     
     public var id: String { rawValue }
+    public var title: String { rawValue }
     
     public func matches(rating: Int) -> Bool {
         switch self {
@@ -84,6 +86,7 @@ public enum PickFilterOption: String, CaseIterable, Identifiable, Sendable {
     case hideRejected = "Скрыть отклонённые"
     
     public var id: String { rawValue }
+    public var title: String { rawValue }
     
     public func matches(status: PickStatus) -> Bool {
         switch self {
@@ -101,6 +104,10 @@ public enum PickFilterOption: String, CaseIterable, Identifiable, Sendable {
 public final class AppState: ObservableObject {
     // Состояние сети и сервера
     @Published public var serverState: FTPServerState = .stopped
+    public var isServerRunning: Bool {
+        if case .running = serverState { return true }
+        return false
+    }
     @Published public var activeIPs: [NetworkAddressInfo] = []
     @Published public var connectedClients: Int = 0
     @Published public var usbConnected: Bool = false
@@ -116,8 +123,8 @@ public final class AppState: ObservableObject {
     
     // Очередь и жизненный цикл (Этап 6)
     @Published public var isQueuePresented: Bool = false
-    public let lifecycleManager = LifecycleManager.shared
-    public let diagnosticLogger = DiagnosticLogger.shared
+    public var lifecycleManager = LifecycleManager.shared
+    public var diagnosticLogger = DiagnosticLogger.shared
     
     // Мастер подключения и совместимость (Этап 7)
     @Published public var isWizardPresented: Bool = false
@@ -615,7 +622,7 @@ public final class AppState: ObservableObject {
     }
     
     public let serverPort: UInt16
-    private let coordinator: TransferCoordinator
+    public let coordinator: TransferCoordinator
     private var server: FTPServer
     private let monitor = NetworkInterfaceMonitor.shared
     private let usbManager = USBCameraManager.shared

@@ -57,7 +57,12 @@ public actor ExportManager {
             targetFolderURL = target
             if let bookmark = job.destination.bookmarkData {
                 var isStale = false
-                if let resolved = try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale) {
+                #if os(macOS)
+                let resolveOptions: URL.BookmarkResolutionOptions = .withSecurityScope
+                #else
+                let resolveOptions: URL.BookmarkResolutionOptions = []
+                #endif
+                if let resolved = try? URL(resolvingBookmarkData: bookmark, options: resolveOptions, relativeTo: nil, bookmarkDataIsStale: &isStale) {
                     targetFolderURL = resolved
                 }
             }
@@ -491,7 +496,12 @@ public actor ExportManager {
         var isSecurityScoped = false
         if let bookmark = destination.bookmarkData {
             var isStale = false
-            if let resolved = try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale) {
+            #if os(macOS)
+            let resolveOptions: URL.BookmarkResolutionOptions = .withSecurityScope
+            #else
+            let resolveOptions: URL.BookmarkResolutionOptions = []
+            #endif
+            if let resolved = try? URL(resolvingBookmarkData: bookmark, options: resolveOptions, relativeTo: nil, bookmarkDataIsStale: &isStale) {
                 isSecurityScoped = resolved.startAccessingSecurityScopedResource()
             }
         } else {

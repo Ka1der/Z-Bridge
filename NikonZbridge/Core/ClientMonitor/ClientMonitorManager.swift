@@ -171,7 +171,6 @@ public final class ClientMonitorManager: ObservableObject {
     }
     
     #if canImport(UIKit)
-    private var externalWindow: UIWindow?
     public var externalViewControllerProvider: ((ClientMonitorManager) -> UIViewController)?
     
     private func attachExternalScreen(_ screen: UIScreen) {

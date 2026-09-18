@@ -646,7 +646,7 @@ public struct NikonTetherRootView: View {
                         Text(appState.ratingFilter.title)
                     }
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(appState.ratingFilter == .all ? .secondary : .yellow)
+                    .foregroundStyle(appState.ratingFilter == .all ? Color.secondary : Color.yellow)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
                     .background(Color.white.opacity(appState.ratingFilter == .all ? 0.04 : 0.12))
@@ -667,7 +667,7 @@ public struct NikonTetherRootView: View {
                         Text(appState.pickFilter.title)
                     }
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(appState.pickFilter == .all ? .secondary : .green)
+                    .foregroundStyle(appState.pickFilter == .all ? Color.secondary : Color.green)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
                     .background(Color.white.opacity(appState.pickFilter == .all ? 0.04 : 0.12))

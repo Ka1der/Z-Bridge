@@ -244,7 +244,9 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     /// Отмена загрузки
     public func cancelTransfer(jobID: UUID) async {
         if let compositeID = inFlightJobs.first(where: { $0.value == jobID })?.key {
+            #if os(macOS)
             connectedCamera?.cancelDownload()
+            #endif
             _ = await transferQueue.cancel(compositeID: compositeID)
             inFlightJobs.removeValue(forKey: compositeID)
             downloadStartTimes.removeValue(forKey: compositeID)
