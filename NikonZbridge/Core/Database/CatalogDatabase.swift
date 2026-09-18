@@ -774,6 +774,19 @@ public actor CatalogDatabase {
         return changed
     }
     
+    public func getJob(id: UUID) -> TransferJob? {
+        let sql = "SELECT * FROM transfer_jobs WHERE id = ? LIMIT 1;"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, (id.uuidString as NSString).utf8String, -1, nil)
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            return parseJob(from: stmt)
+        }
+        return nil
+    }
+    
     public func getJobs(for sessionID: UUID) -> [TransferJob] {
         let sql = "SELECT * FROM transfer_jobs WHERE session_id = ? ORDER BY created_at DESC;"
         var stmt: OpaquePointer?

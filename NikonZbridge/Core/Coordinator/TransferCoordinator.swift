@@ -118,6 +118,14 @@ public actor TransferCoordinator: CameraTransportDelegate {
             await database.markAssetMissing(id: missingID, isMissing: true)
         }
         
+        // 7a. Сверка файлов на диске с каталогом: поиск недорегистрированных файлов
+        // (на случай аварийного завершения процесса между сохранением файла на диск и записью в SQLite)
+        let knownAssetPaths = Set(sessionAssets.map { $0.fileURL.standardizedFileURL.path })
+        let untrackedAssets = reconciler.discoverAssetsInSessionFolder(session: activeSession, knownFilePaths: knownAssetPaths)
+        for untracked in untrackedAssets {
+            await database.upsertAsset(untracked)
+        }
+        
         self.assets = await database.getAssets(for: activeSession.id)
         rebuildCaptureGroups()
         
@@ -179,7 +187,12 @@ public actor TransferCoordinator: CameraTransportDelegate {
         rebuildCaptureGroups()
         
         let sessionJobs = await database.getJobs(for: sessionID)
-        self.jobs = Dictionary(uniqueKeysWithValues: sessionJobs.map { ($0.id, $0) })
+        var newJobs = Dictionary(uniqueKeysWithValues: sessionJobs.map { ($0.id, $0) })
+        // Сохраняем активные (нетерминальные) задания других сессий, пока они выполняются
+        for (id, inFlight) in self.jobs where !inFlight.state.isTerminal {
+            newJobs[id] = inFlight
+        }
+        self.jobs = newJobs
         
         onSessionChanged?(switched)
         return switched
@@ -406,7 +419,13 @@ public actor TransferCoordinator: CameraTransportDelegate {
         actualSize: Int64,
         duration: TimeInterval
     ) async throws -> MediaAsset {
-        guard let job = jobs[jobID] else {
+        let foundJob: TransferJob?
+        if let j = jobs[jobID] {
+            foundJob = j
+        } else {
+            foundJob = await database.getJob(id: jobID)
+        }
+        guard let job = foundJob else {
             throw TransferError.generic("Задание \(jobID) не найдено")
         }
         
@@ -501,19 +520,24 @@ public actor TransferCoordinator: CameraTransportDelegate {
         )
         
         await database.upsertAsset(asset)
-        self.assets.insert(asset, at: 0)
         
         // 6. Добавление в CaptureGroup с поддержкой запаздывающего прихода второй части пары
+        // (Оперативные коллекции обновляются только если завершенный файл принадлежит текущей активной сессии)
         let group: CaptureGroup
-        if let existingIndex = captureGroups.firstIndex(where: { $0.canAccept(asset: asset) }) {
-            var updatedGroup = captureGroups[existingIndex]
-            updatedGroup.addAsset(asset)
-            captureGroups[existingIndex] = updatedGroup
-            group = updatedGroup
+        if job.sessionID == activeSession.id {
+            self.assets.insert(asset, at: 0)
+            if let existingIndex = captureGroups.firstIndex(where: { $0.canAccept(asset: asset) }) {
+                var updatedGroup = captureGroups[existingIndex]
+                updatedGroup.addAsset(asset)
+                captureGroups[existingIndex] = updatedGroup
+                group = updatedGroup
+            } else {
+                let newGroup = CaptureGroup(asset: asset)
+                captureGroups.insert(newGroup, at: 0)
+                group = newGroup
+            }
         } else {
-            let newGroup = CaptureGroup(asset: asset)
-            captureGroups.insert(newGroup, at: 0)
-            group = newGroup
+            group = CaptureGroup(asset: asset)
         }
         
         // 7. Завершение задания
@@ -523,8 +547,10 @@ public actor TransferCoordinator: CameraTransportDelegate {
         await database.upsertJob(completedJob)
         
         onJobUpdated?(completedJob)
-        onCaptureGroupUpdated?(group)
-        onAssetIngested?(asset, group)
+        if job.sessionID == activeSession.id {
+            onCaptureGroupUpdated?(group)
+            onAssetIngested?(asset, group)
+        }
         onSpeedUpdated?(0.0)
         
         // 8. Фоновое автоматическое копирование (Live Mirror), если включено
@@ -543,56 +569,52 @@ public actor TransferCoordinator: CameraTransportDelegate {
         return asset
     }
     
-    public func failTransfer(jobID: UUID, error: TransferError) {
-        guard let job = jobs[jobID] else { return }
+    public func failTransfer(jobID: UUID, error: TransferError) async {
+        let jobOpt: TransferJob?
+        if let j = jobs[jobID] { jobOpt = j } else { jobOpt = await database.getJob(id: jobID) }
+        guard let job = jobOpt else { return }
         if let st = job.stagingURL {
-            Task { [storageManager] in
-                await storageManager.removeStagingFile(at: st)
-            }
+            await storageManager.removeStagingFile(at: st)
         }
         let failed = job.failing(error: error)
         self.jobs[jobID] = failed
-        Task { [database] in
-            await database.upsertJob(failed)
-        }
+        await database.upsertJob(failed)
         onJobUpdated?(failed)
         onSpeedUpdated?(0.0)
     }
     
-    public func interruptTransfer(jobID: UUID, reason: String) {
-        guard let job = jobs[jobID] else { return }
+    public func interruptTransfer(jobID: UUID, reason: String) async {
+        let jobOpt: TransferJob?
+        if let j = jobs[jobID] { jobOpt = j } else { jobOpt = await database.getJob(id: jobID) }
+        guard let job = jobOpt else { return }
         if let st = job.stagingURL {
-            Task { [storageManager] in
-                await storageManager.removeStagingFile(at: st)
-            }
+            await storageManager.removeStagingFile(at: st)
         }
         let interrupted = job.interrupting(reason: reason)
         self.jobs[jobID] = interrupted
-        Task { [database] in
-            await database.upsertJob(interrupted)
-        }
+        await database.upsertJob(interrupted)
         onJobUpdated?(interrupted)
         onSpeedUpdated?(0.0)
     }
     
-    public func cancelTransfer(jobID: UUID) {
-        guard let job = jobs[jobID] else { return }
+    public func cancelTransfer(jobID: UUID) async {
+        let jobOpt: TransferJob?
+        if let j = jobs[jobID] { jobOpt = j } else { jobOpt = await database.getJob(id: jobID) }
+        guard let job = jobOpt else { return }
         if let st = job.stagingURL {
-            Task { [storageManager] in
-                await storageManager.removeStagingFile(at: st)
-            }
+            await storageManager.removeStagingFile(at: st)
         }
         let cancelled = job.cancelling()
         self.jobs[jobID] = cancelled
-        Task { [database] in
-            await database.upsertJob(cancelled)
-        }
+        await database.upsertJob(cancelled)
         onJobUpdated?(cancelled)
         onSpeedUpdated?(0.0)
     }
     
     public func retryTransfer(jobID: UUID) async throws {
-        guard let job = jobs[jobID] else {
+        let jobOpt: TransferJob?
+        if let j = jobs[jobID] { jobOpt = j } else { jobOpt = await database.getJob(id: jobID) }
+        guard let job = jobOpt else {
             throw TransferError.generic("Задание не найдено")
         }
         
@@ -668,11 +690,11 @@ public actor TransferCoordinator: CameraTransportDelegate {
     }
     
     public func transport(_ transport: CameraTransport, didFailTransfer jobID: UUID, error: TransferError) async {
-        failTransfer(jobID: jobID, error: error)
+        await failTransfer(jobID: jobID, error: error)
     }
     
     public func transport(_ transport: CameraTransport, didInterruptTransfer jobID: UUID, reason: String) async {
-        interruptTransfer(jobID: jobID, reason: reason)
+        await interruptTransfer(jobID: jobID, reason: reason)
     }
     
     // MARK: - Экспорт файлов (ExportJob)
