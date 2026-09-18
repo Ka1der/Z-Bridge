@@ -1,0 +1,565 @@
+import Foundation
+#if canImport(Photos)
+import Photos
+#endif
+
+/// Актор управления пакетным экспортом, внешними накопителями (SSD/SD) и системной медиатекой
+public actor ExportManager {
+    public static let shared = ExportManager()
+    
+    private let diskGuard: DiskSpaceGuard
+    private let fileManager = FileManager.default
+    private var isCancelled = false
+    
+    public init(diskGuard: DiskSpaceGuard = DiskSpaceGuard()) {
+        self.diskGuard = diskGuard
+    }
+    
+    // MARK: - Отмена текущей операции
+    
+    public func cancel() {
+        self.isCancelled = true
+    }
+    
+    // MARK: - Запуск выполнения задания экспорта
+    
+    public func executeJob(
+        _ initialJob: ExportJob,
+        onProgress: (@Sendable (ExportJob) -> Void)? = nil
+    ) async -> ExportJob {
+        self.isCancelled = false
+        var job = initialJob
+        job.state = .inProgress(progress: 0.0)
+        onProgress?(job)
+        
+        // 1. Проверка авторизации для Photos
+        if case .photoLibrary = job.destination {
+            let authorized = await checkAndRequestPhotosPermission()
+            if !authorized {
+                let reason = "Отказано в доступе к медиатеке «Фото». Предоставьте разрешение в Настройках."
+                for i in 0..<job.items.count {
+                    job.items[i].status = .failed(reason: reason)
+                    job.items[i].errorMessage = reason
+                }
+                job.state = .failed(reason: reason)
+                job.result = ExportResult(totalCount: job.items.count, successCount: 0, failedCount: job.items.count, errorMessage: reason)
+                job.completedAt = Date()
+                onProgress?(job)
+                return job
+            }
+        }
+        
+        // 2. Security-Scoped доступ для внешних каталогов и SSD
+        var isSecurityScoped = false
+        var targetFolderURL: URL?
+        
+        if let target = job.destination.targetURL {
+            targetFolderURL = target
+            if let bookmark = job.destination.bookmarkData {
+                var isStale = false
+                if let resolved = try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale) {
+                    targetFolderURL = resolved
+                }
+            }
+            
+            if let folder = targetFolderURL {
+                isSecurityScoped = folder.startAccessingSecurityScopedResource()
+            }
+        }
+        
+        defer {
+            if isSecurityScoped, let folder = targetFolderURL {
+                folder.stopAccessingSecurityScopedResource()
+            }
+        }
+        
+        // 3. Проверка доступности целевой папки и наличия свободного места
+        if let folder = targetFolderURL {
+            var isDir: ObjCBool = false
+            guard fileManager.fileExists(atPath: folder.path, isDirectory: &isDir), isDir.boolValue else {
+                let reason = "Целевая папка или внешний накопитель недоступен. Проверьте подключение SSD."
+                for i in 0..<job.items.count {
+                    job.items[i].status = .failed(reason: reason)
+                    job.items[i].errorMessage = reason
+                }
+                job.state = .failed(reason: reason)
+                job.result = ExportResult(totalCount: job.items.count, successCount: 0, failedCount: job.items.count, errorMessage: reason)
+                job.completedAt = Date()
+                onProgress?(job)
+                return job
+            }
+            
+            // Проверка свободного места
+            let requiredBytes = job.totalBytes
+            let freeBytes = diskGuard.availableFreeBytes(at: folder)
+            if freeBytes < requiredBytes + diskGuard.reserveBytes {
+                let freeMB = freeBytes / (1024 * 1024)
+                let reqMB = (requiredBytes + diskGuard.reserveBytes) / (1024 * 1024)
+                let reason = "Недостаточно свободного места на носителе (доступно \(freeMB) МБ, требуется \(reqMB) МБ)."
+                for i in 0..<job.items.count {
+                    job.items[i].status = .failed(reason: reason)
+                    job.items[i].errorMessage = reason
+                }
+                job.state = .failed(reason: reason)
+                job.result = ExportResult(totalCount: job.items.count, successCount: 0, failedCount: job.items.count, errorMessage: reason)
+                job.completedAt = Date()
+                onProgress?(job)
+                return job
+            }
+        }
+        
+        // 4. Поэлементный экспорт с детализированным статусом
+        var exportedURLs: [URL] = []
+        var successCount = 0
+        var failedCount = 0
+        var skippedCount = 0
+        var exportedXMPURLs: [URL] = []
+        
+        for i in 0..<job.items.count {
+            await Task.yield()
+            if isCancelled || Task.isCancelled {
+                for pendingIndex in i..<job.items.count {
+                    if !job.items[pendingIndex].status.isTerminal {
+                        job.items[pendingIndex].status = .failed(reason: "Отменено пользователем")
+                        job.items[pendingIndex].errorMessage = "Отменено пользователем"
+                        failedCount += 1
+                    }
+                }
+                isCancelled = true
+                break
+            }
+            
+            // Пропускаем уже успешные элементы (при повторах)
+            if job.items[i].status.isSuccess {
+                if let url = job.items[i].destinationURL {
+                    exportedURLs.append(url)
+                }
+                successCount += 1
+                continue
+            }
+            
+            let item = job.items[i]
+            
+            // Проверка фильтрации по выбранным типам оригиналов (RAW only, JPEG only, оба)
+            guard job.formatSelection.shouldExport(asset: item.asset) else {
+                job.items[i].status = .skipped
+                skippedCount += 1
+                continue
+            }
+            
+            job.items[i].status = .exporting(progress: 0.0)
+            onProgress?(job)
+            
+            do {
+                let exportedURL = try await exportSingleItem(
+                    item: item,
+                    destination: job.destination,
+                    targetFolder: targetFolderURL,
+                    conflictStrategy: job.conflictStrategy
+                )
+                
+                if let url = exportedURL {
+                    job.items[i].status = .success(destinationURL: url)
+                    job.items[i].destinationURL = url
+                    job.items[i].exportedBytes = item.fileSize
+                    job.exportedBytes += item.fileSize
+                    exportedURLs.append(url)
+                    successCount += 1
+                    
+                    // Экспорт XMP sidecar (если включен и поддерживается целевым хранилищем)
+                    if job.includeXMPSidecars {
+                        if case .photoLibrary = job.destination {
+                            // Медиатека «Фото» не поддерживает сторонние XMP sidecar файлы
+                        } else {
+                            let parentFolder = url.deletingLastPathComponent()
+                            if let xmpURL = try? XMPGenerator.writeSidecar(
+                                for: item.asset,
+                                to: parentFolder,
+                                convention: job.sidecarNamingConvention,
+                                sessionMetadata: job.sessionMetadata
+                            ) {
+                                exportedXMPURLs.append(xmpURL)
+                            }
+                        }
+                    }
+                } else {
+                    // Файл был пропущен по стратегии .skip
+                    job.items[i].status = .skipped
+                    skippedCount += 1
+                }
+            } catch {
+                let isDiskDisconnected = isDriveDisconnectedError(error, targetFolder: targetFolderURL)
+                let errorMessage: String
+                if isDiskDisconnected {
+                    errorMessage = "Внешний накопитель был отключен или извлечен"
+                } else {
+                    errorMessage = error.localizedDescription
+                }
+                
+                job.items[i].status = .failed(reason: errorMessage)
+                job.items[i].errorMessage = errorMessage
+                failedCount += 1
+                
+                // Если диск отключен — отменяем все оставшиеся файлы
+                if isDiskDisconnected {
+                    for restIndex in (i + 1)..<job.items.count {
+                        job.items[restIndex].status = .failed(reason: errorMessage)
+                        job.items[restIndex].errorMessage = errorMessage
+                        failedCount += 1
+                    }
+                    break
+                }
+            }
+            
+            job.state = .inProgress(progress: job.progressPercentage)
+            onProgress?(job)
+        }
+        
+        job.completedAt = Date()
+        
+        var manifestURL: URL? = nil
+        var reportURL: URL? = nil
+        
+        // Генерация манифеста сессии и markdown-отчета
+        if job.includeSessionManifest, let targetFolder = targetFolderURL {
+            var fileEntries: [SessionManifestFileEntry] = []
+            for item in job.items {
+                let isSuccess = item.status.isSuccess
+                let entry = SessionManifestFileEntry(
+                    filename: item.asset.filename,
+                    format: item.asset.format.displayName,
+                    fileSize: item.fileSize,
+                    rating: item.asset.rating,
+                    pickStatus: item.asset.pickStatus.label,
+                    sha256: item.asset.sha256Checksum,
+                    cameraModel: item.asset.metadata.cameraModel,
+                    lensModel: item.asset.metadata.lensModel,
+                    exposureSummary: item.asset.metadata.quickExposureSummary,
+                    exportStatus: isSuccess ? "Успешно" : (item.errorMessage ?? "Ошибка"),
+                    destinationPath: item.destinationURL?.path,
+                    xmpSidecarPath: nil
+                )
+                fileEntries.append(entry)
+            }
+            
+            let manifest = SessionManifest(
+                session: job.sessionMetadata ?? SessionMetadata(sessionName: job.id.uuidString, sessionDate: job.createdAt),
+                files: fileEntries,
+                generatedAt: job.completedAt ?? Date()
+            )
+            
+            if let jsonData = try? manifest.generateJSON() {
+                let jsonTarget = targetFolder.appendingPathComponent("session_manifest.json")
+                if (try? jsonData.write(to: jsonTarget, options: .atomic)) != nil {
+                    manifestURL = jsonTarget
+                }
+            }
+            
+            let reportMarkdown = manifest.generateMarkdownReport()
+            if let reportData = reportMarkdown.data(using: .utf8) {
+                let mdTarget = targetFolder.appendingPathComponent("session_report.md")
+                if (try? reportData.write(to: mdTarget, options: .atomic)) != nil {
+                    reportURL = mdTarget
+                }
+            }
+        }
+        
+        let result = ExportResult(
+            totalCount: job.items.count,
+            successCount: successCount,
+            failedCount: failedCount,
+            skippedCount: skippedCount,
+            exportedURLs: exportedURLs,
+            exportedXMPURLs: exportedXMPURLs,
+            manifestURL: manifestURL,
+            reportURL: reportURL,
+            errorMessage: failedCount > 0 ? "Ошибок при экспорте: \(failedCount)" : nil
+        )
+        job.result = result
+        
+        if isCancelled {
+            job.state = .cancelled
+        } else if failedCount == 0 {
+            job.state = .completed(exportedURLs: exportedURLs)
+        } else if successCount > 0 {
+            job.state = .failed(reason: "Экспортировано с ошибками (\(failedCount) сбоев)")
+        } else {
+            job.state = .failed(reason: result.errorMessage ?? "Экспорт завершился ошибкой")
+        }
+        
+        onProgress?(job)
+        return job
+    }
+    
+    // MARK: - Повтор только неудачных операций
+    
+    public func retryFailed(
+        in job: ExportJob,
+        onProgress: (@Sendable (ExportJob) -> Void)? = nil
+    ) async -> ExportJob {
+        var retryJob = job
+        for i in 0..<retryJob.items.count {
+            if retryJob.items[i].status.isFailed {
+                retryJob.items[i].status = .pending
+                retryJob.items[i].errorMessage = nil
+            }
+        }
+        return await executeJob(retryJob, onProgress: onProgress)
+    }
+    
+    // MARK: - Экспорт одиночного элемента
+    
+    private func exportSingleItem(
+        item: ExportItem,
+        destination: ExportDestination,
+        targetFolder: URL?,
+        conflictStrategy: NameConflictStrategy
+    ) async throws -> URL? {
+        let sourceURL = item.asset.fileURL
+        guard fileManager.fileExists(atPath: sourceURL.path) else {
+            throw ExportError.sourceFileNotFound(sourceURL.lastPathComponent)
+        }
+        
+        switch destination {
+        case .directory, .externalDrive:
+            guard let folder = targetFolder else {
+                throw ExportError.targetFolderUnavailable
+            }
+            return try copyToDirectory(
+                sourceURL: sourceURL,
+                destinationFolder: folder,
+                desiredFilename: item.filename,
+                strategy: conflictStrategy
+            )
+            
+        case .photoLibrary:
+            return try await saveToPhotoLibrary(sourceURL: sourceURL, isRAW: item.asset.isRAW)
+            
+        case .shareSheet:
+            // Создаем временную копию для Share Sheet, гарантируя неизменность оригинала
+            let tempShareDir = fileManager.temporaryDirectory.appendingPathComponent("ShareExport_\(UUID().uuidString)")
+            try fileManager.createDirectory(at: tempShareDir, withIntermediateDirectories: true)
+            let tempTarget = tempShareDir.appendingPathComponent(item.filename)
+            try fileManager.copyItem(at: sourceURL, to: tempTarget)
+            return tempTarget
+        }
+    }
+    
+    // MARK: - Копирование в целевой каталог с защитой конфликтов
+    
+    private func copyToDirectory(
+        sourceURL: URL,
+        destinationFolder: URL,
+        desiredFilename: String,
+        strategy: NameConflictStrategy
+    ) throws -> URL? {
+        let destinationURL = destinationFolder.appendingPathComponent(desiredFilename)
+        
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            switch strategy {
+            case .skip:
+                return nil
+            case .overwrite:
+                try? fileManager.removeItem(at: destinationURL)
+                try fileManager.copyItem(at: sourceURL, to: destinationURL)
+                return destinationURL
+            case .rename:
+                let uniqueURL = resolveUniqueDestinationURL(destinationFolder: destinationFolder, desiredFilename: desiredFilename)
+                try fileManager.copyItem(at: sourceURL, to: uniqueURL)
+                return uniqueURL
+            }
+        } else {
+            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+            return destinationURL
+        }
+    }
+    
+    private func resolveUniqueDestinationURL(destinationFolder: URL, desiredFilename: String) -> URL {
+        let ext = (desiredFilename as NSString).pathExtension
+        let base = (desiredFilename as NSString).deletingPathExtension
+        
+        var counter = 1
+        var candidateURL: URL
+        repeat {
+            let newName: String
+            if ext.isEmpty {
+                newName = "\(base) (\(counter))"
+            } else {
+                newName = "\(base) (\(counter)).\(ext)"
+            }
+            candidateURL = destinationFolder.appendingPathComponent(newName)
+            counter += 1
+        } while fileManager.fileExists(atPath: candidateURL.path)
+        
+        return candidateURL
+    }
+    
+    // MARK: - Сохранение в Apple Photos
+    
+    private func saveToPhotoLibrary(sourceURL: URL, isRAW: Bool) async throws -> URL {
+        #if canImport(Photos)
+        try await withCheckedThrowingContinuation { continuation in
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetCreationRequest.forAsset()
+                if isRAW {
+                    let options = PHAssetResourceCreationOptions()
+                    options.shouldMoveFile = false
+                    request.addResource(with: .alternatePhoto, fileURL: sourceURL, options: options)
+                } else {
+                    request.addResource(with: .photo, fileURL: sourceURL, options: nil)
+                }
+            }) { success, error in
+                if success {
+                    continuation.resume(returning: sourceURL)
+                } else {
+                    let err = error ?? ExportError.photoLibrarySaveFailed
+                    continuation.resume(throwing: err)
+                }
+            }
+        }
+        #else
+        throw ExportError.photoLibraryNotSupportedOnPlatform
+        #endif
+    }
+    
+    // MARK: - Проверка прав доступа к Photos
+    
+    private func checkAndRequestPhotosPermission() async -> Bool {
+        #if canImport(Photos)
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        switch status {
+        case .authorized, .limited:
+            return true
+        case .notDetermined:
+            return await withCheckedContinuation { continuation in
+                PHPhotoLibrary.requestAuthorization(for: .readWrite) { newStatus in
+                    continuation.resume(returning: newStatus == .authorized || newStatus == .limited)
+                }
+            }
+        default:
+            return false
+        }
+        #else
+        return false
+        #endif
+    }
+    
+    // MARK: - Детекция отключения внешнего накопителя
+    
+    private func isDriveDisconnectedError(_ error: Error, targetFolder: URL?) -> Bool {
+        if let folder = targetFolder, !fileManager.fileExists(atPath: folder.path) {
+            return true
+        }
+        
+        let nsError = error as NSError
+        if nsError.domain == NSPOSIXErrorDomain {
+            // ENODEV (19) - No such device, EIO (5) - I/O error, ENOENT (2) - No such file
+            if nsError.code == 19 || nsError.code == 5 || nsError.code == 2 {
+                return true
+            }
+        }
+        if nsError.domain == NSCocoaErrorDomain {
+            if nsError.code == NSFileNoSuchFileError || nsError.code == NSFileWriteNoPermissionError {
+                if let folder = targetFolder, !fileManager.fileExists(atPath: folder.path) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+    
+    // MARK: - Автоматическое фоновое копирование (Live Mirror)
+    
+    @discardableResult
+    public func autoCopyAsset(
+        _ asset: MediaAsset,
+        destination: ExportDestination,
+        formatSelection: ExportFormatSelection = .both,
+        strategy: NameConflictStrategy = .rename,
+        includeXMP: Bool = false,
+        namingConvention: XMPSidecarNamingConvention = .standardBasename,
+        sessionMetadata: SessionMetadata? = nil
+    ) async throws -> URL? {
+        guard formatSelection.shouldExport(asset: asset) else {
+            return nil
+        }
+        
+        guard let folder = destination.targetURL else {
+            return nil
+        }
+        
+        var isSecurityScoped = false
+        if let bookmark = destination.bookmarkData {
+            var isStale = false
+            if let resolved = try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale) {
+                isSecurityScoped = resolved.startAccessingSecurityScopedResource()
+            }
+        } else {
+            isSecurityScoped = folder.startAccessingSecurityScopedResource()
+        }
+        
+        defer {
+            if isSecurityScoped {
+                folder.stopAccessingSecurityScopedResource()
+            }
+        }
+        
+        guard fileManager.fileExists(atPath: folder.path) else {
+            throw ExportError.targetFolderUnavailable
+        }
+        
+        let copiedURL = try copyToDirectory(
+            sourceURL: asset.fileURL,
+            destinationFolder: folder,
+            desiredFilename: asset.filename,
+            strategy: strategy
+        )
+        
+        if includeXMP {
+            _ = try? XMPGenerator.writeSidecar(
+                for: asset,
+                to: folder,
+                convention: namingConvention,
+                sessionMetadata: sessionMetadata
+            )
+        }
+        
+        return copiedURL
+    }
+}
+
+/// Ошибки процесса экспорта
+public enum ExportError: LocalizedError, Sendable {
+    case sourceFileNotFound(String)
+    case targetFolderUnavailable
+    case destinationUnreachable(String)
+    case externalDriveDisconnected
+    case photoLibraryPermissionDenied
+    case photoLibrarySaveFailed
+    case photoLibraryNotSupportedOnPlatform
+    case storageSpaceInsufficient
+    case insufficientDiskSpace(needed: Int64, available: Int64)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .sourceFileNotFound(let name):
+            return "Исходный файл не найден: \(name)"
+        case .targetFolderUnavailable:
+            return "Целевая папка или внешний накопитель недоступен"
+        case .destinationUnreachable(let msg):
+            return "Целевой носитель недоступен: \(msg)"
+        case .externalDriveDisconnected:
+            return "Внешний накопитель был неожиданно отключен"
+        case .photoLibraryPermissionDenied:
+            return "Доступ к медиатеке «Фото» запрещен"
+        case .photoLibrarySaveFailed:
+            return "Не удалось сохранить фото в системную медиатеку"
+        case .photoLibraryNotSupportedOnPlatform:
+            return "Медиатека «Фото» не поддерживается на данной платформе"
+        case .storageSpaceInsufficient:
+            return "Недостаточно свободного места на носителе"
+        case .insufficientDiskSpace(let needed, let available):
+            return "Недостаточно свободного места: требуется \(needed) байт, доступно \(available) байт"
+        }
+    }
+}

@@ -1,0 +1,474 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		063238D8387C4CA58605AA05 /* NikonZbridge/Core/Network/FTP/FTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83BB998FDB5D4282BBACFFF8 /* NikonZbridge/Core/Network/FTP/FTPServer.swift */; };
+		0F98E4269F8C4CEDA791D6B8 /* NikonZbridge/Core/Network/USBCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F197E625DF49AE8E2DE555 /* NikonZbridge/Core/Network/USBCameraManager.swift */; };
+		176237BE36934468A4A8ACC0 /* NikonZbridge/App/NikonZbridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C25B0C55E0C9410A9C7C2849 /* NikonZbridge/App/NikonZbridgeApp.swift */; };
+		18B2154DC007432CA5205F2B /* NikonZbridge/Core/Storage/StorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB1B9E47B1349A29082EB04 /* NikonZbridge/Core/Storage/StorageManager.swift */; };
+		30AC48EB691B4085B7D4E55A /* NikonZbridge/UI/ConnectionSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F21F6C73E06431C93D0A790 /* NikonZbridge/UI/ConnectionSheetView.swift */; };
+		326F3762C21E4669BB201C54 /* NikonZbridge/Core/Network/NetworkInterfaceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8560B3C099FE41BB85BB9B1C /* NikonZbridge/Core/Network/NetworkInterfaceMonitor.swift */; };
+		4F7E0BD7E95E4900AE2EBE2F /* NikonZbridge/UI/PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8488E1E1F9F647A88293ABC3 /* NikonZbridge/UI/PhotoDetailView.swift */; };
+		B109000129B7400100000001 /* NikonZbridge/UI/CompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A109000129B7400100000001 /* NikonZbridge/UI/CompareView.swift */; };
+		6B149A597F674F7099925191 /* NikonZbridge/Core/Network/FTP/FTPDataChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF858BD8DBE468BB3BA774B /* NikonZbridge/Core/Network/FTP/FTPDataChannel.swift */; };
+		7B9C91E5A1904E34B294B871 /* NikonZbridge/Core/Storage/IngestedFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = E32359ACCEC543DF91974BBB /* NikonZbridge/Core/Storage/IngestedFile.swift */; };
+		89C7D9F6EB8C45C08A9B2AB6 /* NikonZbridge/UI/AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2209E7A3158046448897DFCA /* NikonZbridge/UI/AppState.swift */; };
+		B62FA1E4F41148AD8C233DF0 /* NikonZbridge/Core/Network/FTP/FTPConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860C9A5CD42A49C5B3596254 /* NikonZbridge/Core/Network/FTP/FTPConnection.swift */; };
+		C706AD1212F0435E9F35D064 /* NikonZbridge/Core/ImagePipeline/RAWPreviewExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0419443E104247499CDE02CA /* NikonZbridge/Core/ImagePipeline/RAWPreviewExtractor.swift */; };
+		CB37CA1042024349A2C68362 /* NikonZbridge/Core/Network/FTP/FTPCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD5B6B89DC642B3AA99FFFD /* NikonZbridge/Core/Network/FTP/FTPCommand.swift */; };
+		F4E3E2925C12440B94F4A5E3 /* NikonZbridge/UI/NikonTetherRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9126851173984EE5BB67F888 /* NikonZbridge/UI/NikonTetherRootView.swift */; };
+		B101000129B7400100000001 /* NikonZbridge/Core/Models/CaptureSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101000129B7400100000001 /* NikonZbridge/Core/Models/CaptureSession.swift */; };
+		B101000229B7400100000002 /* NikonZbridge/Core/Models/CameraSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101000229B7400100000002 /* NikonZbridge/Core/Models/CameraSource.swift */; };
+		B101000329B7400100000003 /* NikonZbridge/Core/Models/TransferJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101000329B7400100000003 /* NikonZbridge/Core/Models/TransferJob.swift */; };
+		B101000429B7400100000004 /* NikonZbridge/Core/Models/MediaAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101000429B7400100000004 /* NikonZbridge/Core/Models/MediaAsset.swift */; };
+		B101000529B7400100000005 /* NikonZbridge/Core/Models/CaptureGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101000529B7400100000005 /* NikonZbridge/Core/Models/CaptureGroup.swift */; };
+		B101000629B7400100000006 /* NikonZbridge/Core/Models/ExportJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101000629B7400100000006 /* NikonZbridge/Core/Models/ExportJob.swift */; };
+		B101000729B7400100000007 /* NikonZbridge/Core/Transports/CameraTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101000729B7400100000007 /* NikonZbridge/Core/Transports/CameraTransport.swift */; };
+		B101000829B7400100000008 /* NikonZbridge/Core/Coordinator/TransferCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101000829B7400100000008 /* NikonZbridge/Core/Coordinator/TransferCoordinator.swift */; };
+		B201000129B7400100000001 /* NikonZbridge/Core/Storage/DiskSpaceGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A201000129B7400100000001 /* NikonZbridge/Core/Storage/DiskSpaceGuard.swift */; };
+		B201000229B7400100000002 /* NikonZbridge/Core/Storage/DiskCatalogReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A201000229B7400100000002 /* NikonZbridge/Core/Storage/DiskCatalogReconciler.swift */; };
+		B201000329B7400100000003 /* NikonZbridge/Core/Database/CatalogDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A201000329B7400100000003 /* NikonZbridge/Core/Database/CatalogDatabase.swift */; };
+		B201000429B7400100000004 /* NikonZbridge/UI/SessionManagementSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A201000429B7400100000004 /* NikonZbridge/UI/SessionManagementSheetView.swift */; };
+		B301000129B7400100000001 /* NikonZbridge/Core/Network/USBImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A301000129B7400100000001 /* NikonZbridge/Core/Network/USBImportModels.swift */; };
+		B301000229B7400100000002 /* NikonZbridge/Core/Network/USBTransferQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A301000229B7400100000002 /* NikonZbridge/Core/Network/USBTransferQueue.swift */; };
+		B301000329B7400100000003 /* NikonZbridge/UI/USBCameraBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A301000329B7400100000003 /* NikonZbridge/UI/USBCameraBrowserView.swift */; };
+		B501000129B7400100000001 /* NikonZbridge/Core/Network/FTP/FTPAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A501000129B7400100000001 /* NikonZbridge/Core/Network/FTP/FTPAuthManager.swift */; };
+		B601000129B7400100000001 /* NikonZbridge/Core/Logging/DiagnosticLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A601000129B7400100000001 /* NikonZbridge/Core/Logging/DiagnosticLogger.swift */; };
+		B601000229B7400100000002 /* NikonZbridge/Core/Lifecycle/LifecycleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A601000229B7400100000002 /* NikonZbridge/Core/Lifecycle/LifecycleManager.swift */; };
+		B601000329B7400100000003 /* NikonZbridge/UI/TransferQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A601000329B7400100000003 /* NikonZbridge/UI/TransferQueueView.swift */; };
+		B701000129B7400100000001 /* NikonZbridge/Core/Models/NikonCameraModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A701000129B7400100000001 /* NikonZbridge/Core/Models/NikonCameraModel.swift */; };
+		B701000229B7400100000002 /* NikonZbridge/Core/Models/NikonCompatibilityMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = A701000229B7400100000002 /* NikonZbridge/Core/Models/NikonCompatibilityMatrix.swift */; };
+		B701000329B7400100000003 /* NikonZbridge/Core/Network/ConnectionReadinessChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A701000329B7400100000003 /* NikonZbridge/Core/Network/ConnectionReadinessChecker.swift */; };
+		B701000429B7400100000004 /* NikonZbridge/UI/ConnectionWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A701000429B7400100000004 /* NikonZbridge/UI/ConnectionWizardView.swift */; };
+		B701000529B7400100000005 /* NikonZbridge/UI/CompatibilityMatrixView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A701000529B7400100000005 /* NikonZbridge/UI/CompatibilityMatrixView.swift */; };
+		B801000129B7400100000001 /* NikonZbridge/Core/ImagePipeline/PreviewPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A801000129B7400100000001 /* NikonZbridge/Core/ImagePipeline/PreviewPipeline.swift */; };
+		B801000229B7400100000002 /* NikonZbridge/Core/Models/FramePairingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A801000229B7400100000002 /* NikonZbridge/Core/Models/FramePairingEngine.swift */; };
+		B10A000129B7400100000001 /* NikonZbridge/Core/Export/ExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10A000129B7400100000001 /* NikonZbridge/Core/Export/ExportManager.swift */; };
+		B10A000229B7400100000002 /* NikonZbridge/UI/ExportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10A000229B7400100000002 /* NikonZbridge/UI/ExportSheetView.swift */; };
+		B10B000129B7400100000001 /* NikonZbridge/Core/ClientMonitor/ClientMonitorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10B000129B7400100000001 /* NikonZbridge/Core/ClientMonitor/ClientMonitorModels.swift */; };
+		B10B000229B7400100000002 /* NikonZbridge/Core/ClientMonitor/ClientMonitorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10B000229B7400100000002 /* NikonZbridge/Core/ClientMonitor/ClientMonitorManager.swift */; };
+		B10B000329B7400100000003 /* NikonZbridge/UI/ClientMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10B000329B7400100000003 /* NikonZbridge/UI/ClientMonitorView.swift */; };
+		B10B000429B7400100000004 /* NikonZbridge/UI/ClientMonitorControlSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10B000429B7400100000004 /* NikonZbridge/UI/ClientMonitorControlSheet.swift */; };
+		B10C000129B7400100000001 /* NikonZbridge/Core/Metadata/XMPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10C000129B7400100000001 /* NikonZbridge/Core/Metadata/XMPModels.swift */; };
+		B10C000229B7400100000002 /* NikonZbridge/Core/Metadata/XMPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10C000229B7400100000002 /* NikonZbridge/Core/Metadata/XMPGenerator.swift */; };
+		B10C000329B7400100000003 /* NikonZbridge/Core/Metadata/XMPCompatibilityGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10C000329B7400100000003 /* NikonZbridge/Core/Metadata/XMPCompatibilityGuide.swift */; };
+		B10C000429B7400100000004 /* NikonZbridge/UI/XMPCompatibilityGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10C000429B7400100000004 /* NikonZbridge/UI/XMPCompatibilityGuideView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0419443E104247499CDE02CA /* NikonZbridge/Core/ImagePipeline/RAWPreviewExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/ImagePipeline/RAWPreviewExtractor.swift; sourceTree = SOURCE_ROOT; };
+		2209E7A3158046448897DFCA /* NikonZbridge/UI/AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/AppState.swift; sourceTree = SOURCE_ROOT; };
+		37E12B56FDE549AA85E2CC48 /* NikonZbridge/Resources/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = NikonZbridge/Resources/Info.plist; sourceTree = SOURCE_ROOT; };
+		5F21F6C73E06431C93D0A790 /* NikonZbridge/UI/ConnectionSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/ConnectionSheetView.swift; sourceTree = SOURCE_ROOT; };
+		83BB998FDB5D4282BBACFFF8 /* NikonZbridge/Core/Network/FTP/FTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Network/FTP/FTPServer.swift; sourceTree = SOURCE_ROOT; };
+		8488E1E1F9F647A88293ABC3 /* NikonZbridge/UI/PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/PhotoDetailView.swift; sourceTree = SOURCE_ROOT; };
+		A109000129B7400100000001 /* NikonZbridge/UI/CompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/CompareView.swift; sourceTree = SOURCE_ROOT; };
+		8560B3C099FE41BB85BB9B1C /* NikonZbridge/Core/Network/NetworkInterfaceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Network/NetworkInterfaceMonitor.swift; sourceTree = SOURCE_ROOT; };
+		860C9A5CD42A49C5B3596254 /* NikonZbridge/Core/Network/FTP/FTPConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Network/FTP/FTPConnection.swift; sourceTree = SOURCE_ROOT; };
+		9126851173984EE5BB67F888 /* NikonZbridge/UI/NikonTetherRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/NikonTetherRootView.swift; sourceTree = SOURCE_ROOT; };
+		BDD5B6B89DC642B3AA99FFFD /* NikonZbridge/Core/Network/FTP/FTPCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Network/FTP/FTPCommand.swift; sourceTree = SOURCE_ROOT; };
+		C1F197E625DF49AE8E2DE555 /* NikonZbridge/Core/Network/USBCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Network/USBCameraManager.swift; sourceTree = SOURCE_ROOT; };
+		C25B0C55E0C9410A9C7C2849 /* NikonZbridge/App/NikonZbridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/App/NikonZbridgeApp.swift; sourceTree = SOURCE_ROOT; };
+		DCFA26ADD3D34476AC7F0241 /* NikonZbridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NikonZbridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E32359ACCEC543DF91974BBB /* NikonZbridge/Core/Storage/IngestedFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Storage/IngestedFile.swift; sourceTree = SOURCE_ROOT; };
+		FBB1B9E47B1349A29082EB04 /* NikonZbridge/Core/Storage/StorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Storage/StorageManager.swift; sourceTree = SOURCE_ROOT; };
+		FDF858BD8DBE468BB3BA774B /* NikonZbridge/Core/Network/FTP/FTPDataChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Network/FTP/FTPDataChannel.swift; sourceTree = SOURCE_ROOT; };
+		A101000129B7400100000001 /* NikonZbridge/Core/Models/CaptureSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Models/CaptureSession.swift; sourceTree = SOURCE_ROOT; };
+		A101000229B7400100000002 /* NikonZbridge/Core/Models/CameraSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Models/CameraSource.swift; sourceTree = SOURCE_ROOT; };
+		A101000329B7400100000003 /* NikonZbridge/Core/Models/TransferJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Models/TransferJob.swift; sourceTree = SOURCE_ROOT; };
+		A101000429B7400100000004 /* NikonZbridge/Core/Models/MediaAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Models/MediaAsset.swift; sourceTree = SOURCE_ROOT; };
+		A101000529B7400100000005 /* NikonZbridge/Core/Models/CaptureGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Models/CaptureGroup.swift; sourceTree = SOURCE_ROOT; };
+		A101000629B7400100000006 /* NikonZbridge/Core/Models/ExportJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Models/ExportJob.swift; sourceTree = SOURCE_ROOT; };
+		A101000729B7400100000007 /* NikonZbridge/Core/Transports/CameraTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Transports/CameraTransport.swift; sourceTree = SOURCE_ROOT; };
+		A101000829B7400100000008 /* NikonZbridge/Core/Coordinator/TransferCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Coordinator/TransferCoordinator.swift; sourceTree = SOURCE_ROOT; };
+		A201000129B7400100000001 /* NikonZbridge/Core/Storage/DiskSpaceGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Storage/DiskSpaceGuard.swift; sourceTree = SOURCE_ROOT; };
+		A201000229B7400100000002 /* NikonZbridge/Core/Storage/DiskCatalogReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Storage/DiskCatalogReconciler.swift; sourceTree = SOURCE_ROOT; };
+		A201000329B7400100000003 /* NikonZbridge/Core/Database/CatalogDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Database/CatalogDatabase.swift; sourceTree = SOURCE_ROOT; };
+		A201000429B7400100000004 /* NikonZbridge/UI/SessionManagementSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/SessionManagementSheetView.swift; sourceTree = SOURCE_ROOT; };
+		A301000129B7400100000001 /* NikonZbridge/Core/Network/USBImportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Network/USBImportModels.swift; sourceTree = SOURCE_ROOT; };
+		A301000229B7400100000002 /* NikonZbridge/Core/Network/USBTransferQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Network/USBTransferQueue.swift; sourceTree = SOURCE_ROOT; };
+		A301000329B7400100000003 /* NikonZbridge/UI/USBCameraBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/USBCameraBrowserView.swift; sourceTree = SOURCE_ROOT; };
+		A501000129B7400100000001 /* NikonZbridge/Core/Network/FTP/FTPAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Network/FTP/FTPAuthManager.swift; sourceTree = SOURCE_ROOT; };
+		A601000129B7400100000001 /* NikonZbridge/Core/Logging/DiagnosticLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Logging/DiagnosticLogger.swift; sourceTree = SOURCE_ROOT; };
+		A601000229B7400100000002 /* NikonZbridge/Core/Lifecycle/LifecycleManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Lifecycle/LifecycleManager.swift; sourceTree = SOURCE_ROOT; };
+		A601000329B7400100000003 /* NikonZbridge/UI/TransferQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/TransferQueueView.swift; sourceTree = SOURCE_ROOT; };
+		A701000129B7400100000001 /* NikonZbridge/Core/Models/NikonCameraModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Models/NikonCameraModel.swift; sourceTree = SOURCE_ROOT; };
+		A701000229B7400100000002 /* NikonZbridge/Core/Models/NikonCompatibilityMatrix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Models/NikonCompatibilityMatrix.swift; sourceTree = SOURCE_ROOT; };
+		A701000329B7400100000003 /* NikonZbridge/Core/Network/ConnectionReadinessChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Network/ConnectionReadinessChecker.swift; sourceTree = SOURCE_ROOT; };
+		A701000429B7400100000004 /* NikonZbridge/UI/ConnectionWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/ConnectionWizardView.swift; sourceTree = SOURCE_ROOT; };
+		A701000529B7400100000005 /* NikonZbridge/UI/CompatibilityMatrixView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/CompatibilityMatrixView.swift; sourceTree = SOURCE_ROOT; };
+		A801000129B7400100000001 /* NikonZbridge/Core/ImagePipeline/PreviewPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/ImagePipeline/PreviewPipeline.swift; sourceTree = SOURCE_ROOT; };
+		A801000229B7400100000002 /* NikonZbridge/Core/Models/FramePairingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Models/FramePairingEngine.swift; sourceTree = SOURCE_ROOT; };
+		A10A000129B7400100000001 /* NikonZbridge/Core/Export/ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Export/ExportManager.swift; sourceTree = SOURCE_ROOT; };
+		A10A000229B7400100000002 /* NikonZbridge/UI/ExportSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/ExportSheetView.swift; sourceTree = SOURCE_ROOT; };
+		A10B000129B7400100000001 /* NikonZbridge/Core/ClientMonitor/ClientMonitorModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/ClientMonitor/ClientMonitorModels.swift; sourceTree = SOURCE_ROOT; };
+		A10B000229B7400100000002 /* NikonZbridge/Core/ClientMonitor/ClientMonitorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/ClientMonitor/ClientMonitorManager.swift; sourceTree = SOURCE_ROOT; };
+		A10B000329B7400100000003 /* NikonZbridge/UI/ClientMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/ClientMonitorView.swift; sourceTree = SOURCE_ROOT; };
+		A10B000429B7400100000004 /* NikonZbridge/UI/ClientMonitorControlSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/ClientMonitorControlSheet.swift; sourceTree = SOURCE_ROOT; };
+		A10C000129B7400100000001 /* NikonZbridge/Core/Metadata/XMPModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Metadata/XMPModels.swift; sourceTree = SOURCE_ROOT; };
+		A10C000229B7400100000002 /* NikonZbridge/Core/Metadata/XMPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Metadata/XMPGenerator.swift; sourceTree = SOURCE_ROOT; };
+		A10C000329B7400100000003 /* NikonZbridge/Core/Metadata/XMPCompatibilityGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/Core/Metadata/XMPCompatibilityGuide.swift; sourceTree = SOURCE_ROOT; };
+		A10C000429B7400100000004 /* NikonZbridge/UI/XMPCompatibilityGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridge/UI/XMPCompatibilityGuideView.swift; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8949665A69B841039AAD25C4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		01E9F51FAFD142D8BFF2525A = {
+			isa = PBXGroup;
+			children = (
+				1994C6C7BA5B4CA8B52FF10E /* App */,
+				E0D7E6EBF21D4FE7BFAD713F /* UI */,
+				B500B782A80047BC88EDAA19 /* Core */,
+				95B1664E9CFB4AF2843075DF /* Resources */,
+				80771A6C167747DC926DA93D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1994C6C7BA5B4CA8B52FF10E /* App */ = {
+			isa = PBXGroup;
+			children = (
+				C25B0C55E0C9410A9C7C2849 /* NikonZbridge/App/NikonZbridgeApp.swift */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		80771A6C167747DC926DA93D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DCFA26ADD3D34476AC7F0241 /* NikonZbridge.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		95B1664E9CFB4AF2843075DF /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				37E12B56FDE549AA85E2CC48 /* NikonZbridge/Resources/Info.plist */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		B500B782A80047BC88EDAA19 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				E32359ACCEC543DF91974BBB /* NikonZbridge/Core/Storage/IngestedFile.swift */,
+				FBB1B9E47B1349A29082EB04 /* NikonZbridge/Core/Storage/StorageManager.swift */,
+				8560B3C099FE41BB85BB9B1C /* NikonZbridge/Core/Network/NetworkInterfaceMonitor.swift */,
+				BDD5B6B89DC642B3AA99FFFD /* NikonZbridge/Core/Network/FTP/FTPCommand.swift */,
+				FDF858BD8DBE468BB3BA774B /* NikonZbridge/Core/Network/FTP/FTPDataChannel.swift */,
+				860C9A5CD42A49C5B3596254 /* NikonZbridge/Core/Network/FTP/FTPConnection.swift */,
+				83BB998FDB5D4282BBACFFF8 /* NikonZbridge/Core/Network/FTP/FTPServer.swift */,
+				C1F197E625DF49AE8E2DE555 /* NikonZbridge/Core/Network/USBCameraManager.swift */,
+				0419443E104247499CDE02CA /* NikonZbridge/Core/ImagePipeline/RAWPreviewExtractor.swift */,
+				A101000129B7400100000001 /* NikonZbridge/Core/Models/CaptureSession.swift */,
+				A101000229B7400100000002 /* NikonZbridge/Core/Models/CameraSource.swift */,
+				A101000329B7400100000003 /* NikonZbridge/Core/Models/TransferJob.swift */,
+				A101000429B7400100000004 /* NikonZbridge/Core/Models/MediaAsset.swift */,
+				A101000529B7400100000005 /* NikonZbridge/Core/Models/CaptureGroup.swift */,
+				A101000629B7400100000006 /* NikonZbridge/Core/Models/ExportJob.swift */,
+				A101000729B7400100000007 /* NikonZbridge/Core/Transports/CameraTransport.swift */,
+				A101000829B7400100000008 /* NikonZbridge/Core/Coordinator/TransferCoordinator.swift */,
+				A201000129B7400100000001 /* NikonZbridge/Core/Storage/DiskSpaceGuard.swift */,
+				A201000229B7400100000002 /* NikonZbridge/Core/Storage/DiskCatalogReconciler.swift */,
+				A201000329B7400100000003 /* NikonZbridge/Core/Database/CatalogDatabase.swift */,
+				A301000129B7400100000001 /* NikonZbridge/Core/Network/USBImportModels.swift */,
+				A301000229B7400100000002 /* NikonZbridge/Core/Network/USBTransferQueue.swift */,
+				A501000129B7400100000001 /* NikonZbridge/Core/Network/FTP/FTPAuthManager.swift */,
+				A601000129B7400100000001 /* NikonZbridge/Core/Logging/DiagnosticLogger.swift */,
+				A601000229B7400100000002 /* NikonZbridge/Core/Lifecycle/LifecycleManager.swift */,
+				A701000129B7400100000001 /* NikonZbridge/Core/Models/NikonCameraModel.swift */,
+				A701000229B7400100000002 /* NikonZbridge/Core/Models/NikonCompatibilityMatrix.swift */,
+				A701000329B7400100000003 /* NikonZbridge/Core/Network/ConnectionReadinessChecker.swift */,
+				A801000129B7400100000001 /* NikonZbridge/Core/ImagePipeline/PreviewPipeline.swift */,
+				A801000229B7400100000002 /* NikonZbridge/Core/Models/FramePairingEngine.swift */,
+				A10A000129B7400100000001 /* NikonZbridge/Core/Export/ExportManager.swift */,
+				A10B000129B7400100000001 /* NikonZbridge/Core/ClientMonitor/ClientMonitorModels.swift */,
+				A10B000229B7400100000002 /* NikonZbridge/Core/ClientMonitor/ClientMonitorManager.swift */,
+				A10C000129B7400100000001 /* NikonZbridge/Core/Metadata/XMPModels.swift */,
+				A10C000229B7400100000002 /* NikonZbridge/Core/Metadata/XMPGenerator.swift */,
+				A10C000329B7400100000003 /* NikonZbridge/Core/Metadata/XMPCompatibilityGuide.swift */,
+			);
+			name = Core;
+			sourceTree = "<group>";
+		};
+		E0D7E6EBF21D4FE7BFAD713F /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				2209E7A3158046448897DFCA /* NikonZbridge/UI/AppState.swift */,
+				8488E1E1F9F647A88293ABC3 /* NikonZbridge/UI/PhotoDetailView.swift */,
+				A109000129B7400100000001 /* NikonZbridge/UI/CompareView.swift */,
+				5F21F6C73E06431C93D0A790 /* NikonZbridge/UI/ConnectionSheetView.swift */,
+				9126851173984EE5BB67F888 /* NikonZbridge/UI/NikonTetherRootView.swift */,
+				A201000429B7400100000004 /* NikonZbridge/UI/SessionManagementSheetView.swift */,
+				A301000329B7400100000003 /* NikonZbridge/UI/USBCameraBrowserView.swift */,
+				A601000329B7400100000003 /* NikonZbridge/UI/TransferQueueView.swift */,
+				A701000429B7400100000004 /* NikonZbridge/UI/ConnectionWizardView.swift */,
+				A701000529B7400100000005 /* NikonZbridge/UI/CompatibilityMatrixView.swift */,
+				A10A000229B7400100000002 /* NikonZbridge/UI/ExportSheetView.swift */,
+				A10B000329B7400100000003 /* NikonZbridge/UI/ClientMonitorView.swift */,
+				A10B000429B7400100000004 /* NikonZbridge/UI/ClientMonitorControlSheet.swift */,
+				A10C000429B7400100000004 /* NikonZbridge/UI/XMPCompatibilityGuideView.swift */,
+			);
+			name = UI;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9859BCDA03D44905AC8C30F6 /* NikonZbridge */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 93F2A68E28D345D291036979 /* Build configuration list for PBXNativeTarget "NikonZbridge" */;
+			buildPhases = (
+				EBA0E76C1CFC4EDDA14E52EA /* Sources */,
+				8949665A69B841039AAD25C4 /* Frameworks */,
+				D4C6124040054E7C91B0AA88 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NikonZbridge;
+			productName = NikonZbridge;
+			productReference = DCFA26ADD3D34476AC7F0241 /* NikonZbridge.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4F838CFF6CC34244B3636B05 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					9859BCDA03D44905AC8C30F6 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = F352A600D3E04E37B46EDBA0 /* Build configuration list for PBXProject "NikonZbridge" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 01E9F51FAFD142D8BFF2525A;
+			productRefGroup = 80771A6C167747DC926DA93D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9859BCDA03D44905AC8C30F6 /* NikonZbridge */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D4C6124040054E7C91B0AA88 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		EBA0E76C1CFC4EDDA14E52EA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				176237BE36934468A4A8ACC0 /* NikonZbridge/App/NikonZbridgeApp.swift in Sources */,
+				89C7D9F6EB8C45C08A9B2AB6 /* NikonZbridge/UI/AppState.swift in Sources */,
+				4F7E0BD7E95E4900AE2EBE2F /* NikonZbridge/UI/PhotoDetailView.swift in Sources */,
+				B109000129B7400100000001 /* NikonZbridge/UI/CompareView.swift in Sources */,
+				30AC48EB691B4085B7D4E55A /* NikonZbridge/UI/ConnectionSheetView.swift in Sources */,
+				F4E3E2925C12440B94F4A5E3 /* NikonZbridge/UI/NikonTetherRootView.swift in Sources */,
+				7B9C91E5A1904E34B294B871 /* NikonZbridge/Core/Storage/IngestedFile.swift in Sources */,
+				18B2154DC007432CA5205F2B /* NikonZbridge/Core/Storage/StorageManager.swift in Sources */,
+				326F3762C21E4669BB201C54 /* NikonZbridge/Core/Network/NetworkInterfaceMonitor.swift in Sources */,
+				CB37CA1042024349A2C68362 /* NikonZbridge/Core/Network/FTP/FTPCommand.swift in Sources */,
+				6B149A597F674F7099925191 /* NikonZbridge/Core/Network/FTP/FTPDataChannel.swift in Sources */,
+				B62FA1E4F41148AD8C233DF0 /* NikonZbridge/Core/Network/FTP/FTPConnection.swift in Sources */,
+				063238D8387C4CA58605AA05 /* NikonZbridge/Core/Network/FTP/FTPServer.swift in Sources */,
+				0F98E4269F8C4CEDA791D6B8 /* NikonZbridge/Core/Network/USBCameraManager.swift in Sources */,
+				C706AD1212F0435E9F35D064 /* NikonZbridge/Core/ImagePipeline/RAWPreviewExtractor.swift in Sources */,
+				B101000129B7400100000001 /* NikonZbridge/Core/Models/CaptureSession.swift in Sources */,
+				B101000229B7400100000002 /* NikonZbridge/Core/Models/CameraSource.swift in Sources */,
+				B101000329B7400100000003 /* NikonZbridge/Core/Models/TransferJob.swift in Sources */,
+				B101000429B7400100000004 /* NikonZbridge/Core/Models/MediaAsset.swift in Sources */,
+				B101000529B7400100000005 /* NikonZbridge/Core/Models/CaptureGroup.swift in Sources */,
+				B101000629B7400100000006 /* NikonZbridge/Core/Models/ExportJob.swift in Sources */,
+				B101000729B7400100000007 /* NikonZbridge/Core/Transports/CameraTransport.swift in Sources */,
+				B101000829B7400100000008 /* NikonZbridge/Core/Coordinator/TransferCoordinator.swift in Sources */,
+				B201000129B7400100000001 /* NikonZbridge/Core/Storage/DiskSpaceGuard.swift in Sources */,
+				B201000229B7400100000002 /* NikonZbridge/Core/Storage/DiskCatalogReconciler.swift in Sources */,
+				B201000329B7400100000003 /* NikonZbridge/Core/Database/CatalogDatabase.swift in Sources */,
+				B201000429B7400100000004 /* NikonZbridge/UI/SessionManagementSheetView.swift in Sources */,
+				B301000129B7400100000001 /* NikonZbridge/Core/Network/USBImportModels.swift in Sources */,
+				B301000229B7400100000002 /* NikonZbridge/Core/Network/USBTransferQueue.swift in Sources */,
+				B301000329B7400100000003 /* NikonZbridge/UI/USBCameraBrowserView.swift in Sources */,
+				B501000129B7400100000001 /* NikonZbridge/Core/Network/FTP/FTPAuthManager.swift in Sources */,
+				B601000129B7400100000001 /* NikonZbridge/Core/Logging/DiagnosticLogger.swift in Sources */,
+				B601000229B7400100000002 /* NikonZbridge/Core/Lifecycle/LifecycleManager.swift in Sources */,
+				B601000329B7400100000003 /* NikonZbridge/UI/TransferQueueView.swift in Sources */,
+				B701000129B7400100000001 /* NikonZbridge/Core/Models/NikonCameraModel.swift in Sources */,
+				B701000229B7400100000002 /* NikonZbridge/Core/Models/NikonCompatibilityMatrix.swift in Sources */,
+				B701000329B7400100000003 /* NikonZbridge/Core/Network/ConnectionReadinessChecker.swift in Sources */,
+				B701000429B7400100000004 /* NikonZbridge/UI/ConnectionWizardView.swift in Sources */,
+				B701000529B7400100000005 /* NikonZbridge/UI/CompatibilityMatrixView.swift in Sources */,
+				B801000129B7400100000001 /* NikonZbridge/Core/ImagePipeline/PreviewPipeline.swift in Sources */,
+				B801000229B7400100000002 /* NikonZbridge/Core/Models/FramePairingEngine.swift in Sources */,
+				B10A000129B7400100000001 /* NikonZbridge/Core/Export/ExportManager.swift in Sources */,
+				B10A000229B7400100000002 /* NikonZbridge/UI/ExportSheetView.swift in Sources */,
+				B10B000129B7400100000001 /* NikonZbridge/Core/ClientMonitor/ClientMonitorModels.swift in Sources */,
+				B10B000229B7400100000002 /* NikonZbridge/Core/ClientMonitor/ClientMonitorManager.swift in Sources */,
+				B10B000329B7400100000003 /* NikonZbridge/UI/ClientMonitorView.swift in Sources */,
+				B10B000429B7400100000004 /* NikonZbridge/UI/ClientMonitorControlSheet.swift in Sources */,
+				B10C000129B7400100000001 /* NikonZbridge/Core/Metadata/XMPModels.swift in Sources */,
+				B10C000229B7400100000002 /* NikonZbridge/Core/Metadata/XMPGenerator.swift in Sources */,
+				B10C000329B7400100000003 /* NikonZbridge/Core/Metadata/XMPCompatibilityGuide.swift in Sources */,
+				B10C000429B7400100000004 /* NikonZbridge/UI/XMPCompatibilityGuideView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5269D80EAA334C9BA4CD1A2C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		5AB95572AE9C465B8DBB7723 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2F3554K48N;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NikonZbridge/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikonzbridge.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INCLUDE_PATHS = "$(inherited) NikonZbridge/Core/** NikonZbridge/UI/**";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		725AEFC85F9A4A0783CE63BD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2F3554K48N;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NikonZbridge/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikonzbridge.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INCLUDE_PATHS = "$(inherited) NikonZbridge/Core/** NikonZbridge/UI/**";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C8081E6D36B84B2398496974 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		93F2A68E28D345D291036979 /* Build configuration list for PBXNativeTarget "NikonZbridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5AB95572AE9C465B8DBB7723 /* Debug */,
+				725AEFC85F9A4A0783CE63BD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F352A600D3E04E37B46EDBA0 /* Build configuration list for PBXProject "NikonZbridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C8081E6D36B84B2398496974 /* Debug */,
+				5269D80EAA334C9BA4CD1A2C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4F838CFF6CC34244B3636B05 /* Project object */;
+}
