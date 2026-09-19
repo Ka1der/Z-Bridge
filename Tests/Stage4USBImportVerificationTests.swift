@@ -43,6 +43,9 @@ final class Stage4USBImportVerificationSuite {
         try await testImportModesSelectedAndAllUnimported()
         try await testQueueCancellationAndRetry()
         try await testCableDisconnectAndReconnectDeduplication()
+        try await testPendingJobCancellationRemovesFromQueueAndSkipsTerminalInProcessQueue()
+        try await testInFlightCancellationKeepsSlotUntilCallbackAndFreesSafely()
+        try await testRetryAfterErrorRecoversJobFromCoordinatorAndReenqueues()
     }
     
     // MARK: - 1. Состояния жизненного цикла подключения
@@ -382,5 +385,253 @@ final class Stage4USBImportVerificationSuite {
         verify(!allowed, "Повторное подключение камеры НЕ должно запускать загрузку уже импортированного файла!")
         
         print("  ✓ Извлечение кабеля корректно очищает очередь, а переподключение не создает дубликатов")
+    }
+    
+    // MARK: - 9. Отмена ожидающего USB-задания удаляет его из очереди и терминальный статус блокирует скачивание
+    func testPendingJobCancellationRemovesFromQueueAndSkipsTerminalInProcessQueue() async throws {
+        print("\n[9/11] Тест отмены ожидающего USB-задания и защиты processQueue от терминальных заданий...")
+        
+        let storage = StorageManager(customBaseURL: tempBaseURL)
+        let db = CatalogDatabase(customDatabaseURL: dbURL)
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        await coordinator.bootstrap()
+        
+        let usb = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        let mockCamera = MockCameraDevice()
+        usb.connectedCamera = mockCamera
+        usb.isConnected = true
+        usb.isCatalogReady = true
+        
+        let file1 = MockCameraFile(name: "DSC_2001.NEF", size: 45_000_000)
+        let item1 = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_2001.NEF",
+            fileSize: 45_000_000,
+            creationDate: Date(timeIntervalSince1970: 1700000001),
+            cameraFile: file1
+        )
+        let file2 = MockCameraFile(name: "DSC_2002.NEF", size: 45_000_000)
+        let item2 = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_2002.NEF",
+            fileSize: 45_000_000,
+            creationDate: Date(timeIntervalSince1970: 1700000002),
+            cameraFile: file2
+        )
+        
+        // Добавляем оба файла в оглавление
+        await usb.importSelectedFiles([item1, item2])
+        verify(usb.isDownloading, "Первый файл должен активно скачиваться")
+        verify(usb.activeTransferCount == 1, "1 файл в активном слоте")
+        verify(usb.pendingQueueCount == 1, "Второй файл ожидает в pendingQueue")
+        
+        guard let job2 = await coordinator.jobs.values.first(where: { $0.filename == "DSC_2002.NEF" }) else {
+            fatalError("Задание для DSC_2002.NEF не создано")
+        }
+        let job2ID = job2.id
+        guard let pendingCompositeID = await usb.transferQueue.findPendingCompositeID(by: job2ID) else {
+            fatalError("pendingCompositeID не найден для item2")
+        }
+        
+        // Отменяем ожидающее задание
+        await usb.cancelTransfer(jobID: job2ID)
+        
+        // Проверяем:
+        // 1. Ожидающее задание удалено из очереди
+        let isEnqueued = await usb.transferQueue.isEnqueuedOrActive(compositeID: pendingCompositeID)
+        verify(!isEnqueued, "Отмененное ожидающее задание должно быть удалено из очереди")
+        verify(usb.pendingQueueCount == 0, "pendingQueueCount должен быть 0")
+        
+        // 2. Статус элемента в каталоге сброшен на .notImported
+        let catalogItem2 = usb.catalogFiles.first(where: { $0.id == pendingCompositeID })
+        verify(catalogItem2?.status == .notImported, "Статус в каталоге должен быть .notImported")
+        
+        // 3. Задание в координаторе отменено
+        let coordJob2 = await coordinator.getJob(by: job2ID)
+        verify(coordJob2?.state.isTerminal == true, "Задание координатора должно быть терминальным (.cancelled)")
+        
+        // 4. Проверка второй линии защиты: если терминальное задание каким-либо образом попало в processQueue
+        let dummyItem = USBQueueItem(
+            compositeID: "terminal_item",
+            cameraFile: MockCameraFile(name: "DSC_2002.NEF", size: 45_000_000),
+            filename: "DSC_2002.NEF",
+            fileSize: 45_000_000,
+            jobID: job2ID
+        )
+        await usb.transferQueue.enqueue(dummyItem)
+        verify(await usb.transferQueue.pendingCount == 1)
+        
+        // Завершаем file1
+        usb.didDownloadFile(file1, error: nil, options: [:], contextInfo: nil)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        // Dummy терминальный элемент должен быть автоматически пропущен processQueue без отправки камере!
+        verify(mockCamera.lastRequestedFile !== dummyItem.cameraFile, "processQueue не должен запрашивать скачивание терминального задания!")
+        verify(await usb.transferQueue.totalQueueCount == 0, "Терминальное задание должно быть сброшено из очереди")
+        
+        print("  ✓ Отмена ожидающего задания удаляет его из очереди, а processQueue безопасно отсекает терминальные задания")
+    }
+    
+    // MARK: - 10. Отмена выполняющегося USB-переноса на обеих платформах удерживает слот до колбэка
+    func testInFlightCancellationKeepsSlotUntilCallbackAndFreesSafely() async throws {
+        print("\n[10/11] Тест удержания слота при отмене выполняющегося USB-переноса...")
+        
+        let storage = StorageManager(customBaseURL: tempBaseURL)
+        let db = CatalogDatabase(customDatabaseURL: dbURL)
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        await coordinator.bootstrap()
+        
+        let usb = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        let mockCamera = MockCameraDevice()
+        usb.connectedCamera = mockCamera
+        usb.isConnected = true
+        usb.isCatalogReady = true
+        
+        let file = MockCameraFile(name: "DSC_3001.NEF", size: 50_000_000)
+        let item = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_3001.NEF",
+            fileSize: 50_000_000,
+            creationDate: Date(timeIntervalSince1970: 1700000010),
+            cameraFile: file
+        )
+        
+        await usb.importSelectedFiles([item])
+        verify(usb.isDownloading, "Загрузка началась")
+        guard let inFlightJobID = await coordinator.jobs.values.first(where: { $0.filename == "DSC_3001.NEF" })?.id else {
+            fatalError("JobID не найден")
+        }
+        
+        // Вызываем отмену выполняющегося задания
+        await usb.cancelTransfer(jobID: inFlightJobID)
+        
+        // Проверяем:
+        // 1. Физическая отмена вызвана на камере (на macOS и iOS)
+        verify(mockCamera.cancelDownloadCalled, "Физическая отмена должна быть вызвана на камере")
+        
+        // 2. Слот передачи НЕ освобожден преждевременно! isDownloading все еще true
+        verify(usb.isDownloading, "Слот передачи не должен освобождаться до колбэка didDownloadFile!")
+        
+        // Попытка запустить еще один процесс очереди не должна приводить к запуску нового скачивания
+        mockCamera.lastRequestedFile = nil
+        await usb.processQueue()
+        verify(mockCamera.lastRequestedFile == nil, "Новое скачивание не должно запускаться, пока слот занят отменой")
+        
+        // 3. Симулируем приход обратного вызова ImageCaptureCore
+        usb.didDownloadFile(file, error: NSError(domain: "ImageCapture", code: -1), options: [:], contextInfo: nil)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        // 4. Теперь слот освобожден
+        verify(!usb.isDownloading, "После вызова didDownloadFile слот передачи должен быть освобожден")
+        verify(usb.activeTransferCount == 0, "Активных передач не осталось")
+        let itemStatus = usb.catalogFiles.first(where: { $0.id == item.id })?.status
+        verify(itemStatus == .notImported, "Статус отмененного файла должен быть .notImported")
+        
+        print("  ✓ Отмена in-flight вызывает cancelDownload и корректно удерживает слот до прихода didDownloadFile")
+    }
+    
+    // MARK: - 11. Повтор USB-переноса после ошибки восстанавливает задание из координатора
+    func testRetryAfterErrorRecoversJobFromCoordinatorAndReenqueues() async throws {
+        print("\n[11/11] Тест повтора USB-переноса после ошибки (восстановление задания)...")
+        
+        let storage = StorageManager(customBaseURL: tempBaseURL)
+        let db = CatalogDatabase(customDatabaseURL: dbURL)
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        await coordinator.bootstrap()
+        
+        let usb = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        let mockCamera = MockCameraDevice()
+        usb.connectedCamera = mockCamera
+        usb.isConnected = true
+        usb.isCatalogReady = true
+        
+        let file = MockCameraFile(name: "DSC_4001.NEF", size: 42_000_000)
+        let item = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_4001.NEF",
+            fileSize: 42_000_000,
+            creationDate: Date(timeIntervalSince1970: 1700000020),
+            cameraFile: file
+        )
+        
+        await usb.importSelectedFiles([item])
+        guard let jobID = await coordinator.jobs.values.first(where: { $0.filename == "DSC_4001.NEF" })?.id else {
+            fatalError("JobID не найден")
+        }
+        
+        // Симулируем ошибку при передаче
+        usb.didDownloadFile(file, error: NSError(domain: "NSCocoaErrorDomain", code: 512, userInfo: [NSLocalizedDescriptionKey: "USB Transfer Disrupted"]), options: [:], contextInfo: nil)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        // Проверяем состояние ошибки
+        verify(!usb.isDownloading, "Слот освобожден после ошибки")
+        let failedJob = await coordinator.getJob(by: jobID)
+        verify(failedJob?.state.isTerminal == true, "Задание помечено как с ошибкой")
+        let catItem = usb.catalogFiles.first(where: { $0.id == item.id })
+        if case .failed = catItem?.status {
+            // Ожидаемый статус
+        } else {
+            fatalError("Статус элемента оглавления должен быть .failed")
+        }
+        
+        // Теперь вызываем retryTransfer(jobID:)
+        mockCamera.lastRequestedFile = nil
+        try await usb.retryTransfer(jobID: jobID)
+        
+        // Проверяем:
+        // 1. Задание в координаторе обновлено: attempts == 1, state == .pending, error == nil
+        let retriedJob = await coordinator.getJob(by: jobID)
+        verify(retriedJob?.attempts == 1, "Счетчик попыток должен быть инкрементирован")
+        verify(retriedJob?.error == nil, "Ошибка в задании должна быть очищена")
+        
+        // 2. Скачивание снова запущено
+        verify(usb.isDownloading, "Повтор должен запустить скачивание")
+        verify(mockCamera.lastRequestedFile === file, "Камере должен быть передан повторный запрос на скачивание файла")
+        
+        print("  ✓ Повтор после ошибки успешно находит задание в координаторе, обновляет его и запускает загрузку")
+    }
+}
+
+// MARK: - Mock Camera File & Device
+final class MockCameraFile: ICCameraFile, @unchecked Sendable {
+    var customName: String
+    var customSize: off_t
+    
+    init(name: String, size: off_t = 45_000_000) {
+        self.customName = name
+        self.customSize = size
+        super.init()
+    }
+    
+    override var name: String? {
+        customName
+    }
+    
+    override var fileSize: off_t {
+        customSize
+    }
+}
+
+final class MockCameraDevice: ICCameraDevice, @unchecked Sendable {
+    var cancelDownloadCalled = false
+    var lastRequestedFile: ICCameraFile?
+    var customName: String = "Nikon Z 8 (Mock)"
+    
+    override var name: String? {
+        customName
+    }
+    
+    override func cancelDownload() {
+        cancelDownloadCalled = true
+    }
+    
+    override func requestDownloadFile(
+        _ file: ICCameraFile,
+        options: [ICDownloadOption: Any] = [:],
+        downloadDelegate: any ICCameraDeviceDownloadDelegate,
+        didDownloadSelector: Selector,
+        contextInfo: UnsafeMutableRawPointer?
+    ) {
+        lastRequestedFile = file
     }
 }

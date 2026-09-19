@@ -686,19 +686,16 @@ public actor TransferCoordinator: CameraTransportDelegate {
         onSpeedUpdated?(0.0)
     }
     
-    public func retryTransfer(jobID: UUID) async throws {
+    /// Подготовка существующего задания к повтору (очистка временных файлов, сброс ошибки, перевод в .pending, сохранение в БД)
+    public func prepareJobForRetry(jobID: UUID) async throws -> TransferJob {
         let jobOpt: TransferJob?
         if let j = jobs[jobID] { jobOpt = j } else { jobOpt = await database.getJob(id: jobID) }
         guard let job = jobOpt else {
-            throw TransferError.generic("Задание не найдено")
+            throw TransferError.generic("Задание \(jobID) не найдено")
         }
         
-        guard job.source.transportType.supportsAppRetry else {
-            throw TransferError.generic("Транспорт \(job.source.transportType.displayName) не поддерживает повтор со стороны приложения (камера отправляет файл по своей инициативе)")
-        }
-        
-        guard let transport = transports[job.source.transportType] else {
-            throw TransferError.generic("Транспорт \(job.source.transportType.displayName) не зарегистрирован")
+        if let st = job.stagingURL {
+            await storageManager.removeStagingFile(at: st)
         }
         
         var updatedJob = job
@@ -708,8 +705,21 @@ public actor TransferCoordinator: CameraTransportDelegate {
         self.jobs[jobID] = updatedJob
         await database.upsertJob(updatedJob)
         onJobUpdated?(updatedJob)
+        return updatedJob
+    }
+    
+    public func retryTransfer(jobID: UUID) async throws {
+        let updatedJob = try await prepareJobForRetry(jobID: jobID)
         
-        try await transport.requestDownload(fileID: job.sourceFileID, into: updatedJob)
+        guard updatedJob.source.transportType.supportsAppRetry else {
+            throw TransferError.generic("Транспорт \(updatedJob.source.transportType.displayName) не поддерживает повтор со стороны приложения (камера отправляет файл по своей инициативе)")
+        }
+        
+        guard let transport = transports[updatedJob.source.transportType] else {
+            throw TransferError.generic("Транспорт \(updatedJob.source.transportType.displayName) не зарегистрирован")
+        }
+        
+        try await transport.requestDownload(fileID: updatedJob.sourceFileID, into: updatedJob)
     }
     
     // MARK: - CameraTransportDelegate

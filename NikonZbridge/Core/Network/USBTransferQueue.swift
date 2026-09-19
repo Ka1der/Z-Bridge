@@ -160,6 +160,24 @@ public actor USBTransferQueue {
         activeTransfers.first(where: { $0.value.jobID == jobID })?.key
     }
     
+    /// Получить compositeID по jobID среди ожидающих элементов очереди
+    public func findPendingCompositeID(by jobID: UUID) -> String? {
+        pendingQueue.first(where: { $0.jobID == jobID })?.compositeID
+    }
+    
+    /// Получить compositeID по jobID среди активных и ожидающих элементов
+    public func findCompositeID(by jobID: UUID) -> String? {
+        if let active = activeTransfers.first(where: { $0.value.jobID == jobID }) {
+            return active.key
+        }
+        return pendingQueue.first(where: { $0.jobID == jobID })?.compositeID
+    }
+    
+    /// Проверка, находится ли элемент в очереди ожидания
+    public func isPending(compositeID: String) -> Bool {
+        pendingQueue.contains(where: { $0.compositeID == compositeID })
+    }
+    
     /// Список всех активных элементов, занимающих слоты передачи
     public var allActiveItems: [USBQueueItem] {
         Array(activeTransfers.values)

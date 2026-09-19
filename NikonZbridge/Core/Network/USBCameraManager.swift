@@ -45,6 +45,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     private var downloadStartTimes: [String: Date] = [:] // compositeID -> Date
     private var inFlightJobs: [String: UUID] = [:]       // compositeID -> JobID
     private var cameraFileMap: [String: ICCameraFile] = [:] // compositeID -> ICCameraFile
+    private var cancellingCompositeIDs: Set<String> = []
     
     public init(
         coordinator: TransferCoordinator = .shared,
@@ -90,6 +91,10 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         guard connectedCamera != nil else { return }
         for item in items where item.status != .imported && item.status != .queued {
             guard let file = item.cameraFile ?? cameraFileMap[item.id] else { continue }
+            cameraFileMap[item.id] = file
+            if !catalogFiles.contains(where: { $0.id == item.id }) {
+                catalogFiles.append(item)
+            }
             await scheduleDownload(for: file, compositeID: item.id, existingJob: nil)
         }
         await processQueue()
@@ -119,24 +124,55 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         }
         
         // Поиск файла по составному идентификатору или имени
-        guard let file = cameraFileMap[fileID] ?? (camera.mediaFiles as? [ICCameraFile])?.first(where: { $0.name == fileID }) else {
+        let foundFile = cameraFileMap[fileID]
+            ?? (camera.mediaFiles as? [ICCameraFile])?.first(where: { $0.name == fileID || $0.name == job.filename })
+        
+        guard let file = foundFile else {
             throw TransferError.fileNotFound(fileID)
         }
         
-        await scheduleDownload(for: file, compositeID: fileID, existingJob: job)
+        let compositeID = cameraFileMap.first(where: { $0.value == file })?.key
+            ?? CameraFileItem.makeCompositeID(
+                cameraID: camera.name ?? "nikon",
+                filename: file.name ?? job.filename,
+                fileSize: file.fileSize,
+                creationDate: file.creationDate
+            )
+        cameraFileMap[compositeID] = file
+        
+        await scheduleDownload(for: file, compositeID: compositeID, existingJob: job)
         await processQueue()
     }
     
     public func retryTransfer(jobID: UUID) async throws {
-        guard connectedCamera != nil else {
+        guard let camera = connectedCamera else {
             throw TransferError.connectionLost("Камера не подключена по USB")
         }
-        guard let compositeID = await transferQueue.findActiveCompositeID(by: jobID) ?? inFlightJobs.first(where: { $0.value == jobID })?.key,
-              let file = cameraFileMap[compositeID] else {
-            throw TransferError.generic("Файл задания не найден в каталоге подключенной камеры")
+        
+        // 1. Подготавливаем задание в координаторе (сброс ошибки, перевод в .pending, сохранение в БД)
+        let updatedJob = try await coordinator.prepareJobForRetry(jobID: jobID)
+        
+        // 2. Ищем файл по sourceFileID или имени файла
+        let fileID = updatedJob.sourceFileID
+        let foundFile = cameraFileMap[fileID]
+            ?? (camera.mediaFiles as? [ICCameraFile])?.first(where: { $0.name == fileID || $0.name == updatedJob.filename })
+        
+        guard let file = foundFile else {
+            throw TransferError.fileNotFound(updatedJob.filename)
         }
         
-        await scheduleDownload(for: file, compositeID: compositeID, existingJob: nil)
+        // 3. Определяем составной идентификатор и кэшируем файл
+        let compositeID = cameraFileMap.first(where: { $0.value == file })?.key
+            ?? CameraFileItem.makeCompositeID(
+                cameraID: camera.name ?? "nikon",
+                filename: file.name ?? updatedJob.filename,
+                fileSize: file.fileSize,
+                creationDate: file.creationDate
+            )
+        cameraFileMap[compositeID] = file
+        
+        // 4. Планируем загрузку с существующим обновленным заданием
+        await scheduleDownload(for: file, compositeID: compositeID, existingJob: updatedJob)
         await processQueue()
     }
     
@@ -144,8 +180,8 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     
     private func scheduleDownload(for cameraFile: ICCameraFile, compositeID: String, existingJob: TransferJob?) async {
         guard let camera = connectedCamera else { return }
-        let filename = cameraFile.name ?? "DSC_0001.NEF"
-        let fileSize = cameraFile.fileSize
+        let filename = cameraFile.name ?? catalogFiles.first(where: { $0.id == compositeID })?.filename ?? "DSC_0001.NEF"
+        let fileSize = cameraFile.fileSize > 0 ? cameraFile.fileSize : (catalogFiles.first(where: { $0.id == compositeID })?.fileSize ?? 0)
         
         // 1. Проверяем, не скачан ли уже файл в текущей сессии
         let alreadyImported = await coordinator.isAssetAlreadyImported(
@@ -186,7 +222,8 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
             cameraFile: cameraFile,
             filename: filename,
             fileSize: fileSize,
-            jobID: job.id
+            jobID: job.id,
+            attempts: job.attempts
         )
         
         let didEnqueue = await transferQueue.enqueue(queueItem)
@@ -217,13 +254,15 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         let cameraFile = itemToProcess.cameraFile
         
         let coordJob = await coordinator.getJob(by: jobID)
-        let targetURL = coordJob?.stagingURL ?? coordJob?.destinationURL
-        guard let safeTargetURL = targetURL else {
-            let next = await transferQueue.markFailed(compositeID: compositeID)
+        guard let validJob = coordJob, !validJob.state.isTerminal else {
+            let next = await transferQueue.cancel(compositeID: compositeID)
+            updateItemStatus(compositeID: compositeID, status: .notImported)
+            await updateQueueCounters()
             await processQueue(item: next)
             return
         }
         
+        let safeTargetURL = validJob.stagingURL ?? validJob.destinationURL
         let destinationDir = safeTargetURL.deletingLastPathComponent()
         let destinationName = safeTargetURL.lastPathComponent
         
@@ -250,20 +289,49 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     
     /// Отмена загрузки
     public func cancelTransfer(jobID: UUID) async {
-        var nextItem: USBQueueItem?
-        if let compositeID = inFlightJobs.first(where: { $0.value == jobID })?.key {
+        // 1. Поиск составного идентификатора: в выполняющихся (in-flight) либо в очереди ожидания (pending)
+        let activeCompositeID = inFlightJobs.first(where: { $0.value == jobID })?.key
+        var compositeID = activeCompositeID
+        if compositeID == nil {
+            compositeID = await transferQueue.findPendingCompositeID(by: jobID)
+        }
+        if compositeID == nil {
+            compositeID = await transferQueue.findCompositeID(by: jobID)
+        }
+        
+        // 2. Всегда уведомляем координатор об отмене задания
+        await coordinator.cancelTransfer(jobID: jobID)
+        
+        guard let targetCompositeID = compositeID else {
+            await updateQueueCounters()
+            return
+        }
+        
+        if activeCompositeID != nil {
+            // Задание выполняется прямо сейчас (в полете):
+            // Помечаем как отменяемое, вызываем физическую отмену ImageCaptureCore на macOS и iOS,
+            // но НЕ сбрасываем активность сразу и НЕ освобождаем слот до завершения колбэка didDownloadFile!
+            cancellingCompositeIDs.insert(targetCompositeID)
+            updateItemStatus(compositeID: targetCompositeID, status: .notImported)
             #if os(macOS)
             connectedCamera?.cancelDownload()
+            #else
+            let cancelSelector = Selector(("cancelDownload"))
+            if let cam = connectedCamera, cam.responds(to: cancelSelector) {
+                cam.perform(cancelSelector)
+            }
             #endif
-            nextItem = await transferQueue.cancel(compositeID: compositeID)
-            inFlightJobs.removeValue(forKey: compositeID)
-            downloadStartTimes.removeValue(forKey: compositeID)
-            self.isDownloading = false
-            updateItemStatus(compositeID: compositeID, status: .notImported)
+            await updateQueueCounters()
+        } else {
+            // Задание находится в очереди ожидания (pending):
+            // Удаляем из очереди, сбрасываем статус, слот не был занят
+            _ = await transferQueue.cancel(compositeID: targetCompositeID)
+            updateItemStatus(compositeID: targetCompositeID, status: .notImported)
+            await updateQueueCounters()
+            if !isDownloading {
+                await processQueue()
+            }
         }
-        await coordinator.cancelTransfer(jobID: jobID)
-        await updateQueueCounters()
-        await processQueue(item: nextItem)
     }
     
     private func updateQueueCounters() async {
@@ -296,6 +364,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         self.cameraFileMap.removeAll()
         self.inFlightJobs.removeAll()
         self.downloadStartTimes.removeAll()
+        self.cancellingCompositeIDs.removeAll()
         self.connectionState = .disconnected
         self.pendingQueueCount = 0
         self.activeTransferCount = 0
@@ -501,6 +570,10 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
             creationDate: file.creationDate
         )
         
+        if cancellingCompositeIDs.contains(compositeID) {
+            return
+        }
+        
         let progress = maxBytes > 0 ? Double(downloadedBytes) / Double(maxBytes) : 0.0
         updateItemStatus(compositeID: compositeID, status: .importing(progress: progress))
         
@@ -527,8 +600,6 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
         options: [String: Any],
         contextInfo: UnsafeMutableRawPointer?
     ) {
-        self.isDownloading = false
-        
         let camID = connectedCamera?.name ?? "nikon"
         let compositeID = CameraFileItem.makeCompositeID(
             cameraID: camID,
@@ -537,42 +608,65 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
             creationDate: file.creationDate
         )
         
-        let startTime = downloadStartTimes.removeValue(forKey: compositeID) ?? Date()
+        var targetCompositeID = compositeID
+        if inFlightJobs[targetCompositeID] == nil {
+            if let matched = inFlightJobs.first(where: { cameraFileMap[$0.key] == file })?.key {
+                targetCompositeID = matched
+            }
+        }
+        
+        let startTime = downloadStartTimes.removeValue(forKey: targetCompositeID) ?? Date()
         let duration = max(Date().timeIntervalSince(startTime), 0.001)
         let fileSize = file.fileSize
-        let jobID = inFlightJobs.removeValue(forKey: compositeID)
+        let jobID = inFlightJobs.removeValue(forKey: targetCompositeID)
+        let isCancelled = cancellingCompositeIDs.remove(targetCompositeID) != nil
         let coord = self.coordinator
         
         Task {
-            if let err = error {
-                let nextItem = await transferQueue.markFailed(compositeID: compositeID)
-                updateItemStatus(compositeID: compositeID, status: .failed(error: err.localizedDescription))
-                if let id = jobID {
-                    await coord.failTransfer(jobID: id, error: .generic(err.localizedDescription))
-                }
+            if isCancelled {
+                let nextItem = await transferQueue.cancel(compositeID: targetCompositeID)
+                updateItemStatus(compositeID: targetCompositeID, status: .notImported)
+                self.isDownloading = false
                 await updateQueueCounters()
                 await processQueue(item: nextItem)
                 return
             }
             
-            let nextItem = await transferQueue.markCompleted(compositeID: compositeID)
+            if let err = error {
+                let nextItem = await transferQueue.markFailed(compositeID: targetCompositeID)
+                updateItemStatus(compositeID: targetCompositeID, status: .failed(error: err.localizedDescription))
+                if let id = jobID {
+                    await coord.failTransfer(jobID: id, error: .generic(err.localizedDescription))
+                }
+                self.isDownloading = false
+                await updateQueueCounters()
+                await processQueue(item: nextItem)
+                return
+            }
+            
+            let nextItem = await transferQueue.markCompleted(compositeID: targetCompositeID)
             
             if let id = jobID {
-                do {
-                    let asset = try await coord.finalizeTransfer(
-                        jobID: id,
-                        actualSize: fileSize,
-                        duration: duration
-                    )
-                    updateItemStatus(compositeID: compositeID, status: .imported)
-                    await MainActor.run {
-                        self.onFileIngested?(IngestedFile(from: asset))
+                if let currentJob = await coord.getJob(by: id), currentJob.state.isTerminal {
+                    updateItemStatus(compositeID: targetCompositeID, status: .notImported)
+                } else {
+                    do {
+                        let asset = try await coord.finalizeTransfer(
+                            jobID: id,
+                            actualSize: fileSize,
+                            duration: duration
+                        )
+                        updateItemStatus(compositeID: targetCompositeID, status: .imported)
+                        await MainActor.run {
+                            self.onFileIngested?(IngestedFile(from: asset))
+                        }
+                    } catch {
+                        updateItemStatus(compositeID: targetCompositeID, status: .failed(error: error.localizedDescription))
                     }
-                } catch {
-                    updateItemStatus(compositeID: compositeID, status: .failed(error: error.localizedDescription))
                 }
             }
             
+            self.isDownloading = false
             await updateQueueCounters()
             await processQueue(item: nextItem)
         }
