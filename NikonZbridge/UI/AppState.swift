@@ -118,6 +118,12 @@ public final class AppState: ObservableObject {
     // Настройки FTP и безопасность (Этап 5)
     @Published public var isFTPReceivingEnabled: Bool
     @Published public var isFTPAutoStartEnabled: Bool
+    @Published public var resumeLastSessionOnLaunch: Bool {
+        didSet {
+            UserDefaults.standard.set(resumeLastSessionOnLaunch, forKey: "nikon_resume_last_session")
+        }
+    }
+    private var isStartupReady = false
     @Published public var ftpUsername: String = "nikon"
     @Published public var ftpPassword: String = ""
     
@@ -629,13 +635,16 @@ public final class AppState: ObservableObject {
     
     public init(
         port: UInt16 = FTPServer.defaultPort,
-        coordinator: TransferCoordinator = .shared
+        coordinator: TransferCoordinator = .shared,
+        resumeLastSessionOnLaunch: Bool? = nil
     ) {
         self.serverPort = port
         self.coordinator = coordinator
         self.server = FTPServer(port: port, coordinator: coordinator)
         
         let defaults = UserDefaults.standard
+        self.resumeLastSessionOnLaunch = resumeLastSessionOnLaunch
+            ?? defaults.bool(forKey: "nikon_resume_last_session")
         let receiving = defaults.object(forKey: "nikon_ftp_receiving_enabled") as? Bool ?? true
         let autostart = defaults.object(forKey: "nikon_ftp_autostart_enabled") as? Bool ?? true
         self.isFTPReceivingEnabled = receiving
@@ -660,7 +669,6 @@ public final class AppState: ObservableObject {
         }
         
         // 2. Инициализация и регистрация USB транспорта
-        usbManager.start()
         usbManager.$isConnected
             .receive(on: DispatchQueue.main)
             .assign(to: &$usbConnected)
@@ -679,15 +687,21 @@ public final class AppState: ObservableObject {
             let ftpAdapter = FTPCameraTransportAdapter(server: server)
             await coordinator.registerTransport(ftpAdapter)
             
-            // 1. Подписка на события координатора ДО bootstrap, чтобы не пропустить onSessionChanged
+            // Не показываем предыдущую съёмку, пока выбирается стартовая сессия.
+            do {
+                try await coordinator.bootstrapForLaunch(resumeLastSession: resumeLastSessionOnLaunch)
+            } catch {
+                diagnosticLogger.log(level: .error, subsystem: "Sessions", message: error.localizedDescription)
+                serverState = .failed("Не удалось подготовить сессию: \(error.localizedDescription)")
+                return
+            }
             await configureCoordinatorCallbacks()
             await configureServerCallbacks()
             
-            // 2. Восстановление сессий, каталога и сверка с диском
-            await coordinator.bootstrap()
-            
             // 3. Явная загрузка восстановленной активной сессии, кадров и очереди в состояние UI
             await syncStateFromCoordinator()
+            isStartupReady = true
+            usbManager.start()
             
             // 4. Настройка FTP сервера
             await server.setReceivingEnabled(isFTPReceivingEnabled)
@@ -981,6 +995,7 @@ public final class AppState: ObservableObject {
     }
     
     public func startServer() {
+        guard isStartupReady else { return }
         Task {
             do {
                 try await server.start()

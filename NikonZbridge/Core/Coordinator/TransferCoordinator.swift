@@ -139,6 +139,14 @@ public actor TransferCoordinator: CameraTransportDelegate {
         onSessionChanged?(self.activeSession)
     }
     
+    /// Восстанавливает историю, затем выбирает сессию для нового запуска приложения.
+    public func bootstrapForLaunch(resumeLastSession: Bool) async throws {
+        await bootstrap()
+        if !resumeLastSession && (!assets.isEmpty || activeSession.isClosed) {
+            _ = try await startNewSession()
+        }
+    }
+
     private func rebuildCaptureGroups() {
         var groupList: [CaptureGroup] = []
         for asset in assets {

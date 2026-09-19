@@ -147,9 +147,6 @@ public struct NikonTetherRootView: View {
             }
             Button("Отмена", role: .cancel) {}
         }
-        .onAppear {
-            appState.startServer()
-        }
     }
     
     // MARK: - Клавиатурные команды iPad

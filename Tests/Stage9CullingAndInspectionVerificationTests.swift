@@ -31,6 +31,9 @@ final class Stage9VerificationSuite {
     }
     
     func runAllTests() async throws {
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
         try await testPickStatusAndGroupCascading()
         try await testCatalogDatabaseMigrationV2AndPersistence()
         try await testTransferCoordinatorBatchAndCullingIntegration()
@@ -43,8 +46,9 @@ final class Stage9VerificationSuite {
     }
     
     // MARK: - Helper to create dummy file
-    private func createDummyFile(named name: String, sizeInBytes: Int) throws -> URL {
-        let url = tempDir.appendingPathComponent(name)
+    private func createDummyFile(named name: String, sizeInBytes: Int, in directory: URL? = nil) throws -> URL {
+        let parent = directory ?? tempDir
+        let url = parent.appendingPathComponent(name)
         let data = Data(repeating: 0x5A, count: max(sizeInBytes, 16))
         try data.write(to: url)
         return url
@@ -54,14 +58,17 @@ final class Stage9VerificationSuite {
     func testPickStatusAndGroupCascading() async throws {
         print("\n[1/8] Тест PickStatus, диапазона рейтинга 0..5 и каскадного обновления RAW+JPG...")
         
+        let test1Dir = tempDir.appendingPathComponent("Test1", isDirectory: true)
+        try FileManager.default.createDirectory(at: test1Dir, withIntermediateDirectories: true)
+        
         // Проверка значений PickStatus
         assert(PickStatus.unflagged.rawValue == 0, "unflagged должен быть 0")
         assert(PickStatus.picked.rawValue == 1, "picked должен быть 1")
         assert(PickStatus.rejected.rawValue == 2, "rejected должен быть 2")
         assert(PickStatus.allCases.count == 3, "Должно быть 3 статуса отбора")
         
-        let rawURL = try createDummyFile(named: "DSC_0100.NEF", sizeInBytes: 25_000_000)
-        let jpgURL = try createDummyFile(named: "DSC_0100.JPG", sizeInBytes: 5_000_000)
+        let rawURL = try createDummyFile(named: "DSC_0100.NEF", sizeInBytes: 25_000_000, in: test1Dir)
+        let jpgURL = try createDummyFile(named: "DSC_0100.JPG", sizeInBytes: 5_000_000, in: test1Dir)
         
         let sessionID = UUID()
         let rawAsset = MediaAsset(sessionID: sessionID, filename: "DSC_0100.NEF", fileURL: rawURL, format: .raw(fileExtension: "NEF"), fileSize: 25_000_000)
@@ -86,7 +93,7 @@ final class Stage9VerificationSuite {
         assert(group.jpegAsset?.pickStatus == PickStatus.picked, "Статус JPEG оригинала должен стать picked")
         
         // Приход третьего файла (например HEIF) позже — должен унаследовать рейтинг и статус группы
-        let heifURL = try createDummyFile(named: "DSC_0100.HIF", sizeInBytes: 3_000_000)
+        let heifURL = try createDummyFile(named: "DSC_0100.HIF", sizeInBytes: 3_000_000, in: test1Dir)
         let heifAsset = MediaAsset(sessionID: sessionID, filename: "DSC_0100.HIF", fileURL: heifURL, format: .heif, fileSize: 3_000_000)
         group.addAsset(heifAsset)
         
@@ -106,13 +113,17 @@ final class Stage9VerificationSuite {
     func testCatalogDatabaseMigrationV2AndPersistence() async throws {
         print("\n[2/8] Тест миграции v2 SQLite каталога и сохранения рейтинга/флагов...")
         
-        let dbURL = tempDir.appendingPathComponent("catalog_test.sqlite")
+        let test2Dir = tempDir.appendingPathComponent("Test2", isDirectory: true)
+        try FileManager.default.createDirectory(at: test2Dir, withIntermediateDirectories: true)
+        let dbURL = test2Dir.appendingPathComponent("catalog_test.sqlite")
         let db = CatalogDatabase(customDatabaseURL: dbURL)
         
-        let session = CaptureSession(name: "Test Session", folderURL: tempDir)
+        let sessionFolder = test2Dir.appendingPathComponent("TestSession", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionFolder, withIntermediateDirectories: true)
+        let session = CaptureSession(name: "Test Session", folderURL: sessionFolder)
         await db.upsertSession(session)
         
-        let fileURL = try createDummyFile(named: "DSC_0200.NEF", sizeInBytes: 1024)
+        let fileURL = try createDummyFile(named: "DSC_0200.NEF", sizeInBytes: 1024, in: sessionFolder)
         let asset = MediaAsset(
             sessionID: session.id,
             filename: "DSC_0200.NEF",
@@ -142,7 +153,7 @@ final class Stage9VerificationSuite {
         assert(loaded[0].pickStatus == PickStatus.rejected, "Статус должен обновиться до .rejected")
         
         // Добавим второй ассет и проверим пакетное обновление
-        let fileURL2 = try createDummyFile(named: "DSC_0201.NEF", sizeInBytes: 1024)
+        let fileURL2 = try createDummyFile(named: "DSC_0201.NEF", sizeInBytes: 1024, in: sessionFolder)
         let asset2 = MediaAsset(
             sessionID: session.id,
             filename: "DSC_0201.NEF",
@@ -170,14 +181,20 @@ final class Stage9VerificationSuite {
     func testTransferCoordinatorBatchAndCullingIntegration() async throws {
         print("\n[3/8] Тест TransferCoordinator: синхронизация оценок в памяти и каталоге...")
         
-        let dbURL = tempDir.appendingPathComponent("coord_test.sqlite")
+        let test3Dir = tempDir.appendingPathComponent("Test3", isDirectory: true)
+        try FileManager.default.createDirectory(at: test3Dir, withIntermediateDirectories: true)
+        let dbURL = test3Dir.appendingPathComponent("coord_test.sqlite")
         let db = CatalogDatabase(customDatabaseURL: dbURL)
+        let storage = StorageManager(customBaseURL: test3Dir)
         
-        let session = CaptureSession(name: "CullingSession", folderURL: tempDir)
+        let sessionFolder = storage.baseStorageURL.appendingPathComponent("CullingSession", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionFolder, withIntermediateDirectories: true)
+        
+        let session = CaptureSession(name: "CullingSession", folderURL: sessionFolder, isActive: true)
         await db.upsertSession(session, isActive: true)
         
-        let nefURL = try createDummyFile(named: "DSC_0300.NEF", sizeInBytes: 2000)
-        let jpgURL = try createDummyFile(named: "DSC_0300.JPG", sizeInBytes: 1000)
+        let nefURL = try createDummyFile(named: "DSC_0300.NEF", sizeInBytes: 2000, in: sessionFolder)
+        let jpgURL = try createDummyFile(named: "DSC_0300.JPG", sizeInBytes: 1000, in: sessionFolder)
         
         let rawAsset = MediaAsset(sessionID: session.id, filename: "DSC_0300.NEF", fileURL: nefURL, format: .raw(fileExtension: "NEF"), fileSize: 2000)
         let jpgAsset = MediaAsset(sessionID: session.id, filename: "DSC_0300.JPG", fileURL: jpgURL, format: .jpeg, fileSize: 1000)
@@ -185,7 +202,7 @@ final class Stage9VerificationSuite {
         await db.upsertAsset(rawAsset)
         await db.upsertAsset(jpgAsset)
         
-        let coordinator = TransferCoordinator(database: db)
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
         await coordinator.bootstrap()
         
         let groups = await coordinator.captureGroups
@@ -223,12 +240,17 @@ final class Stage9VerificationSuite {
     func testGalleryFilteringAndSortingInAppState() async throws {
         print("\n[4/8] Тест фильтрации по звездам/флагам и сортировок в AppState...")
         
-        let appState = AppState()
+        let test4Dir = tempDir.appendingPathComponent("Test4", isDirectory: true)
+        try FileManager.default.createDirectory(at: test4Dir, withIntermediateDirectories: true)
+        let storage4 = StorageManager(customBaseURL: test4Dir)
+        let db4 = CatalogDatabase(customDatabaseURL: test4Dir.appendingPathComponent("db.sqlite"))
+        let coord4 = TransferCoordinator(storageManager: storage4, database: db4)
+        let appState = AppState(coordinator: coord4)
         
         let now = Date()
-        let file1 = try createDummyFile(named: "DSC_0001.JPG", sizeInBytes: 10_000_000)
-        let file2 = try createDummyFile(named: "DSC_0002.JPG", sizeInBytes: 25_000_000)
-        let file3 = try createDummyFile(named: "DSC_0003.JPG", sizeInBytes: 5_000_000)
+        let file1 = try createDummyFile(named: "DSC_0001.JPG", sizeInBytes: 10_000_000, in: test4Dir)
+        let file2 = try createDummyFile(named: "DSC_0002.JPG", sizeInBytes: 25_000_000, in: test4Dir)
+        let file3 = try createDummyFile(named: "DSC_0003.JPG", sizeInBytes: 5_000_000, in: test4Dir)
         
         let a1 = MediaAsset(sessionID: UUID(), filename: "DSC_0001.JPG", fileURL: file1, format: .jpeg, fileSize: 10_000_000, receivedAt: now.addingTimeInterval(-100), rating: 5, pickStatus: .picked)
         let a2 = MediaAsset(sessionID: UUID(), filename: "DSC_0002.JPG", fileURL: file2, format: .jpeg, fileSize: 25_000_000, receivedAt: now.addingTimeInterval(-50), rating: 3, pickStatus: .unflagged)
@@ -292,10 +314,16 @@ final class Stage9VerificationSuite {
     func testMultiSelectionAndBatchOperationsInAppState() async throws {
         print("\n[5/8] Тест режима множественного выбора и массовых операций...")
         
-        let appState = AppState()
-        let file1 = try createDummyFile(named: "DSC_0010.JPG", sizeInBytes: 1000)
-        let file2 = try createDummyFile(named: "DSC_0011.JPG", sizeInBytes: 1000)
-        let file3 = try createDummyFile(named: "DSC_0012.JPG", sizeInBytes: 1000)
+        let test5Dir = tempDir.appendingPathComponent("Test5", isDirectory: true)
+        try FileManager.default.createDirectory(at: test5Dir, withIntermediateDirectories: true)
+        let storage5 = StorageManager(customBaseURL: test5Dir)
+        let db5 = CatalogDatabase(customDatabaseURL: test5Dir.appendingPathComponent("db.sqlite"))
+        let coord5 = TransferCoordinator(storageManager: storage5, database: db5)
+        let appState = AppState(coordinator: coord5)
+        
+        let file1 = try createDummyFile(named: "DSC_0010.JPG", sizeInBytes: 1000, in: test5Dir)
+        let file2 = try createDummyFile(named: "DSC_0011.JPG", sizeInBytes: 1000, in: test5Dir)
+        let file3 = try createDummyFile(named: "DSC_0012.JPG", sizeInBytes: 1000, in: test5Dir)
         
         let g1 = CaptureGroup(asset: MediaAsset(sessionID: UUID(), filename: "DSC_0010.JPG", fileURL: file1, format: .jpeg, fileSize: 1000))
         let g2 = CaptureGroup(asset: MediaAsset(sessionID: UUID(), filename: "DSC_0011.JPG", fileURL: file2, format: .jpeg, fileSize: 1000))
@@ -342,8 +370,14 @@ final class Stage9VerificationSuite {
     func testInspectionPauseOnIncomingTetheredFrames() async throws {
         print("\n[6/8] Тест приостановки автопереключения просмотрщика во время инспекции...")
         
-        let appState = AppState()
-        let file1 = try createDummyFile(named: "DSC_0020.JPG", sizeInBytes: 1000)
+        let test6Dir = tempDir.appendingPathComponent("Test6", isDirectory: true)
+        try FileManager.default.createDirectory(at: test6Dir, withIntermediateDirectories: true)
+        let storage6 = StorageManager(customBaseURL: test6Dir)
+        let db6 = CatalogDatabase(customDatabaseURL: test6Dir.appendingPathComponent("db.sqlite"))
+        let coord6 = TransferCoordinator(storageManager: storage6, database: db6)
+        let appState = AppState(coordinator: coord6)
+        
+        let file1 = try createDummyFile(named: "DSC_0020.JPG", sizeInBytes: 1000, in: test6Dir)
         let g1 = CaptureGroup(asset: MediaAsset(sessionID: UUID(), filename: "DSC_0020.JPG", fileURL: file1, format: .jpeg, fileSize: 1000))
         
         appState.captureGroups = [g1]
@@ -352,7 +386,7 @@ final class Stage9VerificationSuite {
         
         // 1. Когда пользователь НЕ инспектирует (isUserInspecting = false)
         appState.isUserInspecting = false
-        let file2 = try createDummyFile(named: "DSC_0021.JPG", sizeInBytes: 1000)
+        let file2 = try createDummyFile(named: "DSC_0021.JPG", sizeInBytes: 1000, in: test6Dir)
         let g2 = CaptureGroup(asset: MediaAsset(sessionID: UUID(), filename: "DSC_0021.JPG", fileURL: file2, format: .jpeg, fileSize: 1000))
         
         appState.handleCaptureGroupUpdated(g2)
@@ -362,7 +396,7 @@ final class Stage9VerificationSuite {
         // 2. Пользователь начинает инспекцию кадра g2 (зум / пан / сравнение)
         appState.isUserInspecting = true
         
-        let file3 = try createDummyFile(named: "DSC_0022.JPG", sizeInBytes: 1000)
+        let file3 = try createDummyFile(named: "DSC_0022.JPG", sizeInBytes: 1000, in: test6Dir)
         let g3 = CaptureGroup(asset: MediaAsset(sessionID: UUID(), filename: "DSC_0022.JPG", fileURL: file3, format: .jpeg, fileSize: 1000))
         
         appState.handleCaptureGroupUpdated(g3)
@@ -434,9 +468,15 @@ final class Stage9VerificationSuite {
     func testCompareViewSynchronizationAndSwapping() async throws {
         print("\n[8/8] Тест CompareView: синхронное масштабирование и обмен кадров...")
         
-        let appState = AppState()
-        let fileA = try createDummyFile(named: "DSC_0030.JPG", sizeInBytes: 1000)
-        let fileB = try createDummyFile(named: "DSC_0031.JPG", sizeInBytes: 1000)
+        let test8Dir = tempDir.appendingPathComponent("Test8", isDirectory: true)
+        try FileManager.default.createDirectory(at: test8Dir, withIntermediateDirectories: true)
+        let storage8 = StorageManager(customBaseURL: test8Dir)
+        let db8 = CatalogDatabase(customDatabaseURL: test8Dir.appendingPathComponent("db.sqlite"))
+        let coord8 = TransferCoordinator(storageManager: storage8, database: db8)
+        let appState = AppState(coordinator: coord8)
+        
+        let fileA = try createDummyFile(named: "DSC_0030.JPG", sizeInBytes: 1000, in: test8Dir)
+        let fileB = try createDummyFile(named: "DSC_0031.JPG", sizeInBytes: 1000, in: test8Dir)
         
         let groupA = CaptureGroup(asset: MediaAsset(sessionID: UUID(), filename: "DSC_0030.JPG", fileURL: fileA, format: .jpeg, fileSize: 1000, rating: 2, pickStatus: .unflagged))
         let groupB = CaptureGroup(asset: MediaAsset(sessionID: UUID(), filename: "DSC_0031.JPG", fileURL: fileB, format: .jpeg, fileSize: 1000, rating: 4, pickStatus: .picked))
@@ -506,7 +546,8 @@ final class Stage9VerificationSuite {
         
         // 2. Инициализируем координатор и AppState
         let coordinator = TransferCoordinator(storageManager: storage, database: db)
-        let appState = AppState(coordinator: coordinator)
+        await coordinator.bootstrap()
+        let appState = AppState(coordinator: coordinator, resumeLastSessionOnLaunch: true)
         
         // Вызываем синхронизацию восстановленного состояния координатора в AppState
         await appState.syncStateFromCoordinator()

@@ -25,6 +25,9 @@ final class Stage2And3VerificationSuite {
     }
     
     func runAllTests() async throws {
+        defer {
+            try? FileManager.default.removeItem(at: tempBaseURL)
+        }
         try await testTemporaryStagingAndAtomicMove()
         try await testNameCollisionResolutionWithoutOverwrite()
         try await testFilenameSanitizationAndPathTraversalDefense()
@@ -482,8 +485,9 @@ final class Stage2And3VerificationSuite {
         assert(FileManager.default.fileExists(atPath: file2URL.path), "Файл session2 ОБЯЗАН сохраниться на диске и не быть удаленным!")
         
         // 6. Проверка защитного механизма deleteSessionDirectory:
-        // Если две сессии когда-либо ссылаются на одну и ту же папку, удаление одной не должно удалять общую папку
-        let sharedFolder = tempBaseURL.appendingPathComponent("SharedDangerFolder", isDirectory: true)
+        // Если две сессии когда-либо ссылаются на одну и ту же папку внутри baseStorageURL,
+        // удаление одной не должно удалять общую папку, а удаление последней должно удалить её.
+        let sharedFolder = storage.baseStorageURL.appendingPathComponent("SharedDangerFolder", isDirectory: true)
         try FileManager.default.createDirectory(at: sharedFolder, withIntermediateDirectories: true)
         let dangerFile = sharedFolder.appendingPathComponent("important.nef")
         try dummyData.write(to: dangerFile)
@@ -502,6 +506,20 @@ final class Stage2And3VerificationSuite {
         try await storage.deleteSessionDirectory(sessionID: sessionSharedB.id, activeJobCount: 0)
         assert(!FileManager.default.fileExists(atPath: sharedFolder.path), "После удаления последней сессии папка должна быть удалена")
         
-        print("  ✓ Изоляция папок при одинаковых названиях и защита от удаления подтверждены")
+        // 7. Отдельный сценарий: папка за пределами baseStorageURL и ее содержимое защищены от удаления
+        let outsideFolder = tempBaseURL.appendingPathComponent("OutsideDangerFolder", isDirectory: true)
+        try FileManager.default.createDirectory(at: outsideFolder, withIntermediateDirectories: true)
+        let outsideFile = outsideFolder.appendingPathComponent("outside_important.nef")
+        try dummyData.write(to: outsideFile)
+        
+        let sessionOutside = CaptureSession(name: "OutsideSession", folderURL: outsideFolder)
+        await storage.registerSession(sessionOutside)
+        
+        // Удаляем сессию sessionOutside: защита границ хранилища не должна позволить удалить внешнюю папку и файлы
+        try await storage.deleteSessionDirectory(sessionID: sessionOutside.id, activeJobCount: 0)
+        assert(FileManager.default.fileExists(atPath: outsideFolder.path), "Папка вне baseStorageURL НЕ должна быть удалена защитным барьером путей!")
+        assert(FileManager.default.fileExists(atPath: outsideFile.path), "Файлы в папке вне baseStorageURL НЕ должны быть повреждены!")
+        
+        print("  ✓ Изоляция папок при одинаковых названиях, защита общих папок и защита путей вне хранилища подтверждены")
     }
 }

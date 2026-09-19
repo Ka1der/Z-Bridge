@@ -41,6 +41,15 @@ public struct ConnectionSheetView: View {
                 VStack(spacing: 20) {
                     // 1. Статус подключения
                     statusCard
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Продолжать последнюю сессию при запуске", isOn: $appState.resumeLastSessionOnLaunch)
+                        Text("Если выключено, приложение открывает пустую сессию. Предыдущие снимки остаются в истории съёмок. Изменение применяется при следующем запуске.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    .background(Color(white: 0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
                     
                     // Мастер подключения и совместимость (Этап 7)
                     VStack(spacing: 10) {
