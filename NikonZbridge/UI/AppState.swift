@@ -678,16 +678,21 @@ public final class AppState: ObservableObject {
             await coordinator.registerTransport(usbManager)
             let ftpAdapter = FTPCameraTransportAdapter(server: server)
             await coordinator.registerTransport(ftpAdapter)
-            await coordinator.bootstrap()
             
-            // Настройка FTP сервера
-            await server.setReceivingEnabled(isFTPReceivingEnabled)
-            
-            // Подписка на события координатора
+            // 1. Подписка на события координатора ДО bootstrap, чтобы не пропустить onSessionChanged
             await configureCoordinatorCallbacks()
             await configureServerCallbacks()
             
-            // Автозапуск FTP если включено в настройках
+            // 2. Восстановление сессий, каталога и сверка с диском
+            await coordinator.bootstrap()
+            
+            // 3. Явная загрузка восстановленной активной сессии, кадров и очереди в состояние UI
+            await syncStateFromCoordinator()
+            
+            // 4. Настройка FTP сервера
+            await server.setReceivingEnabled(isFTPReceivingEnabled)
+            
+            // 5. Автозапуск FTP если включено в настройках
             if isFTPAutoStartEnabled && isFTPReceivingEnabled {
                 startServer()
             }
@@ -700,6 +705,39 @@ public final class AppState: ObservableObject {
             return hosting
         }
         #endif
+    }
+    
+    /// Синхронизация текущего состояния координатора (сессия, кадры, группы, очереди) в главное состояние UI
+    @MainActor
+    public func syncStateFromCoordinator() async {
+        let active = await coordinator.activeSession
+        let all = await coordinator.allSessions
+        let assets = await coordinator.assets
+        let groups = await coordinator.captureGroups
+        let relevantJobs = await coordinator.jobs.values.filter { !$0.state.isTerminal || $0.sessionID == active.id }
+        let totalBytes = assets.reduce(0, { $0 + $1.fileSize })
+        
+        self.currentSession = active
+        self.availableSessions = all
+        self.sessionAuthor = active.author ?? ""
+        self.sessionCopyright = active.copyright ?? ""
+        self.sessionComment = active.comment ?? ""
+        self.receivedFiles = assets.map { IngestedFile(from: $0) }
+        self.captureGroups = groups
+        self.activeJobs = Array(relevantJobs)
+        self.totalBytesTransferred = totalBytes
+        
+        if let selFile = self.selectedFile {
+            self.selectedFile = self.receivedFiles.first(where: { $0.id == selFile.id }) ?? self.receivedFiles.first
+        } else {
+            self.selectedFile = self.receivedFiles.first
+        }
+        
+        if let selGroup = self.selectedGroup {
+            self.selectedGroup = groups.first(where: { $0.id == selGroup.id }) ?? groups.first
+        } else {
+            self.selectedGroup = groups.first
+        }
     }
     
     private func configureCoordinatorCallbacks() async {
@@ -736,12 +774,18 @@ public final class AppState: ObservableObject {
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
                     self.currentSession = session
+                    self.sessionAuthor = session.author ?? ""
+                    self.sessionCopyright = session.copyright ?? ""
+                    self.sessionComment = session.comment ?? ""
                     let assets = await self.coordinator.assets
                     let groups = await self.coordinator.captureGroups
                     let all = await self.coordinator.allSessions
+                    let relevantJobs = await self.coordinator.jobs.values.filter { !$0.state.isTerminal || $0.sessionID == session.id }
                     self.availableSessions = all
                     self.receivedFiles = assets.map { IngestedFile(from: $0) }
                     self.captureGroups = groups
+                    self.activeJobs = Array(relevantJobs)
+                    self.totalBytesTransferred = assets.reduce(0, { $0 + $1.fileSize })
                     if let selFile = self.selectedFile {
                         self.selectedFile = self.receivedFiles.first(where: { $0.id == selFile.id }) ?? self.receivedFiles.first
                     } else {
@@ -800,6 +844,7 @@ public final class AppState: ObservableObject {
             do {
                 let session = try await coordinator.startNewSession(named: name)
                 let all = await coordinator.allSessions
+                let nonTerminalJobs = await coordinator.jobs.values.filter { !$0.state.isTerminal }
                 await MainActor.run {
                     self.currentSession = session
                     self.availableSessions = all
@@ -811,6 +856,7 @@ public final class AppState: ObservableObject {
                     self.selectedGroup = nil
                     self.selectedFile = nil
                     self.totalBytesTransferred = 0
+                    self.activeJobs = Array(nonTerminalJobs)
                 }
             } catch {
                 print("Error starting new session: \(error)")
@@ -824,6 +870,7 @@ public final class AppState: ObservableObject {
                 let all = await coordinator.allSessions
                 let assets = await coordinator.assets
                 let groups = await coordinator.captureGroups
+                let relevantJobs = await coordinator.jobs.values.filter { !$0.state.isTerminal || $0.sessionID == sessionID }
                 await MainActor.run {
                     self.currentSession = switched
                     self.availableSessions = all
@@ -835,6 +882,7 @@ public final class AppState: ObservableObject {
                     self.selectedGroup = groups.first
                     self.selectedFile = self.receivedFiles.first
                     self.totalBytesTransferred = assets.reduce(0, { $0 + $1.fileSize })
+                    self.activeJobs = Array(relevantJobs)
                 }
             }
         }

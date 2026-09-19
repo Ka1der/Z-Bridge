@@ -8,6 +8,65 @@ public struct DataTransferResult: Sendable {
     public let averageSpeedMBs: Double
 }
 
+/// Потокобезопасная обертка для CheckedContinuation с защитой от повторного возобновления
+private final class SafeContinuationBox<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T, Error>?
+    private var isResolved = false
+    private var pendingResult: Result<T, Error>?
+    
+    func setContinuation(_ continuation: CheckedContinuation<T, Error>) {
+        lock.lock()
+        if isResolved {
+            if let result = pendingResult {
+                pendingResult = nil
+                lock.unlock()
+                continuation.resume(with: result)
+            } else {
+                lock.unlock()
+                continuation.resume(throwing: CancellationError())
+            }
+            return
+        }
+        self.continuation = continuation
+        lock.unlock()
+    }
+    
+    func resume(returning value: T) {
+        lock.lock()
+        guard !isResolved else {
+            lock.unlock()
+            return
+        }
+        isResolved = true
+        let cont = self.continuation
+        self.continuation = nil
+        if cont == nil {
+            pendingResult = .success(value)
+        }
+        lock.unlock()
+        
+        cont?.resume(returning: value)
+    }
+    
+    func resume(throwing error: Error) {
+        lock.lock()
+        guard !isResolved else {
+            lock.unlock()
+            return
+        }
+        isResolved = true
+        let cont = self.continuation
+        self.continuation = nil
+        if cont == nil {
+            pendingResult = .failure(error)
+        }
+        lock.unlock()
+        
+        cont?.resume(throwing: error)
+    }
+}
+
 /// Управляет каналом передачи данных (Passive Mode / EPSV) с контролем свободного места и строгой изоляцией сетевых ошибок
 public actor FTPDataChannel {
     private var listener: NWListener?
@@ -17,7 +76,7 @@ public actor FTPDataChannel {
     private var expectedRemoteIP: String?
     
     public private(set) var listeningPort: UInt16 = 0
-    private var connectionContinuation: CheckedContinuation<NWConnection, Error>?
+    private var connectionBox: SafeContinuationBox<NWConnection>?
     
     public init(diskGuard: DiskSpaceGuard = DiskSpaceGuard()) {
         self.diskGuard = diskGuard
@@ -41,30 +100,18 @@ public actor FTPDataChannel {
             }
         }
         
-        final class ResumedBox: @unchecked Sendable {
-            private let lock = NSLock()
-            private var resumed = false
-            func tryResume() -> Bool {
-                lock.lock()
-                defer { lock.unlock() }
-                guard !resumed else { return false }
-                resumed = true
-                return true
-            }
-        }
-        let box = ResumedBox()
+        let box = SafeContinuationBox<UInt16>()
         
         let port: UInt16 = try await withCheckedThrowingContinuation { continuation in
+            box.setContinuation(continuation)
             nwListener.stateUpdateHandler = { state in
                 switch state {
                 case .ready:
-                    if let p = nwListener.port?.rawValue, box.tryResume() {
-                        continuation.resume(returning: p)
+                    if let p = nwListener.port?.rawValue {
+                        box.resume(returning: p)
                     }
                 case .failed(let error):
-                    if box.tryResume() {
-                        continuation.resume(throwing: error)
-                    }
+                    box.resume(throwing: error)
                 default:
                     break
                 }
@@ -95,8 +142,10 @@ public actor FTPDataChannel {
         
         self.activeConnection = connection
         connection.start(queue: queue)
-        connectionContinuation?.resume(returning: connection)
-        connectionContinuation = nil
+        if let box = self.connectionBox {
+            box.resume(returning: connection)
+            self.connectionBox = nil
+        }
     }
     
     /// Ожидание подключения камеры к каналу данных с таймаутом и гарантированной отменой
@@ -105,12 +154,17 @@ public actor FTPDataChannel {
             return conn
         }
         
+        let box = SafeContinuationBox<NWConnection>()
+        self.connectionBox = box
+        
         return try await withThrowingTaskGroup(of: NWConnection.self) { group in
             group.addTask {
-                try await withCheckedThrowingContinuation { continuation in
-                    Task {
-                        await self.setConnectionContinuation(continuation)
+                try await withTaskCancellationHandler {
+                    try await withCheckedThrowingContinuation { continuation in
+                        box.setContinuation(continuation)
                     }
+                } onCancel: {
+                    box.resume(throwing: CancellationError())
                 }
             }
             
@@ -122,40 +176,42 @@ public actor FTPDataChannel {
             do {
                 let result = try await group.next()!
                 group.cancelAll()
+                self.connectionBox = nil
                 return result
             } catch {
                 group.cancelAll()
-                self.cancelConnectionContinuation()
+                box.resume(throwing: CancellationError())
+                self.connectionBox = nil
                 throw error
             }
         }
     }
     
-    private func setConnectionContinuation(_ continuation: CheckedContinuation<NWConnection, Error>) {
-        if let conn = activeConnection {
-            continuation.resume(returning: conn)
-        } else {
-            self.connectionContinuation = continuation
-        }
-    }
-    
-    private func cancelConnectionContinuation() {
-        connectionContinuation?.resume(throwing: CancellationError())
-        connectionContinuation = nil
-    }
-    
-    /// Чтение порции данных с ограничением по времени простоя
-    private func receiveChunkWithTimeout(from connection: NWConnection, timeoutSeconds: Double = 15.0) async throws -> (Data?, Bool) {
-        try await withThrowingTaskGroup(of: (Data?, Bool).self) { group in
+    /// Чтение порции данных с ограничением по времени простоя и гарантированной отменой сетевого ожидания
+    internal func receiveChunkWithTimeout(from connection: NWConnection, timeoutSeconds: Double = 15.0) async throws -> (Data?, Bool) {
+        let box = SafeContinuationBox<(Data?, Bool)>()
+        
+        return try await withThrowingTaskGroup(of: (Data?, Bool).self) { group in
             group.addTask {
-                try await withCheckedThrowingContinuation { continuation in
-                    connection.receive(minimumIncompleteLength: 1, maximumLength: 262144) { data, _, isComplete, error in
-                        if let error = error {
-                            continuation.resume(throwing: error)
-                        } else {
-                            continuation.resume(returning: (data, isComplete))
+                try await withTaskCancellationHandler {
+                    try await withCheckedThrowingContinuation { continuation in
+                        box.setContinuation(continuation)
+                        if Task.isCancelled {
+                            connection.cancel()
+                            box.resume(throwing: CancellationError())
+                            return
+                        }
+                        connection.receive(minimumIncompleteLength: 1, maximumLength: 262144) { data, _, isComplete, error in
+                            if let error = error {
+                                box.resume(throwing: error)
+                            } else {
+                                box.resume(returning: (data, isComplete))
+                            }
                         }
                     }
+                } onCancel: {
+                    connection.cancel()
+                    box.resume(throwing: CancellationError())
                 }
             }
             
@@ -170,6 +226,8 @@ public actor FTPDataChannel {
                 return result
             } catch {
                 group.cancelAll()
+                connection.cancel()
+                box.resume(throwing: CancellationError())
                 throw error
             }
         }
@@ -247,7 +305,8 @@ public actor FTPDataChannel {
     
     /// Остановка и освобождение порта
     public func stop() {
-        cancelConnectionContinuation()
+        connectionBox?.resume(throwing: CancellationError())
+        connectionBox = nil
         activeConnection?.cancel()
         activeConnection = nil
         listener?.cancel()

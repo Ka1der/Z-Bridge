@@ -39,6 +39,7 @@ final class Stage9VerificationSuite {
         try await testInspectionPauseOnIncomingTetheredFrames()
         try await testZoomAndPanCalculationsAnd100PercentView()
         try await testCompareViewSynchronizationAndSwapping()
+        try await testRestoredCatalogLoadedIntoAppStateAtStartup()
     }
     
     // MARK: - Helper to create dummy file
@@ -473,5 +474,52 @@ final class Stage9VerificationSuite {
         assert(scaleA == scaleB && scaleA == 2.4, "Синхронизированный масштаб должен быть идентичным на обеих панелях")
         
         print("  ✓ Синхронная блокировка масштаба/смещения и обмен местами работают стабильно")
+    }
+    
+    // MARK: - 9. Тест загрузки восстановленного каталога в UI AppState при запуске
+    @MainActor
+    func testRestoredCatalogLoadedIntoAppStateAtStartup() async throws {
+        print("\n[9/9] Тест загрузки восстановленного каталога в UI AppState при запуске...")
+        
+        let customBaseURL = tempDir.appendingPathComponent("AppBootstrapTest", isDirectory: true)
+        let dbURL = customBaseURL.appendingPathComponent("catalog.sqlite")
+        try FileManager.default.createDirectory(at: customBaseURL, withIntermediateDirectories: true)
+        
+        let db = CatalogDatabase(customDatabaseURL: dbURL)
+        let storage = StorageManager(customBaseURL: customBaseURL)
+        
+        // 1. Создаем сохраненную сессию с файлами в базе данных (имитация предыдущего сеанса работы)
+        let sessionFolder = storage.baseStorageURL.appendingPathComponent("StudioPortrait", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionFolder, withIntermediateDirectories: true)
+        let session = CaptureSession(name: "StudioPortrait", folderURL: sessionFolder, isActive: true)
+        await db.upsertSession(session, isActive: true)
+        
+        let file1 = sessionFolder.appendingPathComponent("DSC_0001.NEF")
+        let file2 = sessionFolder.appendingPathComponent("DSC_0001.JPG")
+        try Data([0x49, 0x49, 0x2A, 0x00]).write(to: file1)
+        try Data([0xFF, 0xD8, 0xFF, 0xE0]).write(to: file2)
+        
+        let asset1 = MediaAsset(sessionID: session.id, filename: "DSC_0001.NEF", fileURL: file1, format: .raw(fileExtension: "nef"), fileSize: 4000)
+        let asset2 = MediaAsset(sessionID: session.id, filename: "DSC_0001.JPG", fileURL: file2, format: .jpeg, fileSize: 1000)
+        await db.upsertAsset(asset1)
+        await db.upsertAsset(asset2)
+        
+        // 2. Инициализируем координатор и AppState
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        let appState = AppState(coordinator: coordinator)
+        
+        // Вызываем синхронизацию восстановленного состояния координатора в AppState
+        await appState.syncStateFromCoordinator()
+        
+        // 3. Проверяем, что восстановленная сессия и кадры загрузились в UI
+        assert(appState.currentSession?.id == session.id, "Активная сессия должна соответствовать восстановленной")
+        assert(appState.currentSession?.name == "StudioPortrait", "Имя сессии должно быть StudioPortrait")
+        assert(appState.receivedFiles.count == 2, "В UI должны загрузиться 2 восстановленных файла, получено: \(appState.receivedFiles.count)")
+        assert(appState.captureGroups.count == 1, "Должна быть сформирована 1 группа RAW+JPG, получено: \(appState.captureGroups.count)")
+        assert(appState.selectedFile != nil, "Должен быть выбран первый файл")
+        assert(appState.selectedGroup != nil, "Должна быть выбрана первая группа")
+        assert(appState.totalBytesTransferred == 5000, "Общий объем должен составлять 5000 байт")
+        
+        print("  ✓ Восстановленный каталог, активная сессия, кадры и группы успешно загружены в UI AppState при запуске")
     }
 }

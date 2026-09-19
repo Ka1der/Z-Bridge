@@ -174,7 +174,9 @@ public actor TransferCoordinator: CameraTransportDelegate {
         self.allSessions = await database.getAllSessions()
         self.assets.removeAll()
         self.captureGroups.removeAll()
-        self.jobs.removeAll()
+        // Сохраняем незавершенные (pending, inProgress, verifying) задания других сессий,
+        // чтобы ожидающие USB/FTP переносы не теряли назначение, а сессии были защищены от удаления
+        self.jobs = self.jobs.filter { !$0.value.state.isTerminal }
         
         onSessionChanged?(newSession)
         return newSession
@@ -320,7 +322,8 @@ public actor TransferCoordinator: CameraTransportDelegate {
         
         assets.removeAll()
         captureGroups.removeAll()
-        jobs.removeAll()
+        // Удаляем задания только очищаемой активной сессии
+        self.jobs = self.jobs.filter { $0.value.sessionID != activeSession.id }
     }
     
     /// Полное удаление сессии с диска и из базы данных (с защитой активных заданий)
@@ -332,6 +335,9 @@ public actor TransferCoordinator: CameraTransportDelegate {
         
         try await storageManager.deleteSessionDirectory(sessionID: id, activeJobCount: activeJobCount)
         await database.deleteSession(id: id)
+        
+        // Удаляем задания удаленной сессии из памяти
+        self.jobs = self.jobs.filter { $0.value.sessionID != id }
         
         self.allSessions = await database.getAllSessions()
         if activeSession.id == id {
@@ -417,6 +423,14 @@ public actor TransferCoordinator: CameraTransportDelegate {
     /// Получение множества идентификаторов уже импортированных файлов активной сессии
     public func getImportedSourceFileIDs() async -> Set<String> {
         await database.getImportedSourceFileIDs(for: activeSession.id)
+    }
+    
+    /// Получение задания переноса из оперативной памяти или из базы данных SQLite
+    public func getJob(by id: UUID) async -> TransferJob? {
+        if let j = jobs[id] {
+            return j
+        }
+        return await database.getJob(id: id)
     }
     
     /// Создание задания переноса для входящего файла с безопасным staging-путем и контролем места

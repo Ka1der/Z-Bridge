@@ -182,9 +182,9 @@ final class Stage2And3VerificationSuite {
         }
     }
     
-    // MARK: - 5. Защита активных заданий при очистке/удалении сессии
+    // MARK: - 5. Защита активных заданий при очистке/удалении сессии и создании новой съемки
     func testActiveJobProtectionDuringSessionClear() async throws {
-        print("\n[5/9] Тест защиты активных заданий от удаления сессии...")
+        print("\n[5/10] Тест защиты активных заданий от удаления сессии и их сохранения при startNewSession...")
         
         let db = CatalogDatabase(customDatabaseURL: dbURL)
         let storage = StorageManager(customBaseURL: tempBaseURL)
@@ -192,9 +192,13 @@ final class Stage2And3VerificationSuite {
         await coordinator.bootstrap()
         
         let source = CameraSource(id: "cam-active", model: "Nikon Z f", transportType: .usb)
-        let activeJob = try await coordinator.createTransferJob(source: source, filename: "IN_FLIGHT.NEF")
-        // Задание находится в состоянии .pending (не терминальное)
+        let sessionA = await coordinator.activeSession
         
+        // 1. Создаем задание переноса в sessionA
+        let activeJob = try await coordinator.createTransferJob(source: source, filename: "IN_FLIGHT.NEF")
+        assert(!activeJob.state.isTerminal, "Задание должно быть нетерминальным (.pending)")
+        
+        // Попытка очистить активную сессию с выполняющимся заданием должна блокироваться
         do {
             try await coordinator.clearActiveSession()
             assertionFailure("Очистка сессии с активным заданием должна блокироваться!")
@@ -202,12 +206,35 @@ final class Stage2And3VerificationSuite {
             print("  ✓ Очистка сессии с активным заданием успешно заблокирована: \(error.localizedDescription)")
         }
         
-        // Отменяем задание
-        await coordinator.cancelTransfer(jobID: activeJob.id)
+        // 2. Создаем новую сессию (startNewSession)
+        let sessionB = try await coordinator.startNewSession(named: "Session_B_Live")
+        assert(sessionB.id != sessionA.id, "Должна быть создана новая сессия")
         
-        // Теперь очистка должна пройти успешно
-        try await coordinator.clearActiveSession()
-        print("  ✓ После завершения задания сессия успешно очищена")
+        // ВАЖНО: Проверяем, что незавершенное задание sessionA НЕ потеряно после startNewSession!
+        let preservedJob = await coordinator.jobs[activeJob.id]
+        assert(preservedJob != nil, "Незавершенное задание обязано сохраниться в coordinator.jobs после startNewSession!")
+        assert(preservedJob?.sessionID == sessionA.id, "Задание должно сохранить корректный sessionID предыдущей сессии!")
+        
+        // 3. Проверяем, что удаление sessionA БЛОКИРУЕТСЯ, пока ее перенос не завершен
+        do {
+            try await coordinator.deleteSession(id: sessionA.id)
+            assertionFailure("Удаление предыдущей сессии с незавершенными переносами должно блокироваться!")
+        } catch {
+            print("  ✓ Защита от удаления предыдущей сессии с активными заданиями успешно сработала: \(error.localizedDescription)")
+        }
+        
+        // 4. Завершаем перенос в sessionA
+        if let staging = activeJob.stagingURL {
+            let data = Data([0x49, 0x49, 0x2A, 0x00, 0x08, 0x00] + [UInt8](repeating: 0x77, count: 100))
+            try data.write(to: staging)
+            let asset = try await coordinator.finalizeTransfer(jobID: activeJob.id, actualSize: Int64(data.count), duration: 0.05)
+            assert(asset.sessionID == sessionA.id, "Ассет должен быть сохранен для sessionA")
+            assert(FileManager.default.fileExists(atPath: asset.fileURL.path), "Файл должен быть записан в папку sessionA")
+        }
+        
+        // 5. Теперь, когда задание завершено, сессию sessionA можно безопасно удалить
+        try await coordinator.deleteSession(id: sessionA.id)
+        print("  ✓ После завершения переноса сессия успешно удалена, незавершенные задания сохранены")
     }
     
     // MARK: - 6. Персистентность в SQLite и WAL-режим

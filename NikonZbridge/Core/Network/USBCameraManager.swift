@@ -216,7 +216,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         let jobID = itemToProcess.jobID
         let cameraFile = itemToProcess.cameraFile
         
-        let coordJob = await coordinator.jobs[jobID]
+        let coordJob = await coordinator.getJob(by: jobID)
         let targetURL = coordJob?.stagingURL ?? coordJob?.destinationURL
         guard let safeTargetURL = targetURL else {
             let next = await transferQueue.markFailed(compositeID: compositeID)

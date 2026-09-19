@@ -44,6 +44,7 @@ final class Stage5FTPReliabilityVerificationSuite {
         try await testAuthenticationAndKeychainManager()
         try await testPasswordMaskingInLogs()
         try await testServerPredictableRestart()
+        try await testDataChannelReceiveChunkTimeoutDoesNotHang()
     }
     
     // MARK: - 1. Таймаут канала данных и гарантированная очистка
@@ -299,5 +300,41 @@ final class Stage5FTPReliabilityVerificationSuite {
         verify(state == .stopped, "Сервер остановлен")
         
         print("  ✓ Предсказуемая остановка и перезапуск без конфликтов сокета подтверждены")
+    }
+    
+    // MARK: - 11. Гарантированный выход из receiveChunkWithTimeout при таймауте (без зависания continuation)
+    func testDataChannelReceiveChunkTimeoutDoesNotHang() async throws {
+        print("\n[11/11] Тест таймаута receiveChunkWithTimeout без зависания continuation...")
+        
+        let channel = FTPDataChannel()
+        let port = try await channel.startListening()
+        verify(port > 0)
+        
+        // Подключаемся клиентом к порту канала данных
+        let clientConn = NWConnection(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!, using: .tcp)
+        let clientQueue = DispatchQueue(label: "test.client.queue")
+        clientConn.start(queue: clientQueue)
+        
+        let serverConn = try await channel.waitForConnection(timeoutSeconds: 3.0)
+        
+        // Клиент НЕ отправляет данные. Вызываем receiveChunkWithTimeout с таймаутом 0.2 сек.
+        let startTime = Date()
+        var didCatchTimeout = false
+        do {
+            _ = try await channel.receiveChunkWithTimeout(from: serverConn, timeoutSeconds: 0.2)
+        } catch TransferError.connectionLost {
+            didCatchTimeout = true
+        } catch {
+            print("Поймана другая ошибка: \(error)")
+            didCatchTimeout = true
+        }
+        
+        let elapsed = Date().timeIntervalSince(startTime)
+        verify(didCatchTimeout, "receiveChunkWithTimeout должен выбросить ошибку таймаута")
+        verify(elapsed < 1.5, "Метод должен завершиться без зависания continuation (заняло \(elapsed) с)")
+        
+        clientConn.cancel()
+        await channel.stop()
+        print("  ✓ receiveChunkWithTimeout при таймауте завершается мгновенно и не блокирует TaskGroup")
     }
 }
