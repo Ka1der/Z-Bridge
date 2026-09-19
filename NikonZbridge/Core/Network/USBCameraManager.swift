@@ -171,6 +171,9 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
             )
         cameraFileMap[compositeID] = file
         
+        // Гарантируем, что для повторяемого файла нет ошибочной отметки в importedIDs
+        await transferQueue.unmarkImported(compositeID: compositeID)
+        
         // 4. Планируем загрузку с существующим обновленным заданием
         await scheduleDownload(for: file, compositeID: compositeID, existingJob: updatedJob)
         await processQueue()
@@ -644,31 +647,45 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                 return
             }
             
-            let nextItem = await transferQueue.markCompleted(compositeID: targetCompositeID)
-            
             if let id = jobID {
                 if let currentJob = await coord.getJob(by: id), currentJob.state.isTerminal {
+                    let nextItem = await transferQueue.markFailed(compositeID: targetCompositeID)
                     updateItemStatus(compositeID: targetCompositeID, status: .notImported)
-                } else {
-                    do {
-                        let asset = try await coord.finalizeTransfer(
-                            jobID: id,
-                            actualSize: fileSize,
-                            duration: duration
-                        )
-                        updateItemStatus(compositeID: targetCompositeID, status: .imported)
-                        await MainActor.run {
-                            self.onFileIngested?(IngestedFile(from: asset))
-                        }
-                    } catch {
-                        updateItemStatus(compositeID: targetCompositeID, status: .failed(error: error.localizedDescription))
-                    }
+                    self.isDownloading = false
+                    await updateQueueCounters()
+                    await processQueue(item: nextItem)
+                    return
                 }
+                
+                do {
+                    let asset = try await coord.finalizeTransfer(
+                        jobID: id,
+                        actualSize: fileSize,
+                        duration: duration
+                    )
+                    // Только после успешной финализации отмечаем файл импортированным в очереди
+                    let nextItem = await transferQueue.markCompleted(compositeID: targetCompositeID)
+                    updateItemStatus(compositeID: targetCompositeID, status: .imported)
+                    self.isDownloading = false
+                    await MainActor.run {
+                        self.onFileIngested?(IngestedFile(from: asset))
+                    }
+                    await updateQueueCounters()
+                    await processQueue(item: nextItem)
+                } catch {
+                    // При ошибке верификации/финализации освобождаем слот БЕЗ добавления в importedIDs
+                    let nextItem = await transferQueue.markFailed(compositeID: targetCompositeID)
+                    updateItemStatus(compositeID: targetCompositeID, status: .failed(error: error.localizedDescription))
+                    self.isDownloading = false
+                    await updateQueueCounters()
+                    await processQueue(item: nextItem)
+                }
+            } else {
+                let nextItem = await transferQueue.markCompleted(compositeID: targetCompositeID)
+                self.isDownloading = false
+                await updateQueueCounters()
+                await processQueue(item: nextItem)
             }
-            
-            self.isDownloading = false
-            await updateQueueCounters()
-            await processQueue(item: nextItem)
         }
     }
 }

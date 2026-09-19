@@ -122,10 +122,11 @@ public actor USBTransferQueue {
         return dequeueNextIfAvailable()
     }
     
-    /// Ошибка скачивания: удаляем из активных и возвращаем следующий элемент
+    /// Ошибка скачивания или финализации: удаляем из активных, очищаем из импортированных и возвращаем следующий элемент
     public func markFailed(compositeID: String) -> USBQueueItem? {
         activeTransfers.removeValue(forKey: compositeID)
         queuedIDs.remove(compositeID)
+        importedIDs.remove(compositeID)
         return dequeueNextIfAvailable()
     }
     
@@ -134,13 +135,20 @@ public actor USBTransferQueue {
         if let idx = pendingQueue.firstIndex(where: { $0.compositeID == compositeID }) {
             pendingQueue.remove(at: idx)
             queuedIDs.remove(compositeID)
+            importedIDs.remove(compositeID)
             return nil
         }
         if activeTransfers.removeValue(forKey: compositeID) != nil {
             queuedIDs.remove(compositeID)
+            importedIDs.remove(compositeID)
             return dequeueNextIfAvailable()
         }
         return nil
+    }
+    
+    /// Удаление из множества импортированных (например, при повторе файла после сбоя)
+    public func unmarkImported(compositeID: String) {
+        importedIDs.remove(compositeID)
     }
     
     /// Полная очистка очереди (например, при извлечении кабеля)

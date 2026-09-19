@@ -46,6 +46,7 @@ final class Stage4USBImportVerificationSuite {
         try await testPendingJobCancellationRemovesFromQueueAndSkipsTerminalInProcessQueue()
         try await testInFlightCancellationKeepsSlotUntilCallbackAndFreesSafely()
         try await testRetryAfterErrorRecoversJobFromCoordinatorAndReenqueues()
+        try await testVerificationFailureDoesNotMarkImportedAndAllowsRetry()
     }
     
     // MARK: - 1. Состояния жизненного цикла подключения
@@ -589,6 +590,78 @@ final class Stage4USBImportVerificationSuite {
         verify(mockCamera.lastRequestedFile === file, "Камере должен быть передан повторный запрос на скачивание файла")
         
         print("  ✓ Повтор после ошибки успешно находит задание в координаторе, обновляет его и запускает загрузку")
+    }
+    
+    // MARK: - 12. Ошибка проверки файла не помечает его как импортированный и позволяет повтор
+    func testVerificationFailureDoesNotMarkImportedAndAllowsRetry() async throws {
+        print("\n[12/12] Тест ошибки проверки файла: не помечается как импортированный и запускает повтор...")
+        
+        let storage = StorageManager(customBaseURL: tempBaseURL)
+        let db = CatalogDatabase(customDatabaseURL: dbURL)
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        await coordinator.bootstrap()
+        
+        let usb = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        let mockCamera = MockCameraDevice()
+        usb.connectedCamera = mockCamera
+        usb.isConnected = true
+        usb.isCatalogReady = true
+        
+        let file = MockCameraFile(name: "DSC_5001.NEF", size: 1024)
+        let item = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_5001.NEF",
+            fileSize: 1024,
+            creationDate: Date(timeIntervalSince1970: 1700000030),
+            cameraFile: file
+        )
+        
+        await usb.importSelectedFiles([item])
+        verify(usb.isDownloading, "Скачивание запущено")
+        guard let jobID = await coordinator.jobs.values.first(where: { $0.filename == "DSC_5001.NEF" })?.id else {
+            fatalError("JobID не найден для DSC_5001.NEF")
+        }
+        guard let job = await coordinator.getJob(by: jobID) else {
+            fatalError("Задание не найдено")
+        }
+        
+        // Симулируем поврежденные данные (некорректный заголовок NEF/TIFF)
+        let targetURL = job.stagingURL ?? job.destinationURL
+        try "CORRUPTED_RAW_PAYLOAD".data(using: .utf8)?.write(to: targetURL)
+        
+        // Камера сообщает об успешном завершении передачи по USB (error: nil),
+        // но финализация в координаторе должна выявить повреждение при верификации!
+        usb.didDownloadFile(file, error: nil, options: [:], contextInfo: nil)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        // Проверяем:
+        // 1. Слот передачи освобожден
+        verify(!usb.isDownloading, "Слот передачи освобожден после ошибки верификации")
+        
+        // 2. КЛЮЧЕВАЯ ПРОВЕРКА: Файл НЕ должен быть помечен как импортированный в очереди!
+        let isImportedInQueue = await usb.transferQueue.isAlreadyImported(compositeID: item.id)
+        verify(!isImportedInQueue, "Файл не должен быть записан в список импортированных при ошибке верификации!")
+        
+        // 3. Статус задания и элемента оглавления — ошибка
+        let failedJob = await coordinator.getJob(by: jobID)
+        verify(failedJob?.state.isTerminal == true, "Задание должно быть помечено с ошибкой")
+        let catItem = usb.catalogFiles.first(where: { $0.id == item.id })
+        if case .failed = catItem?.status {
+            // Ожидаемый статус
+        } else {
+            fatalError("Статус элемента оглавления должен быть .failed")
+        }
+        
+        // 4. Повтор: вызываем retryTransfer и проверяем, что он НЕ отклоняется как дубликат!
+        mockCamera.lastRequestedFile = nil
+        try await usb.retryTransfer(jobID: jobID)
+        
+        // Повтор должен успешно запуститься!
+        verify(usb.isDownloading, "Повтор после ошибки верификации должен успешно запуститься!")
+        verify(mockCamera.lastRequestedFile === file, "Камере должен быть передан повторный запрос файла")
+        verify(await usb.transferQueue.isAlreadyImported(compositeID: item.id) == false, "Файл по-прежнему не в importedIDs")
+        
+        print("  ✓ Ошибка верификации не добавила файл в importedIDs, повтор успешно перезапустил загрузку")
     }
 }
 
