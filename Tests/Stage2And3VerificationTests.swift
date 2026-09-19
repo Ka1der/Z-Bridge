@@ -34,6 +34,7 @@ final class Stage2And3VerificationSuite {
         try await testStartupCrashRecoveryAndStagingCleanup()
         try await testReconcileMissingFilesAndSessionImport()
         try await testSessionStatsAndLifecycle()
+        try await testDuplicateSessionNamesCreateIsolatedFoldersAndDeleteProtection()
     }
     
     // MARK: - 1. Staging-файл и атомарное перемещение
@@ -352,10 +353,46 @@ final class Stage2And3VerificationSuite {
         let activeAfterStart = await coordinator.activeSession
         assert(activeAfterStart.id == session.id, "Новая сессия должна стать активной")
         
-        // 2. Переименование сессии
+        // Добавляем реальный ассет в сессию перед переименованием
+        let source = CameraSource(id: "cam-1", model: "Nikon Z 8", transportType: .usb)
+        let job = try await coordinator.createTransferJob(source: source, filename: "DSC_0001.NEF", expectedSize: 1024)
+        if let staging = job.stagingURL {
+            let data = Data([0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00] + [UInt8](repeating: 0x55, count: 1016))
+            try data.write(to: staging)
+            _ = try await coordinator.finalizeTransfer(jobID: job.id, actualSize: 1024, duration: 0.05)
+        }
+        
+        let initialAssets = await coordinator.assets
+        assert(initialAssets.count == 1, "Должен быть зарегистрирован 1 ассет")
+        let oldAssetURL = initialAssets[0].fileURL
+        assert(FileManager.default.fileExists(atPath: oldAssetURL.path), "Файл ассета должен существовать на диске")
+        assert(oldAssetURL.path.contains("Fashion_Shoot"), "Путь ассета должен содержать старое имя сессии")
+        
+        // 2. Переименование сессии с существующими файлами
         let renamed = try await coordinator.renameSession(id: session.id, newName: "Fashion_Shoot_Day1")
         assert(renamed.name == "Fashion_Shoot_Day1", "Имя должно измениться")
         assert(renamed.folderURL.lastPathComponent == "Fashion_Shoot_Day1", "Директория на диске должна быть переименована")
+        
+        // Проверяем, что пути ассетов обновились на диске, в памяти и в SQLite каталоге!
+        assert(!FileManager.default.fileExists(atPath: oldAssetURL.path), "Старый путь файла больше НЕ должен существовать на диске!")
+        
+        let assetsAfterRename = await coordinator.assets
+        assert(assetsAfterRename.count == 1, "Ассет должен остаться в сессии")
+        let newAssetURL = assetsAfterRename[0].fileURL
+        assert(newAssetURL.path.contains("Fashion_Shoot_Day1"), "Путь ассета в координаторе должен указывать на новое имя сессии!")
+        assert(FileManager.default.fileExists(atPath: newAssetURL.path), "Файл по новому пути ДОЛЖЕН реально существовать на диске!")
+        
+        let dbAssets = await db.getAssets(for: session.id)
+        assert(dbAssets[0].fileURL.path.contains("Fashion_Shoot_Day1"), "В SQLite базе данных путь ассета ДОЛЖЕН быть обновлен на новую папку!")
+        assert(FileManager.default.fileExists(atPath: dbAssets[0].fileURL.path), "Файл из базы данных должен реально существовать!")
+        
+        let reconciler = DiskCatalogReconciler()
+        let missing = reconciler.reconcileAssetsWithDisk(knownAssets: assetsAfterRename)
+        assert(missing.isEmpty, "Ни один ассет не должен быть помечен как missing после переименования папки!")
+        
+        let groups = await coordinator.captureGroups
+        assert(!groups.isEmpty, "CaptureGroups должны быть перестроены")
+        assert(groups[0].primaryAsset?.fileURL.path.contains("Fashion_Shoot_Day1") == true, "Primary asset в группе должен иметь обновленный URL")
         
         // 3. Завершение сессии
         await coordinator.closeSession(id: session.id)
@@ -364,9 +401,80 @@ final class Stage2And3VerificationSuite {
         
         // 4. Проверка статистики
         let stats = await coordinator.getSessionStats(id: session.id)
-        assert(stats.filesCount == 0, "Файлов пока 0")
+        assert(stats.filesCount == 1, "Файлов должно быть 1")
         assert(stats.errorsCount == 0, "Ошибок 0")
         
-        print("  ✓ Жизненный цикл сессии и подсчет статистики проверены")
+        print("  ✓ Жизненный цикл сессии, переименование с путями ассетов и подсчет статистики проверены")
+    }
+    
+    // MARK: - 10. Изоляция папок при одинаковых именах сессий и защита от случайного удаления
+    func testDuplicateSessionNamesCreateIsolatedFoldersAndDeleteProtection() async throws {
+        print("\n[10/10] Тест уникальности папок при дублировании имен сессий и защиты при удалении...")
+        
+        let storage = StorageManager(customBaseURL: tempBaseURL)
+        let db = CatalogDatabase(customDatabaseURL: dbURL)
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        await coordinator.bootstrap()
+        
+        // 1. Создаем две сессии с абсолютно одинаковым именем
+        let session1 = try await coordinator.startNewSession(named: "Portraits")
+        let session2 = try await coordinator.startNewSession(named: "Portraits")
+        
+        assert(session1.name == "Portraits", "Первая сессия должна называться Portraits, получено: \(session1.name)")
+        assert(session2.name == "Portraits_1", "Вторая сессия должна получить суффикс Portraits_1, получено: \(session2.name)")
+        assert(session1.folderURL != session2.folderURL, "Папки сессий на диске ДОЛЖНЫ быть разными!")
+        assert(session1.folderURL.lastPathComponent == "Portraits", "Папка первой сессии должна быть Portraits")
+        assert(session2.folderURL.lastPathComponent == "Portraits_1", "Папка второй сессии должна быть Portraits_1")
+        assert(FileManager.default.fileExists(atPath: session1.folderURL.path), "Папка первой сессии должна существовать на диске")
+        assert(FileManager.default.fileExists(atPath: session2.folderURL.path), "Папка второй сессии должна существовать на диске")
+        
+        // 2. Создаем файлы в обеих сессиях
+        let file1URL = session1.folderURL.appendingPathComponent("shoot_1.jpg")
+        let file2URL = session2.folderURL.appendingPathComponent("shoot_2.jpg")
+        let dummyData = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10])
+        try dummyData.write(to: file1URL)
+        try dummyData.write(to: file2URL)
+        
+        assert(FileManager.default.fileExists(atPath: file1URL.path), "Файл 1 должен быть записан на диск")
+        assert(FileManager.default.fileExists(atPath: file2URL.path), "Файл 2 должен быть записан на диск")
+        
+        // 3. Проверяем, что попытка переименовать session2 в имя session1 (Portraits) отклоняется
+        do {
+            _ = try await coordinator.renameSession(id: session2.id, newName: "Portraits")
+            assertionFailure("Переименование в существующую сессию Portraits должно вызывать ошибку!")
+        } catch {
+            print("  ✓ Переименование сессии в имя уже существующей сессии успешно заблокировано")
+        }
+        
+        // 4. Удаляем session1
+        try await coordinator.deleteSession(id: session1.id)
+        
+        // 5. Проверяем, что папка session1 удалена, а папка session2 и ее файлы ЦЕЛЫ!
+        assert(!FileManager.default.fileExists(atPath: session1.folderURL.path), "Папка session1 должна быть удалена")
+        assert(FileManager.default.fileExists(atPath: session2.folderURL.path), "Папка session2 ОБЯЗАНА сохраниться на диске!")
+        assert(FileManager.default.fileExists(atPath: file2URL.path), "Файл session2 ОБЯЗАН сохраниться на диске и не быть удаленным!")
+        
+        // 6. Проверка защитного механизма deleteSessionDirectory:
+        // Если две сессии когда-либо ссылаются на одну и ту же папку, удаление одной не должно удалять общую папку
+        let sharedFolder = tempBaseURL.appendingPathComponent("SharedDangerFolder", isDirectory: true)
+        try FileManager.default.createDirectory(at: sharedFolder, withIntermediateDirectories: true)
+        let dangerFile = sharedFolder.appendingPathComponent("important.nef")
+        try dummyData.write(to: dangerFile)
+        
+        let sessionSharedA = CaptureSession(name: "SharedA", folderURL: sharedFolder)
+        let sessionSharedB = CaptureSession(name: "SharedB", folderURL: sharedFolder)
+        await storage.registerSession(sessionSharedA)
+        await storage.registerSession(sessionSharedB)
+        
+        // Удаляем sessionSharedA — папка не должна быть удалена с диска, так как sessionSharedB ссылается на нее
+        try await storage.deleteSessionDirectory(sessionID: sessionSharedA.id, activeJobCount: 0)
+        assert(FileManager.default.fileExists(atPath: sharedFolder.path), "Общая папка НЕ должна быть удалена, пока существует другая сессия с тем же путем!")
+        assert(FileManager.default.fileExists(atPath: dangerFile.path), "Файлы в общей папке НЕ должны быть повреждены!")
+        
+        // Удаляем последнюю оставшуюся сессию sessionSharedB — теперь папка может быть безопасно удалена
+        try await storage.deleteSessionDirectory(sessionID: sessionSharedB.id, activeJobCount: 0)
+        assert(!FileManager.default.fileExists(atPath: sharedFolder.path), "После удаления последней сессии папка должна быть удалена")
+        
+        print("  ✓ Изоляция папок при одинаковых названиях и защита от удаления подтверждены")
     }
 }

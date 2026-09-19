@@ -224,4 +224,23 @@ public struct MediaAsset: Identifiable, Sendable, Codable, Hashable {
         self.rating = max(0, min(5, rating))
         self.pickStatus = pickStatus
     }
+    
+    public func withUpdatedURL(_ newURL: URL) -> MediaAsset {
+        MediaAsset(
+            id: id,
+            sessionID: sessionID,
+            filename: filename,
+            fileURL: newURL,
+            format: format,
+            fileSize: fileSize,
+            metadata: metadata,
+            verificationResult: verificationResult,
+            sha256Checksum: sha256Checksum,
+            isMissing: isMissing,
+            receivedAt: receivedAt,
+            transferDuration: transferDuration,
+            rating: rating,
+            pickStatus: pickStatus
+        )
+    }
 }

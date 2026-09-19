@@ -734,7 +734,24 @@ public final class AppState: ObservableObject {
             },
             onSessionChanged: { [weak self] session in
                 Task { @MainActor [weak self] in
-                    self?.currentSession = session
+                    guard let self = self else { return }
+                    self.currentSession = session
+                    let assets = await self.coordinator.assets
+                    let groups = await self.coordinator.captureGroups
+                    let all = await self.coordinator.allSessions
+                    self.availableSessions = all
+                    self.receivedFiles = assets.map { IngestedFile(from: $0) }
+                    self.captureGroups = groups
+                    if let selFile = self.selectedFile {
+                        self.selectedFile = self.receivedFiles.first(where: { $0.id == selFile.id }) ?? self.receivedFiles.first
+                    } else {
+                        self.selectedFile = self.receivedFiles.first
+                    }
+                    if let selGroup = self.selectedGroup {
+                        self.selectedGroup = groups.first(where: { $0.id == selGroup.id }) ?? groups.first
+                    } else {
+                        self.selectedGroup = groups.first
+                    }
                 }
             },
             onSpeedUpdated: { [weak self] speed in
@@ -843,10 +860,32 @@ public final class AppState: ObservableObject {
             do {
                 let renamed = try await coordinator.renameSession(id: id, newName: newName)
                 let all = await coordinator.allSessions
+                let assets = await coordinator.assets
+                let groups = await coordinator.captureGroups
+                let updatedJobs = await coordinator.jobs.values.filter { $0.sessionID == id }
                 await MainActor.run {
                     self.availableSessions = all
                     if self.currentSession?.id == id {
                         self.currentSession = renamed
+                        let prevFileID = self.selectedFile?.id
+                        let prevGroupID = self.selectedGroup?.id
+                        
+                        self.receivedFiles = assets.map { IngestedFile(from: $0) }
+                        self.captureGroups = groups
+                        
+                        if let fid = prevFileID {
+                            self.selectedFile = self.receivedFiles.first(where: { $0.id == fid }) ?? self.receivedFiles.first
+                        } else {
+                            self.selectedFile = self.receivedFiles.first
+                        }
+                        
+                        if let gid = prevGroupID {
+                            self.selectedGroup = groups.first(where: { $0.id == gid }) ?? groups.first
+                        } else {
+                            self.selectedGroup = groups.first
+                        }
+                        
+                        self.activeJobs = Array(updatedJobs)
                     }
                 }
             } catch {

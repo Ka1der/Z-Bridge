@@ -32,7 +32,6 @@ public actor StorageManager {
         
         let initialName = CaptureSession.defaultSessionName()
         let initialFolder = sessionsRoot.appendingPathComponent(initialName, isDirectory: true)
-        try? FileManager.default.createDirectory(at: initialFolder, withIntermediateDirectories: true)
         
         let session = CaptureSession(
             name: initialName,
@@ -43,6 +42,17 @@ public actor StorageManager {
     }
     
     // MARK: - Управление сессиями
+    
+    /// Синхронизация сессий (например, из БД при bootstrap)
+    public func syncSessions(from list: [CaptureSession], activeSessionID: UUID? = nil) {
+        guard !list.isEmpty else { return }
+        self.sessions = list
+        if let activeID = activeSessionID, let found = list.first(where: { $0.id == activeID }) {
+            self.activeSession = found
+        } else if let first = list.first {
+            self.activeSession = first
+        }
+    }
     
     /// Регистрация существующей сессии (например, при загрузке из БД или импорте с диска)
     public func registerSession(_ session: CaptureSession, setActive: Bool = false) {
@@ -56,16 +66,59 @@ public actor StorageManager {
         }
     }
     
-    /// Начать новую сессию с изолированной директорией
+    /// Разрешение уникального имени и изолированной директории для сессии без коллизий
+    private func resolveUniqueSessionFolder(for desiredName: String) -> (name: String, folderURL: URL) {
+        func isOccupied(candidateName: String, candidateURL: URL) -> Bool {
+            let candPath = candidateURL.resolvingSymlinksInPath().standardizedFileURL.path
+            // 1. Проверяем существование директории на диске
+            if FileManager.default.fileExists(atPath: candidateURL.path) {
+                return true
+            }
+            // 2. Проверяем, зарегистрирована ли сессия с таким именем или путем
+            for session in sessions {
+                if session.name.caseInsensitiveCompare(candidateName) == .orderedSame {
+                    return true
+                }
+                let sessionPath = session.folderURL.resolvingSymlinksInPath().standardizedFileURL.path
+                if sessionPath.caseInsensitiveCompare(candPath) == .orderedSame {
+                    return true
+                }
+            }
+            return false
+        }
+        
+        let initialURL = baseStorageURL.appendingPathComponent(desiredName, isDirectory: true)
+        if !isOccupied(candidateName: desiredName, candidateURL: initialURL) {
+            return (desiredName, initialURL)
+        }
+        
+        var counter = 1
+        while true {
+            let candidateName = "\(desiredName)_\(counter)"
+            let candidateURL = baseStorageURL.appendingPathComponent(candidateName, isDirectory: true)
+            if !isOccupied(candidateName: candidateName, candidateURL: candidateURL) {
+                return (candidateName, candidateURL)
+            }
+            counter += 1
+            if counter > 10000 {
+                let suffix = UUID().uuidString.prefix(6)
+                let fallbackName = "\(desiredName)_\(suffix)"
+                let fallbackURL = baseStorageURL.appendingPathComponent(fallbackName, isDirectory: true)
+                return (fallbackName, fallbackURL)
+            }
+        }
+    }
+    
+    /// Начать новую сессию с гарантированно изолированной директорией (без перезаписи и общих папок)
     @discardableResult
     public func createNewSession(named sessionName: String? = nil) throws -> CaptureSession {
         let name = sessionName ?? CaptureSession.defaultSessionName()
         let sanitizedName = try sanitizeFilename(name)
-        let folderURL = baseStorageURL.appendingPathComponent(sanitizedName, isDirectory: true)
+        let (uniqueName, folderURL) = resolveUniqueSessionFolder(for: sanitizedName)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         
         let newSession = CaptureSession(
-            name: sanitizedName,
+            name: uniqueName,
             folderURL: folderURL
         )
         self.activeSession = newSession
@@ -83,7 +136,7 @@ public actor StorageManager {
         return session
     }
     
-    /// Переименование сессии на диске
+    /// Переименование сессии на диске с проверкой коллизий
     public func renameSession(id: UUID, newName: String) throws -> CaptureSession {
         guard let index = sessions.firstIndex(where: { $0.id == id }) else {
             throw TransferError.generic("Сессия не найдена")
@@ -94,7 +147,22 @@ public actor StorageManager {
         let oldFolder = session.folderURL
         let newFolder = baseStorageURL.appendingPathComponent(sanitized, isDirectory: true)
         
-        if oldFolder != newFolder {
+        let newFolderPath = newFolder.resolvingSymlinksInPath().standardizedFileURL.path
+        let oldFolderPath = oldFolder.resolvingSymlinksInPath().standardizedFileURL.path
+        let isSameFolder = newFolderPath.caseInsensitiveCompare(oldFolderPath) == .orderedSame
+        
+        // Проверяем конфликт с другими зарегистрированными сессиями
+        let conflictWithOther = sessions.contains { other in
+            other.id != id && (
+                other.name.caseInsensitiveCompare(sanitized) == .orderedSame ||
+                other.folderURL.resolvingSymlinksInPath().standardizedFileURL.path.caseInsensitiveCompare(newFolderPath) == .orderedSame
+            )
+        }
+        if conflictWithOther {
+            throw TransferError.generic("Сессия с именем '\(sanitized)' уже существует")
+        }
+        
+        if !isSameFolder {
             if FileManager.default.fileExists(atPath: newFolder.path) {
                 throw TransferError.generic("Папка с именем '\(sanitized)' уже существует")
             }
@@ -303,7 +371,7 @@ public actor StorageManager {
     
     // MARK: - Безопасная очистка сессии с защитой активных заданий
     
-    /// Очистить файлы сессии с проверкой отсутствия активных заданий
+    /// Очистить файлы сессии с проверкой отсутствия активных заданий и защитой общих директорий
     public func clearSessionFiles(sessionID: UUID, activeJobCount: Int) throws {
         guard activeJobCount == 0 else {
             throw TransferError.generic("Невозможно удалить файлы сессии: в данный момент выполняется \(activeJobCount) активных переносов")
@@ -313,11 +381,22 @@ public actor StorageManager {
             throw TransferError.generic("Сессия не найдена")
         }
         
-        try? FileManager.default.removeItem(at: session.folderURL)
-        try? FileManager.default.createDirectory(at: session.folderURL, withIntermediateDirectories: true)
+        let targetPath = session.folderURL.resolvingSymlinksInPath().standardizedFileURL.path
+        let isFolderShared = sessions.contains(where: {
+            $0.id != sessionID &&
+            $0.folderURL.resolvingSymlinksInPath().standardizedFileURL.path.caseInsensitiveCompare(targetPath) == .orderedSame
+        })
+        
+        if !isFolderShared {
+            let basePath = baseStorageURL.resolvingSymlinksInPath().standardizedFileURL.path
+            if targetPath.hasPrefix(basePath) && targetPath != basePath {
+                try? FileManager.default.removeItem(at: session.folderURL)
+                try? FileManager.default.createDirectory(at: session.folderURL, withIntermediateDirectories: true)
+            }
+        }
     }
     
-    /// Удаление всей сессии с диска
+    /// Удаление всей сессии с диска с защитой от случайного удаления общих папок других сессий
     public func deleteSessionDirectory(sessionID: UUID, activeJobCount: Int) throws {
         guard activeJobCount == 0 else {
             throw TransferError.generic("Невозможно удалить сессию: в данный момент выполняется \(activeJobCount) активных переносов")
@@ -327,8 +406,23 @@ public actor StorageManager {
             throw TransferError.generic("Сессия не найдена")
         }
         
-        try? FileManager.default.removeItem(at: session.folderURL)
+        let targetPath = session.folderURL.resolvingSymlinksInPath().standardizedFileURL.path
+        let isFolderShared = sessions.contains(where: {
+            $0.id != sessionID &&
+            $0.folderURL.resolvingSymlinksInPath().standardizedFileURL.path.caseInsensitiveCompare(targetPath) == .orderedSame
+        })
+        
+        if !isFolderShared {
+            let basePath = baseStorageURL.resolvingSymlinksInPath().standardizedFileURL.path
+            if targetPath.hasPrefix(basePath) && targetPath != basePath {
+                try? FileManager.default.removeItem(at: session.folderURL)
+            }
+        }
+        
         sessions.removeAll(where: { $0.id == sessionID })
+        if activeSession.id == sessionID, let next = sessions.first {
+            self.activeSession = next
+        }
     }
     
     /// Для обратной совместимости

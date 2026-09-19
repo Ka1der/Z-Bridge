@@ -107,7 +107,10 @@ public actor TransferCoordinator: CameraTransportDelegate {
             dbSessions = [initial]
         }
         
-        self.allSessions = await database.getAllSessions()
+        // Синхронизируем все сессии из базы в StorageManager
+        let allDBSessions = await database.getAllSessions()
+        self.allSessions = allDBSessions
+        await storageManager.syncSessions(from: allDBSessions, activeSessionID: activeSession.id)
         
         // 6. Загрузка ассетов текущей активной сессии
         let sessionAssets = await database.getAssets(for: activeSession.id)
@@ -159,6 +162,10 @@ public actor TransferCoordinator: CameraTransportDelegate {
     
     @discardableResult
     public func startNewSession(named sessionName: String? = nil) async throws -> CaptureSession {
+        // Синхронизируем известные сессии в storageManager перед разрешением имени
+        let currentDBSessions = await database.getAllSessions()
+        await storageManager.syncSessions(from: currentDBSessions, activeSessionID: activeSession.id)
+        
         let newSession = try await storageManager.createNewSession(named: sessionName)
         await database.upsertSession(newSession, isActive: true)
         await database.setActiveSession(id: newSession.id)
@@ -175,6 +182,9 @@ public actor TransferCoordinator: CameraTransportDelegate {
     
     @discardableResult
     public func switchActiveSession(to sessionID: UUID) async -> CaptureSession? {
+        if let sessionInDb = await database.getSession(by: sessionID) {
+            await storageManager.registerSession(sessionInDb)
+        }
         guard let switched = await storageManager.switchSession(to: sessionID) else {
             return nil
         }
@@ -199,17 +209,68 @@ public actor TransferCoordinator: CameraTransportDelegate {
     }
     
     public func renameSession(id: UUID, newName: String) async throws -> CaptureSession {
+        // 1. Проверяем, что нет активных (нетерминальных) заданий переноса для этой сессии
+        let activeJobCount = jobs.values.filter { $0.sessionID == id && !$0.state.isTerminal }.count
+        guard activeJobCount == 0 else {
+            throw TransferError.generic("Невозможно переименовать сессию во время активной передачи файлов: выполняется \(activeJobCount) перенос(ов)")
+        }
+        
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if allSessions.contains(where: { $0.id != id && $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame }) {
+            throw TransferError.generic("Сессия с именем '\(trimmedName)' уже существует")
+        }
+        
+        // 2. Получаем предыдущую сессию до перемещения папки
+        let existingSession: CaptureSession?
+        if let found = allSessions.first(where: { $0.id == id }) {
+            existingSession = found
+        } else if activeSession.id == id {
+            existingSession = activeSession
+        } else {
+            existingSession = await database.getSession(by: id)
+        }
+        guard let oldSession = existingSession else {
+            throw TransferError.generic("Сессия не найдена")
+        }
+        let oldFolderPath = oldSession.folderURL.resolvingSymlinksInPath().standardizedFileURL.path
+        
+        // 3. Переименовываем папку на диске
         let updatedSession = try await storageManager.renameSession(id: id, newName: newName)
-        await database.updateSessionName(
+        let newFolderPath = updatedSession.folderURL.resolvingSymlinksInPath().standardizedFileURL.path
+        
+        // 4. Обновляем каталог (сессию, пути ассетов и пути заданий) в SQLite
+        await database.updateSessionNameAndPaths(
             id: id,
             newName: updatedSession.name,
-            folderPath: updatedSession.folderURL.standardizedFileURL.path
+            oldFolderPath: oldFolderPath,
+            newFolderPath: newFolderPath
         )
+        
+        // 5. Обновляем пути заданий сессии в памяти
+        if oldFolderPath != newFolderPath {
+            for (jobID, job) in self.jobs where job.sessionID == id {
+                let destPath = job.destinationURL.resolvingSymlinksInPath().standardizedFileURL.path
+                if destPath.hasPrefix(oldFolderPath) {
+                    let rel = String(destPath.dropFirst(oldFolderPath.count))
+                    let newURL = URL(fileURLWithPath: newFolderPath + rel)
+                    var updatedJob = job
+                    updatedJob.destinationURL = newURL
+                    self.jobs[jobID] = updatedJob
+                }
+            }
+        }
+        
+        // 6. Обновляем список сессий
         self.allSessions = await database.getAllSessions()
+        
+        // 7. Если переименована активная сессия — обновляем ассеты и группы в памяти
         if activeSession.id == id {
             self.activeSession = updatedSession
+            self.assets = await database.getAssets(for: id)
+            rebuildCaptureGroups()
             onSessionChanged?(updatedSession)
         }
+        
         return updatedSession
     }
     

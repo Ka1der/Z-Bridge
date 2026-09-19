@@ -296,17 +296,85 @@ public actor CatalogDatabase {
         sqlite3_finalize(stmt)
     }
     
-    public func updateSessionName(id: UUID, newName: String, folderPath: String) {
-        let sql = "UPDATE sessions SET name = ?, folder_path = ?, updated_at = ? WHERE id = ?;"
+    public func getSession(by id: UUID) -> CaptureSession? {
+        let sql = "SELECT id, name, created_at, updated_at, folder_path, is_closed, is_active, author, copyright, comment FROM sessions WHERE id = ? LIMIT 1;"
         var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (newName as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(stmt, 2, (folderPath as NSString).utf8String, -1, nil)
-            sqlite3_bind_double(stmt, 3, Date().timeIntervalSince1970)
-            sqlite3_bind_text(stmt, 4, (id.uuidString as NSString).utf8String, -1, nil)
-            sqlite3_step(stmt)
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, (id.uuidString as NSString).utf8String, -1, nil)
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            return parseSession(from: stmt)
         }
-        sqlite3_finalize(stmt)
+        return nil
+    }
+    
+    public func updateSessionNameAndPaths(
+        id: UUID,
+        newName: String,
+        oldFolderPath: String,
+        newFolderPath: String
+    ) {
+        let sessionIDStr = id.uuidString
+        let cleanOldPath = (oldFolderPath as NSString).standardizingPath
+        let cleanNewPath = (newFolderPath as NSString).standardizingPath
+        
+        // 1. Обновляем сессию в таблице sessions
+        let sessionSQL = "UPDATE sessions SET name = ?, folder_path = ?, updated_at = ? WHERE id = ?;"
+        var stmt1: OpaquePointer?
+        if sqlite3_prepare_v2(db, sessionSQL, -1, &stmt1, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt1, 1, (newName as NSString).utf8String, -1, nil)
+            sqlite3_bind_text(stmt1, 2, (cleanNewPath as NSString).utf8String, -1, nil)
+            sqlite3_bind_double(stmt1, 3, Date().timeIntervalSince1970)
+            sqlite3_bind_text(stmt1, 4, (sessionIDStr as NSString).utf8String, -1, nil)
+            sqlite3_step(stmt1)
+        }
+        sqlite3_finalize(stmt1)
+        
+        // 2. Обновляем пути всех ассетов сессии в таблице assets
+        if cleanOldPath != cleanNewPath {
+            let assetSQL = """
+            UPDATE assets
+            SET file_path = ? || substr(file_path, length(?) + 1)
+            WHERE session_id = ? AND (file_path = ? OR file_path LIKE ? || '/%');
+            """
+            var stmt2: OpaquePointer?
+            if sqlite3_prepare_v2(db, assetSQL, -1, &stmt2, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt2, 1, (cleanNewPath as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(stmt2, 2, (cleanOldPath as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(stmt2, 3, (sessionIDStr as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(stmt2, 4, (cleanOldPath as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(stmt2, 5, (cleanOldPath as NSString).utf8String, -1, nil)
+                sqlite3_step(stmt2)
+            }
+            sqlite3_finalize(stmt2)
+            
+            // 3. Обновляем пути назначения всех заданий сессии в таблице transfer_jobs
+            let jobSQL = """
+            UPDATE transfer_jobs
+            SET destination_path = ? || substr(destination_path, length(?) + 1)
+            WHERE session_id = ? AND (destination_path = ? OR destination_path LIKE ? || '/%');
+            """
+            var stmt3: OpaquePointer?
+            if sqlite3_prepare_v2(db, jobSQL, -1, &stmt3, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt3, 1, (cleanNewPath as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(stmt3, 2, (cleanOldPath as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(stmt3, 3, (sessionIDStr as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(stmt3, 4, (cleanOldPath as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(stmt3, 5, (cleanOldPath as NSString).utf8String, -1, nil)
+                sqlite3_step(stmt3)
+            }
+            sqlite3_finalize(stmt3)
+        }
+    }
+    
+    public func updateSessionName(id: UUID, newName: String, folderPath: String) {
+        let oldPath = getSession(by: id)?.folderURL.standardizedFileURL.path ?? folderPath
+        updateSessionNameAndPaths(
+            id: id,
+            newName: newName,
+            oldFolderPath: oldPath,
+            newFolderPath: folderPath
+        )
     }
     
     public func updateSessionMetadata(id: UUID, author: String?, copyright: String?, comment: String?) {
@@ -336,10 +404,28 @@ public actor CatalogDatabase {
     }
     
     public func deleteSession(id: UUID) {
+        let idStr = (id.uuidString as NSString).utf8String
+        
+        let delJobs = "DELETE FROM transfer_jobs WHERE session_id = ?;"
+        var stmtJobs: OpaquePointer?
+        if sqlite3_prepare_v2(db, delJobs, -1, &stmtJobs, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmtJobs, 1, idStr, -1, nil)
+            sqlite3_step(stmtJobs)
+        }
+        sqlite3_finalize(stmtJobs)
+        
+        let delAssets = "DELETE FROM assets WHERE session_id = ?;"
+        var stmtAssets: OpaquePointer?
+        if sqlite3_prepare_v2(db, delAssets, -1, &stmtAssets, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmtAssets, 1, idStr, -1, nil)
+            sqlite3_step(stmtAssets)
+        }
+        sqlite3_finalize(stmtAssets)
+        
         let sql = "DELETE FROM sessions WHERE id = ?;"
         var stmt: OpaquePointer?
         if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (id.uuidString as NSString).utf8String, -1, nil)
+            sqlite3_bind_text(stmt, 1, idStr, -1, nil)
             sqlite3_step(stmt)
         }
         sqlite3_finalize(stmt)

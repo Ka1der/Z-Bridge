@@ -159,4 +159,9 @@ public actor USBTransferQueue {
     public func findActiveCompositeID(by jobID: UUID) -> String? {
         activeTransfers.first(where: { $0.value.jobID == jobID })?.key
     }
+    
+    /// Список всех активных элементов, занимающих слоты передачи
+    public var allActiveItems: [USBQueueItem] {
+        Array(activeTransfers.values)
+    }
 }

@@ -251,7 +251,49 @@ final class Stage10VerificationSuite {
         let postOverwriteSize = try FileManager.default.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64 ?? 0
         assert(postOverwriteSize == 4096, "Размер файла должен обновиться до размера источника (4096)")
         
-        print("✓ Стратегии разрешения конфликтов имен (.overwrite, .skip, .rename) работают корректно.")
+        // 3.4 Защита от удаления оригинала при совпадении целевой папки с исходной
+        let sameDir = localStoreDir
+        let sameDirAsset = try createDummyAsset(named: "DSC_SAME_DIR.NEF", byteCount: 8192)
+        let originalNEFData = try Data(contentsOf: sameDirAsset.fileURL)
+        
+        // а) Перезапись в той же папке (.overwrite) — файл НЕ должен быть удален или поврежден!
+        let sameDirOverwriteJob = ExportJob(
+            destination: .directory(url: sameDir, bookmarkData: nil),
+            items: [ExportItem(asset: sameDirAsset)],
+            formatSelection: .both,
+            conflictStrategy: .overwrite
+        )
+        let sameDirOverwriteCompleted = await exportManager.executeJob(sameDirOverwriteJob)
+        assert(sameDirOverwriteCompleted.result?.successCount == 1, "Экспорт в ту же папку должен успешно завершиться")
+        assert(FileManager.default.fileExists(atPath: sameDirAsset.fileURL.path), "Оригинальный файл ни в коем случае НЕ должен быть удален!")
+        let dataAfterOverwrite = try Data(contentsOf: sameDirAsset.fileURL)
+        assert(dataAfterOverwrite == originalNEFData, "Данные оригинального файла должны остаться полностью неизменными!")
+        
+        // б) Переименование в той же папке (.rename) — создается копия с индексом (1), оригинал цел
+        let sameDirRenameJob = ExportJob(
+            destination: .directory(url: sameDir, bookmarkData: nil),
+            items: [ExportItem(asset: sameDirAsset)],
+            formatSelection: .both,
+            conflictStrategy: .rename
+        )
+        let sameDirRenameCompleted = await exportManager.executeJob(sameDirRenameJob)
+        assert(sameDirRenameCompleted.result?.successCount == 1, "Экспорт с rename должен успешно создать копию")
+        let renamedCopyURL = sameDir.appendingPathComponent("DSC_SAME_DIR (1).NEF")
+        assert(FileManager.default.fileExists(atPath: renamedCopyURL.path), "Копия с индексом (1) должна существовать")
+        assert(FileManager.default.fileExists(atPath: sameDirAsset.fileURL.path), "Оригинал должен сохраниться")
+        
+        // в) Пропуск в той же папке (.skip)
+        let sameDirSkipJob = ExportJob(
+            destination: .directory(url: sameDir, bookmarkData: nil),
+            items: [ExportItem(asset: sameDirAsset)],
+            formatSelection: .both,
+            conflictStrategy: .skip
+        )
+        let sameDirSkipCompleted = await exportManager.executeJob(sameDirSkipJob)
+        assert(sameDirSkipCompleted.result?.skippedCount == 1, "Файл должен быть помечен как skipped")
+        assert(FileManager.default.fileExists(atPath: sameDirAsset.fileURL.path), "Оригинал должен сохраниться")
+        
+        print("✓ Стратегии разрешения конфликтов имен (.overwrite, .skip, .rename) и защита оригиналов работают корректно.")
     }
     
     // MARK: - 4. Тест проверки свободного места на целевом носителе

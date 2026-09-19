@@ -197,23 +197,30 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     }
     
     /// Обработка очереди: запуск следующей загрузки в пределах лимита параллелизма
-    public func processQueue() async {
+    public func processQueue(item: USBQueueItem? = nil) async {
         guard let camera = connectedCamera, !isDownloading else { return }
         
-        guard let nextItem = await transferQueue.dequeueNextIfAvailable() else {
+        let itemToProcess: USBQueueItem
+        if let explicitItem = item {
+            itemToProcess = explicitItem
+        } else if let unstartedActive = await transferQueue.allActiveItems.first(where: { inFlightJobs[$0.compositeID] == nil }) {
+            itemToProcess = unstartedActive
+        } else if let nextItem = await transferQueue.dequeueNextIfAvailable() {
+            itemToProcess = nextItem
+        } else {
             await updateQueueCounters()
             return
         }
         
-        let compositeID = nextItem.compositeID
-        let jobID = nextItem.jobID
-        let cameraFile = nextItem.cameraFile
+        let compositeID = itemToProcess.compositeID
+        let jobID = itemToProcess.jobID
+        let cameraFile = itemToProcess.cameraFile
         
         let coordJob = await coordinator.jobs[jobID]
         let targetURL = coordJob?.stagingURL ?? coordJob?.destinationURL
         guard let safeTargetURL = targetURL else {
-            _ = await transferQueue.markFailed(compositeID: compositeID)
-            await processQueue()
+            let next = await transferQueue.markFailed(compositeID: compositeID)
+            await processQueue(item: next)
             return
         }
         
@@ -243,11 +250,12 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     
     /// Отмена загрузки
     public func cancelTransfer(jobID: UUID) async {
+        var nextItem: USBQueueItem?
         if let compositeID = inFlightJobs.first(where: { $0.value == jobID })?.key {
             #if os(macOS)
             connectedCamera?.cancelDownload()
             #endif
-            _ = await transferQueue.cancel(compositeID: compositeID)
+            nextItem = await transferQueue.cancel(compositeID: compositeID)
             inFlightJobs.removeValue(forKey: compositeID)
             downloadStartTimes.removeValue(forKey: compositeID)
             self.isDownloading = false
@@ -255,7 +263,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         }
         await coordinator.cancelTransfer(jobID: jobID)
         await updateQueueCounters()
-        await processQueue()
+        await processQueue(item: nextItem)
     }
     
     private func updateQueueCounters() async {
@@ -537,17 +545,17 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
         
         Task {
             if let err = error {
-                _ = await transferQueue.markFailed(compositeID: compositeID)
+                let nextItem = await transferQueue.markFailed(compositeID: compositeID)
                 updateItemStatus(compositeID: compositeID, status: .failed(error: err.localizedDescription))
                 if let id = jobID {
                     await coord.failTransfer(jobID: id, error: .generic(err.localizedDescription))
                 }
                 await updateQueueCounters()
-                await processQueue()
+                await processQueue(item: nextItem)
                 return
             }
             
-            _ = await transferQueue.markCompleted(compositeID: compositeID)
+            let nextItem = await transferQueue.markCompleted(compositeID: compositeID)
             
             if let id = jobID {
                 do {
@@ -566,7 +574,7 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
             }
             
             await updateQueueCounters()
-            await processQueue()
+            await processQueue(item: nextItem)
         }
     }
 }

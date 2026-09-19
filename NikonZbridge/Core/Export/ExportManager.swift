@@ -360,13 +360,39 @@ public actor ExportManager {
     ) throws -> URL? {
         let destinationURL = destinationFolder.appendingPathComponent(desiredFilename)
         
+        // 1. Защита оригинала: если назначение совпадает с исходным файлом
+        if isSameFile(sourceURL, destinationURL) {
+            switch strategy {
+            case .skip:
+                return nil
+            case .overwrite:
+                // Файл уже находится по целевому пути. Перезапись файла самим собой
+                // ни при каких обстоятельствах не должна удалять оригинал!
+                return destinationURL
+            case .rename:
+                // При стратегии переименования создаем копию с уникальным суффиксом "имя (1).ext"
+                let uniqueURL = resolveUniqueDestinationURL(destinationFolder: destinationFolder, desiredFilename: desiredFilename)
+                try fileManager.copyItem(at: sourceURL, to: uniqueURL)
+                return uniqueURL
+            }
+        }
+        
+        // 2. Если целевой файл уже существует (но это другой файл)
         if fileManager.fileExists(atPath: destinationURL.path) {
             switch strategy {
             case .skip:
                 return nil
             case .overwrite:
-                try? fileManager.removeItem(at: destinationURL)
-                try fileManager.copyItem(at: sourceURL, to: destinationURL)
+                // Безопасная перезапись через временный файл, чтобы исключить потерю данных при сбое
+                let tempURL = destinationFolder.appendingPathComponent(".\(desiredFilename).export_tmp_\(UUID().uuidString)")
+                try fileManager.copyItem(at: sourceURL, to: tempURL)
+                do {
+                    _ = try? fileManager.removeItem(at: destinationURL)
+                    try fileManager.moveItem(at: tempURL, to: destinationURL)
+                } catch {
+                    try? fileManager.removeItem(at: tempURL)
+                    throw error
+                }
                 return destinationURL
             case .rename:
                 let uniqueURL = resolveUniqueDestinationURL(destinationFolder: destinationFolder, desiredFilename: desiredFilename)
@@ -377,6 +403,21 @@ public actor ExportManager {
             try fileManager.copyItem(at: sourceURL, to: destinationURL)
             return destinationURL
         }
+    }
+    
+    private func isSameFile(_ url1: URL, _ url2: URL) -> Bool {
+        let p1 = url1.standardizedFileURL.resolvingSymlinksInPath().path
+        let p2 = url2.standardizedFileURL.resolvingSymlinksInPath().path
+        if p1.caseInsensitiveCompare(p2) == .orderedSame {
+            return true
+        }
+        if let res1 = try? url1.resolvingSymlinksInPath().resourceValues(forKeys: [.fileResourceIdentifierKey]),
+           let res2 = try? url2.resolvingSymlinksInPath().resourceValues(forKeys: [.fileResourceIdentifierKey]),
+           let id1 = res1.fileResourceIdentifier,
+           let id2 = res2.fileResourceIdentifier {
+            return id1.isEqual(id2)
+        }
+        return false
     }
     
     private func resolveUniqueDestinationURL(destinationFolder: URL, desiredFilename: String) -> URL {
