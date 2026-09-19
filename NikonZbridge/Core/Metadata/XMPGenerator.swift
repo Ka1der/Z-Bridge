@@ -6,9 +6,11 @@ public struct XMPGenerator: Sendable {
     /// Генерация содержимого XMP XML документа
     public static func generateXMP(
         for asset: MediaAsset,
+        targetFilename: String? = nil,
         sessionMetadata: SessionMetadata? = nil
     ) -> String {
-        let ext = (asset.filename as NSString).pathExtension.uppercased()
+        let effectiveFilename = targetFilename ?? asset.filename
+        let ext = (effectiveFilename as NSString).pathExtension.uppercased()
         let now = Date()
         let dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -96,7 +98,7 @@ public struct XMPGenerator: Sendable {
         }
         
         // dc:title & photoshop:Headline
-        let title = sessionMetadata?.sessionName ?? asset.filename
+        let title = sessionMetadata?.sessionName ?? effectiveFilename
         xml += """
         
          <dc:title>
@@ -134,7 +136,7 @@ public struct XMPGenerator: Sendable {
                <rdf:li xml:lang="x-default">\(escapeXML(copyright))</rdf:li>
               </rdf:Alt>
              </dc:rights>
-             <xmpRights:Marked>True</xmpRights:Marked>
+              <xmpRights:Marked>True</xmpRights:Marked>
             """
         }
         
@@ -166,14 +168,16 @@ public struct XMPGenerator: Sendable {
     @discardableResult
     public static func writeSidecar(
         for asset: MediaAsset,
+        targetFilename: String? = nil,
         to destinationDirectory: URL,
         convention: XMPSidecarNamingConvention = .standardBasename,
         sessionMetadata: SessionMetadata? = nil
     ) throws -> URL {
-        let sidecarName = convention.sidecarFilename(for: asset.filename)
+        let effectiveFilename = targetFilename ?? asset.filename
+        let sidecarName = convention.sidecarFilename(for: effectiveFilename)
         let destinationURL = destinationDirectory.appendingPathComponent(sidecarName)
         
-        let xmpContent = generateXMP(for: asset, sessionMetadata: sessionMetadata)
+        let xmpContent = generateXMP(for: asset, targetFilename: effectiveFilename, sessionMetadata: sessionMetadata)
         guard let data = xmpContent.data(using: .utf8) else {
             throw NSError(domain: "XMPGenerator", code: 1, userInfo: [NSLocalizedDescriptionKey: "Не удалось кодировать XMP в UTF-8"])
         }

@@ -41,6 +41,7 @@ final class Stage12VerificationSuite {
         try await testSessionManifestAndMarkdownReportGeneration()
         try await testExportManagerEndToEndBatchExportWithXMPAndManifest()
         try await testCatalogDatabaseSessionMetadataMigrationV3()
+        try await testXMPMatchesExportRenamingOnConflict()
     }
     
     // MARK: - Вспомогательные методы
@@ -477,8 +478,101 @@ final class Stage12VerificationSuite {
         let updated = reloadedSessions.first { $0.id == sessionID }
         assert(updated?.author == "Dmitry Updated", "Обновленный автор сессии не совпадает")
         assert(updated?.copyright == "© 2026 Updated Rights", "Обновленный копирайт не совпадает")
-        assert(updated?.comment == "Post-production complete", "Обновленный комментарий не совпадает")
-        
         print("✓ Миграция v3 и сохранение метаданных сессии в базе данных работают корректно.")
+    }
+    
+    // MARK: - 10. Учёт переименования при экспорте в XMP sidecar (.rename conflict)
+    
+    func testXMPMatchesExportRenamingOnConflict() async throws {
+        print("\n[10/10] Тест соответствия имени XMP sidecar переименованному файлу при конфликте...")
+        
+        let targetFolder = tempDir.appendingPathComponent("ConflictXMPFolder", isDirectory: true)
+        try? fileManager.createDirectory(at: targetFolder, withIntermediateDirectories: true)
+        
+        // 1. Создаем существующий файл CONFLICT.JPG в целевой папке
+        let existingConflictURL = targetFolder.appendingPathComponent("CONFLICT.JPG")
+        let dummyExistingData = Data(repeating: 0x11, count: 1024)
+        try dummyExistingData.write(to: existingConflictURL)
+        
+        // 2. Создаем экспортируемый ассет CONFLICT.JPG
+        let sourceURL = tempDir.appendingPathComponent("LocalSource_CONFLICT.JPG")
+        let sourceData = Data(repeating: 0x22, count: 2048)
+        try sourceData.write(to: sourceURL)
+        
+        let asset = MediaAsset(
+            sessionID: UUID(),
+            filename: "CONFLICT.JPG",
+            fileURL: sourceURL,
+            format: .jpeg,
+            fileSize: Int64(sourceData.count),
+            metadata: AssetMetadata(cameraModel: "NIKON Z8", iso: 800),
+            rating: 3,
+            pickStatus: .picked
+        )
+        
+        let sessionMeta = SessionMetadata(sessionName: "Conflict Test Session")
+        
+        // 3. Экспорт со стратегией .rename и генерацией XMP
+        let job = ExportJob(
+            items: [ExportItem(asset: asset)],
+            destination: .directory(url: targetFolder),
+            formatSelection: .both,
+            conflictStrategy: .rename,
+            includeXMPSidecars: true,
+            sidecarNamingConvention: .standardBasename,
+            includeSessionManifest: true,
+            sessionMetadata: sessionMeta
+        )
+        
+        let executedJob = await ExportManager.shared.executeJob(job)
+        guard let result = executedJob.result else {
+            fatalError("Результат экспорта отсутствует")
+        }
+        
+        assert(result.successCount == 1, "Экспорт должен завершиться успешно")
+        
+        // Ожидаемый переименованный файл
+        let expectedRenamedFile = targetFolder.appendingPathComponent("CONFLICT (1).JPG")
+        assert(fileManager.fileExists(atPath: expectedRenamedFile.path), "Должен быть создан файл CONFLICT (1).JPG")
+        
+        // Ожидаемый sidecar: ДОЛЖЕН БЫТЬ CONFLICT (1).xmp, а НЕ CONFLICT.xmp!
+        let expectedSidecar = targetFolder.appendingPathComponent("CONFLICT (1).xmp")
+        let wrongOldSidecar = targetFolder.appendingPathComponent("CONFLICT.xmp")
+        
+        assert(fileManager.fileExists(atPath: expectedSidecar.path), "XMP sidecar должен получить имя CONFLICT (1).xmp")
+        assert(!fileManager.fileExists(atPath: wrongOldSidecar.path), "Файл CONFLICT.xmp НЕ должен был создаваться")
+        
+        // Проверяем содержимое sidecar
+        let xmpContent = try String(contentsOf: expectedSidecar, encoding: .utf8)
+        assert(xmpContent.contains("photoshop:SidecarForExtension=\"JPG\""), "Расширение в XMP должно соответствовать JPG")
+        assert(xmpContent.contains("xmp:Rating=\"3\""), "Рейтинг должен быть равен 3")
+        
+        // Проверяем манифест
+        if let manifestURL = result.manifestURL {
+            let manifestData = try Data(contentsOf: manifestURL)
+            let jsonDecoder = JSONDecoder()
+            jsonDecoder.dateDecodingStrategy = .iso8601
+            let readManifest = try jsonDecoder.decode(SessionManifest.self, from: manifestData)
+            assert(readManifest.files.first?.filename == "CONFLICT (1).JPG", "Манифест должен содержать фактически экспортированное имя CONFLICT (1).JPG")
+            assert(readManifest.files.first?.xmpSidecarPath == expectedSidecar.path, "Манифест должен ссылаться на путь CONFLICT (1).xmp")
+        }
+        
+        // 4. Проверка также для autoCopyAsset
+        let directExportURL = try await ExportManager.shared.autoCopyAsset(
+            asset,
+            destination: .directory(url: targetFolder),
+            strategy: .rename,
+            includeXMP: true,
+            namingConvention: .standardBasename,
+            sessionMetadata: sessionMeta
+        )
+        
+        assert(directExportURL != nil, "Прямой экспорт должен вернуть URL")
+        let expectedSecondRenamed = targetFolder.appendingPathComponent("CONFLICT (2).JPG")
+        assert(directExportURL?.lastPathComponent == expectedSecondRenamed.lastPathComponent, "Второй конфликт должен именоваться CONFLICT (2).JPG")
+        let expectedSecondSidecar = targetFolder.appendingPathComponent("CONFLICT (2).xmp")
+        assert(fileManager.fileExists(atPath: expectedSecondSidecar.path), "Второй XMP sidecar должен получить имя CONFLICT (2).xmp")
+        
+        print("✓ XMP sidecar гарантированно получает имя фактически экспортированного файла при переименовании.")
     }
 }

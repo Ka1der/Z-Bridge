@@ -235,6 +235,43 @@ final class Stage8VerificationSuite {
         let timeMismatch = FramePairingEngine.areMatchingPair(asset1: oldRawAsset, asset2: jpgAsset)
         assert(!timeMismatch, "Снимки с разницей в сутках не должны объединяться")
         
+        let groupForOldRaw = CaptureGroup(asset: oldRawAsset)
+        assert(!groupForOldRaw.canAccept(asset: jpgAsset), "CaptureGroup не должен принимать кадр с разницей в сутках")
+        
+        // Случай D: Одинаковые имена файлов, но разница времени съемки 1000 секунд
+        let raw1000 = MediaAsset(
+            sessionID: sessionID,
+            filename: "DSC_0001.NEF",
+            fileURL: tempDir.appendingPathComponent("DSC_0001_1000.NEF"),
+            format: .raw(fileExtension: "nef"),
+            fileSize: 45_000_000,
+            metadata: AssetMetadata(cameraModel: "NIKON Z 8", captureDate: now)
+        )
+        let jpg1000 = MediaAsset(
+            sessionID: sessionID,
+            filename: "DSC_0001.JPG",
+            fileURL: tempDir.appendingPathComponent("DSC_0001_1000.JPG"),
+            format: .jpeg,
+            fileSize: 8_000_000,
+            metadata: AssetMetadata(cameraModel: "NIKON Z 8", captureDate: now.addingTimeInterval(1000))
+        )
+        let group1000 = CaptureGroup(asset: raw1000)
+        assert(!group1000.canAccept(asset: jpg1000), "CaptureGroup не должен принимать companion-файл с разницей времени 1000 секунд")
+        
+        let match1000 = FramePairingEngine.areMatchingPair(asset1: raw1000, asset2: jpg1000)
+        assert(!match1000, "FramePairingEngine должен отбраковывать кадры с разницей 1000с")
+        
+        // Также проверяем дублирование одинакового формата в группу
+        let secondRaw = MediaAsset(
+            sessionID: sessionID,
+            filename: "DSC_0001.NEF",
+            fileURL: tempDir.appendingPathComponent("DSC_0001_second.NEF"),
+            format: .raw(fileExtension: "nef"),
+            fileSize: 45_000_000,
+            metadata: AssetMetadata(cameraModel: "NIKON Z 8", captureDate: now)
+        )
+        assert(!group1000.canAccept(asset: secondRaw), "CaptureGroup не должен принимать второй RAW файл того же формата")
+        
         print("  ✓ Многокритериальное сопоставление (сессия + модель камеры + нормализованный кадр + EXIF таймстемп) подтверждено")
     }
     

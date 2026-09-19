@@ -102,6 +102,7 @@ public struct CaptureGroup: Identifiable, Sendable, Codable, Hashable {
     // MARK: - Инициализаторы
     
     public init(
+        id: String? = nil,
         baseName: String,
         sessionID: UUID,
         sourceCamera: String? = nil,
@@ -115,7 +116,14 @@ public struct CaptureGroup: Identifiable, Sendable, Codable, Hashable {
     ) {
         let normKey = FramePairingEngine.normalizeFrameName(baseName)
         let camPrefix = sourceCamera ?? "default"
-        self.id = "\(sessionID.uuidString)_\(camPrefix)_\(normKey)"
+        if let explicitID = id {
+            self.id = explicitID
+        } else if let date = rawAsset?.metadata.captureDate ?? jpegAsset?.metadata.captureDate ?? heifAsset?.metadata.captureDate ?? otherAssets.first?.metadata.captureDate {
+            let timestamp = Int64(date.timeIntervalSince1970)
+            self.id = "\(sessionID.uuidString)_\(camPrefix)_\(normKey)_\(timestamp)"
+        } else {
+            self.id = "\(sessionID.uuidString)_\(camPrefix)_\(normKey)"
+        }
         self.baseName = baseName
         self.sessionID = sessionID
         self.sourceCamera = sourceCamera
@@ -180,14 +188,22 @@ public struct CaptureGroup: Identifiable, Sendable, Codable, Hashable {
     public func canAccept(asset: MediaAsset) -> Bool {
         guard sessionID == asset.sessionID else { return false }
         
-        // Если в группе уже есть ассеты, проверяем совпадение через FramePairingEngine
-        for existing in allAssets {
-            if FramePairingEngine.areMatchingPair(asset1: existing, asset2: asset) {
-                return true
+        // 1. Не принимаем дубликат формата, если такой формат в группе уже занят
+        if asset.isRAW && rawAsset != nil { return false }
+        if asset.isJPEG && jpegAsset != nil { return false }
+        if asset.isHEIF && heifAsset != nil { return false }
+        
+        // 2. Если в группе уже есть ассеты, сопоставление строго делегируется FramePairingEngine
+        if !allAssets.isEmpty {
+            for existing in allAssets {
+                if FramePairingEngine.areMatchingPair(asset1: existing, asset2: asset) {
+                    return true
+                }
             }
+            return false
         }
         
-        // Запасной критерий: эквивалентность базовых имён и совпадение камеры
+        // 3. Запасной критерий только для пустой группы (без ассетов): эквивалентность базовых имён и совпадение камеры
         let norm = FramePairingEngine.normalizeFrameName(asset.filename)
         if norm == self.normalizedKey || FramePairingEngine.areEquivalentNikonNames(asset.filename, baseName) {
             if let cam1 = sourceCamera, let cam2 = asset.metadata.cameraModel {

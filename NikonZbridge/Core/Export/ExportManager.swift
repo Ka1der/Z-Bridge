@@ -177,8 +177,10 @@ public actor ExportManager {
                             // Медиатека «Фото» не поддерживает сторонние XMP sidecar файлы
                         } else {
                             let parentFolder = url.deletingLastPathComponent()
+                            let exportedFilename = url.lastPathComponent
                             if let xmpURL = try? XMPGenerator.writeSidecar(
                                 for: item.asset,
+                                targetFilename: exportedFilename,
                                 to: parentFolder,
                                 convention: job.sidecarNamingConvention,
                                 sessionMetadata: job.sessionMetadata
@@ -230,8 +232,18 @@ public actor ExportManager {
             var fileEntries: [SessionManifestFileEntry] = []
             for item in job.items {
                 let isSuccess = item.status.isSuccess
+                let finalFilename = item.destinationURL?.lastPathComponent ?? item.asset.filename
+                let sidecarPath: String?
+                if job.includeXMPSidecars, let destURL = item.destinationURL {
+                    let sidecarName = job.sidecarNamingConvention.sidecarFilename(for: destURL.lastPathComponent)
+                    let sidecarCandidate = destURL.deletingLastPathComponent().appendingPathComponent(sidecarName)
+                    sidecarPath = fileManager.fileExists(atPath: sidecarCandidate.path) ? sidecarCandidate.path : nil
+                } else {
+                    sidecarPath = nil
+                }
+                
                 let entry = SessionManifestFileEntry(
-                    filename: item.asset.filename,
+                    filename: finalFilename,
                     format: item.asset.format.displayName,
                     fileSize: item.fileSize,
                     rating: item.asset.rating,
@@ -242,7 +254,7 @@ public actor ExportManager {
                     exposureSummary: item.asset.metadata.quickExposureSummary,
                     exportStatus: isSuccess ? "Успешно" : (item.errorMessage ?? "Ошибка"),
                     destinationPath: item.destinationURL?.path,
-                    xmpSidecarPath: nil
+                    xmpSidecarPath: sidecarPath
                 )
                 fileEntries.append(entry)
             }
@@ -566,16 +578,21 @@ public actor ExportManager {
             strategy: strategy
         )
         
+        guard let finalURL = copiedURL else {
+            return nil
+        }
+        
         if includeXMP {
             _ = try? XMPGenerator.writeSidecar(
                 for: asset,
+                targetFilename: finalURL.lastPathComponent,
                 to: folder,
                 convention: namingConvention,
                 sessionMetadata: sessionMetadata
             )
         }
         
-        return copiedURL
+        return finalURL
     }
 }
 
