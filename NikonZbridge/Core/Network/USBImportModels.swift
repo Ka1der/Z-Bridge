@@ -32,6 +32,15 @@ public enum USBCameraConnectionState: Equatable, Sendable {
         }
     }
     
+    public var isConnecting: Bool {
+        switch self {
+        case .discovered, .openingSession:
+            return true
+        default:
+            return false
+        }
+    }
+    
     public var cameraName: String? {
         switch self {
         case .discovered(let name),

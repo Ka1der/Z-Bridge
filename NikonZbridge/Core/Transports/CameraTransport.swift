@@ -72,6 +72,9 @@ public protocol CameraTransport: AnyObject, Sendable {
     /// Запрос на скачивание файла по инициативе приложения (Pull).
     /// Доступен для USB, для FTP вызывает ошибку unsupported.
     func requestDownload(fileID: String, into job: TransferJob) async throws
+    
+    /// Уведомление о смене активной сессии для синхронизации дедупликации и статусов файлов
+    func didChangeActiveSession(_ session: CaptureSession) async
 }
 
 extension CameraTransport {
@@ -79,4 +82,7 @@ extension CameraTransport {
     public func requestDownload(fileID: String, into job: TransferJob) async throws {
         throw TransferError.generic("Транспорт \(transportType.displayName) не поддерживает скачивание по запросу приложения (только Push)")
     }
+    
+    /// Реализация по умолчанию для транспортов, не требующих отдельной синхронизации сессий
+    public func didChangeActiveSession(_ session: CaptureSession) async {}
 }

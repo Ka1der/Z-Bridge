@@ -114,6 +114,8 @@ public final class AppState: ObservableObject {
     @Published public var usbCameraName: String?
     @Published public var usbConnectionState: USBCameraConnectionState = .disconnected
     @Published public var isUSBBrowserPresented: Bool = false
+    @Published public var isUSBAutoDownloadNewShotsEnabled: Bool = true
+    @Published public var isUSBAutoDownloadCardOnConnectEnabled: Bool = false
     
     // Настройки FTP и безопасность (Этап 5)
     @Published public var isFTPReceivingEnabled: Bool
@@ -202,7 +204,7 @@ public final class AppState: ObservableObject {
     @Published public var importFormatPreference: ImportFormatPreference = .allFormats
     
     // РЕЖИМ ВНЕШНЕГО ВИДА И ФИЛЬТРЫ ОТОБРАЖЕНИЯ ГАЛЕРЕИ
-    @Published public var viewMode: ViewMode = .viewer
+    @Published public var viewMode: ViewMode = .icons
     @Published public var showRAW: Bool = true
     @Published public var showJPG: Bool = true
     @Published public var showHEIF: Bool = true
@@ -376,6 +378,87 @@ public final class AppState: ObservableObject {
         updateSelectedAfterFilterChange()
     }
     
+    /// Проверка, активны ли какие-либо фильтры отображения
+    public var hasActiveFilters: Bool {
+        !showRAW || !showJPG || !showHEIF || onlyPaired || ratingFilter != .all || pickFilter != .all
+    }
+    
+    /// Количество активных критериев фильтрации (для отображения бейджа на панели)
+    public var activeFilterCount: Int {
+        var count = 0
+        if !showRAW || !showJPG || !showHEIF {
+            count += 1
+        }
+        if onlyPaired {
+            count += 1
+        }
+        if ratingFilter != .all {
+            count += 1
+        }
+        if pickFilter != .all {
+            count += 1
+        }
+        return count
+    }
+    
+    /// Полный сброс всех фильтров галереи к значениям по умолчанию
+    public func resetFilters() {
+        showRAW = true
+        showJPG = true
+        showHEIF = true
+        onlyPaired = false
+        ratingFilter = .all
+        pickFilter = .all
+        updateSelectedAfterFilterChange()
+    }
+    
+    /// Вычисленное состояние главного экрана для отображения ситуации и действий
+    public var mainScreenState: MainScreenState {
+        let unimportedCount = currentUSBManager.catalogFiles.filter { $0.status == .notImported }.count
+        return MainScreenPresentationModel.resolve(
+            totalGalleryCount: totalFramesCount,
+            filteredGalleryCount: filteredGroups.count,
+            hasActiveFilters: hasActiveFilters,
+            usbConnectionState: usbConnectionState,
+            isCatalogReady: currentUSBManager.isCatalogReady,
+            catalogTotalCount: currentUSBManager.catalogFiles.count,
+            catalogUnimportedCount: unimportedCount,
+            isDownloading: currentUSBManager.isDownloading,
+            activeTransferCount: currentUSBManager.activeTransferCount,
+            pendingQueueCount: currentUSBManager.pendingQueueCount,
+            transferSpeedMBs: nil,
+            isFTPServerRunning: isServerRunning,
+            ftpClientCount: connectedClients,
+            ftpServerIP: primaryIP?.ipAddress,
+            ftpServerPort: serverPort,
+            isFTPReceivingEnabled: isFTPReceivingEnabled
+        )
+    }
+    
+    /// Обработка действий пользователя из пустого состояния или компактного баннера
+    public func handleMainScreenAction(_ action: MainScreenActionType) {
+        switch action {
+        case .connectCamera:
+            self.isWizardPresented = true
+        case .openConnectionGuide:
+            self.isWizardPresented = true
+        case .retryConnection:
+            currentUSBManager.start()
+        case .importAllFromCard:
+            Task {
+                await currentUSBManager.importAllUnimported()
+            }
+        case .selectCardFiles:
+            self.isUSBBrowserPresented = true
+        case .refreshCard:
+            self.isUSBBrowserPresented = true
+        case .viewTransferQueue:
+            self.isQueuePresented = true
+        case .resetFilters:
+            resetFilters()
+        }
+    }
+    
     public func updateSelectedAfterFilterChange() {
         if let current = selectedGroup {
             if !filteredGroups.contains(where: { $0.id == current.id }) {
@@ -519,6 +602,23 @@ public final class AppState: ObservableObject {
         selectedGroupIDs.removeAll()
     }
     
+    /// Доступно ли сравнение для выбранных кадров (строго ровно 2 кадра)
+    public var canCompareSelected: Bool {
+        selectedGroupIDs.count == 2
+    }
+    
+    /// Запуск сравнения для двух выбранных кадров
+    public func presentCompareForSelected() {
+        guard selectedGroupIDs.count == 2 else { return }
+        let ids = Array(selectedGroupIDs)
+        if let g1 = filteredGroups.first(where: { $0.id == ids[0] }) ?? captureGroups.first(where: { $0.id == ids[0] }),
+           let g2 = filteredGroups.first(where: { $0.id == ids[1] }) ?? captureGroups.first(where: { $0.id == ids[1] }) {
+            selectedGroup = g1
+            compareCandidateGroup = g2
+            isComparePresented = true
+        }
+    }
+    
     public func batchSetRating(_ rating: Int) {
         let ids = Array(selectedGroupIDs)
         guard !ids.isEmpty else { return }
@@ -611,6 +711,10 @@ public final class AppState: ObservableObject {
         connectedClients > 0 || usbConnected || !connectedSources.isEmpty
     }
     
+    public var isCameraConnecting: Bool {
+        usbConnectionState.isConnecting
+    }
+    
     public var connectionStatusTitle: String {
         if usbConnected {
             return usbCameraName ?? "Nikon Z (Кабель)"
@@ -620,6 +724,16 @@ public final class AppState: ObservableObject {
             return "Nikon Z (Wi-Fi)"
         } else {
             return "Ожидание камеры"
+        }
+    }
+    
+    public var shortConnectionStatusTitle: String {
+        if usbConnected {
+            return "USB"
+        } else if connectedClients > 0 {
+            return "Wi-Fi"
+        } else {
+            return "Откл."
         }
     }
     
@@ -654,10 +768,21 @@ public final class AppState: ObservableObject {
         self.ftpUsername = creds.username
         self.ftpPassword = creds.password
         
+        self.isUSBAutoDownloadNewShotsEnabled = usbManager.isAutoDownloadNewShotsEnabled
+        self.isUSBAutoDownloadCardOnConnectEnabled = usbManager.isAutoDownloadCardOnConnectEnabled
+        
         setupBindings()
     }
     
     public var currentUSBManager: USBCameraManager { usbManager }
+    
+    public func setUSBAutoDownloadNewShots(_ enabled: Bool) {
+        usbManager.setAutoDownloadNewShots(enabled)
+    }
+    
+    public func setUSBAutoDownloadCardOnConnect(_ enabled: Bool) {
+        usbManager.setAutoDownloadCardOnConnect(enabled)
+    }
     
     private func setupBindings() {
         // 1. Мониторинг сетевых интерфейсов
@@ -680,6 +805,14 @@ public final class AppState: ObservableObject {
         usbManager.$connectionState
             .receive(on: DispatchQueue.main)
             .assign(to: &$usbConnectionState)
+            
+        usbManager.$isAutoDownloadNewShotsEnabled
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isUSBAutoDownloadNewShotsEnabled)
+            
+        usbManager.$isAutoDownloadCardOnConnectEnabled
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isUSBAutoDownloadCardOnConnectEnabled)
         
         // Регистрация транспортов в координаторе
         Task {

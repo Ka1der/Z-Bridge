@@ -2,6 +2,7 @@ import SwiftUI
 import CoreGraphics
 
 /// Экран просмотра оглавления карты памяти подключенной по USB камеры
+@MainActor
 public struct USBCameraBrowserView: View {
     @ObservedObject var usbManager: USBCameraManager
     @Environment(\.dismiss) private var dismiss
@@ -42,6 +43,10 @@ public struct USBCameraBrowserView: View {
         selectedFiles.reduce(0) { $0 + $1.fileSize }
     }
     
+    private var unimportedFilesCount: Int {
+        usbManager.catalogFiles.filter { $0.status == .notImported }.count
+    }
+    
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -65,8 +70,8 @@ public struct USBCameraBrowserView: View {
                     
                     Divider()
                     
-                    // Выбор режима импорта
-                    VStack(alignment: .leading, spacing: 6) {
+                    // Выбор режима импорта и независимые настройки
+                    VStack(alignment: .leading, spacing: 8) {
                         Text("Режим импорта по USB:")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -81,10 +86,22 @@ public struct USBCameraBrowserView: View {
                         }
                         .pickerStyle(.segmented)
                         
-                        Text(usbManager.importMode.descriptionText)
+                        VStack(spacing: 6) {
+                            Toggle(isOn: $usbManager.isAutoDownloadNewShotsEnabled) {
+                                Label("Автозагрузка новых кадров (live tethering)", systemImage: "camera.badge.ellipsis")
+                                    .font(.caption)
+                            }
+                            
+                            Toggle(isOn: $usbManager.isAutoDownloadCardOnConnectEnabled) {
+                                Label("Автозагрузка карты при подключении", systemImage: "arrow.down.circle")
+                                    .font(.caption)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                        
+                        Text("Дедупликация действует в пределах активной сессии")
                             .font(.caption2)
                             .foregroundColor(.secondary)
-                            .lineLimit(2)
                     }
                     
                     // Фильтр отображения файлов
@@ -248,13 +265,24 @@ public struct USBCameraBrowserView: View {
                         Spacer()
                         
                         Button {
+                            Task {
+                                await usbManager.importAllUnimported()
+                            }
+                        } label: {
+                            Label("Все неимпортированные (\(unimportedFilesCount))", systemImage: "tray.and.arrow.down")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!usbManager.isCatalogReady || unimportedFilesCount == 0)
+                        
+                        Button {
                             let toImport = selectedFiles
                             Task {
                                 await usbManager.importSelectedFiles(toImport)
                                 selectedFileIDs.removeAll()
                             }
                         } label: {
-                            Label("Импортировать (\(selectedFileIDs.count))", systemImage: "arrow.down.circle.fill")
+                            Label("Импорт (\(selectedFileIDs.count))", systemImage: "arrow.down.circle.fill")
                                 .fontWeight(.semibold)
                         }
                         .buttonStyle(.borderedProminent)

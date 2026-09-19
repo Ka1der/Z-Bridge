@@ -26,6 +26,25 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     @Published public var importMode: USBImportMode = .onlyNew
     @Published public var catalogFiles: [CameraFileItem] = []
     
+    public static let autoDownloadNewShotsKey = "nikon_usb_auto_download_new_shots"
+    public static let autoDownloadCardOnConnectKey = "nikon_usb_auto_download_card_on_connect"
+    
+    /// Автоматическая загрузка новых снимков, сделанных фотографом после подключения (live tethering)
+    @Published public var isAutoDownloadNewShotsEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isAutoDownloadNewShotsEnabled, forKey: Self.autoDownloadNewShotsKey)
+            updateImportModeRepresentation()
+        }
+    }
+    
+    /// Автоматическая загрузка оглавления карты памяти при готовности каталога
+    @Published public var isAutoDownloadCardOnConnectEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isAutoDownloadCardOnConnectEnabled, forKey: Self.autoDownloadCardOnConnectKey)
+            updateImportModeRepresentation()
+        }
+    }
+    
     @Published public var connectedCamera: ICCameraDevice?
     @Published public var cameraName: String?
     @Published public var isConnected: Bool = false
@@ -53,7 +72,22 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     ) {
         self.coordinator = coordinator
         self.transferQueue = USBTransferQueue(maxConcurrentDownloads: maxConcurrentDownloads)
+        
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: Self.autoDownloadNewShotsKey) != nil {
+            self.isAutoDownloadNewShotsEnabled = defaults.bool(forKey: Self.autoDownloadNewShotsKey)
+        } else {
+            self.isAutoDownloadNewShotsEnabled = true
+        }
+        
+        if defaults.object(forKey: Self.autoDownloadCardOnConnectKey) != nil {
+            self.isAutoDownloadCardOnConnectEnabled = defaults.bool(forKey: Self.autoDownloadCardOnConnectKey)
+        } else {
+            self.isAutoDownloadCardOnConnectEnabled = false
+        }
+        
         super.init()
+        updateImportModeRepresentation()
         setupBrowser()
     }
     
@@ -77,19 +111,48 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     
     // MARK: - Управление режимами импорта и запуск загрузок
     
-    public func setImportMode(_ mode: USBImportMode) {
-        self.importMode = mode
-        if mode == .allUnimported && isCatalogReady {
-            Task {
-                await importAllUnimported()
-            }
+    public func setAutoDownloadNewShots(_ enabled: Bool) {
+        self.isAutoDownloadNewShotsEnabled = enabled
+    }
+    
+    public func setAutoDownloadCardOnConnect(_ enabled: Bool) {
+        self.isAutoDownloadCardOnConnectEnabled = enabled
+    }
+    
+    private func updateImportModeRepresentation() {
+        if isAutoDownloadNewShotsEnabled && isAutoDownloadCardOnConnectEnabled {
+            self.importMode = .allUnimported
+        } else if isAutoDownloadNewShotsEnabled {
+            self.importMode = .onlyNew
+        } else {
+            self.importMode = .selected
         }
     }
     
-    /// Импорт только выбранных пользователем файлов
+    public func setImportMode(_ mode: USBImportMode) {
+        switch mode {
+        case .onlyNew:
+            self.isAutoDownloadNewShotsEnabled = true
+            self.isAutoDownloadCardOnConnectEnabled = false
+        case .allUnimported:
+            self.isAutoDownloadNewShotsEnabled = true
+            self.isAutoDownloadCardOnConnectEnabled = true
+            if isCatalogReady {
+                Task {
+                    await importAllUnimported()
+                }
+            }
+        case .selected:
+            self.isAutoDownloadNewShotsEnabled = false
+            self.isAutoDownloadCardOnConnectEnabled = false
+        }
+    }
+    
+    /// Импорт только выбранных пользователем файлов (не изменяет настройку live-автозагрузки)
     public func importSelectedFiles(_ items: [CameraFileItem]) async {
         guard connectedCamera != nil else { return }
         for item in items where item.status != .imported && item.status != .queued {
+            if await transferQueue.isEnqueuedOrActive(compositeID: item.id) { continue }
             guard let file = item.cameraFile ?? cameraFileMap[item.id] else { continue }
             cameraFileMap[item.id] = file
             if !catalogFiles.contains(where: { $0.id == item.id }) {
@@ -100,10 +163,11 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         await processQueue()
     }
     
-    /// Импорт всех ещё не импортированных файлов из каталога карты
+    /// Импорт всех ещё не импортированных файлов из каталога карты (не изменяет настройку live-автозагрузки)
     public func importAllUnimported() async {
         guard connectedCamera != nil, isCatalogReady else { return }
         for item in catalogFiles where item.status == .notImported {
+            if await transferQueue.isEnqueuedOrActive(compositeID: item.id) { continue }
             guard let file = item.cameraFile ?? cameraFileMap[item.id] else { continue }
             await scheduleDownload(for: file, compositeID: item.id, existingJob: nil)
         }
@@ -186,7 +250,15 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         let filename = cameraFile.name ?? catalogFiles.first(where: { $0.id == compositeID })?.filename ?? "DSC_0001.NEF"
         let fileSize = cameraFile.fileSize > 0 ? cameraFile.fileSize : (catalogFiles.first(where: { $0.id == compositeID })?.fileSize ?? 0)
         
-        // 1. Проверяем, не скачан ли уже файл в текущей сессии
+        // 1. Защита от дубликатов: проверяем, не выполняется ли уже загрузка и не стоит ли файл в очереди
+        if inFlightJobs[compositeID] != nil {
+            return
+        }
+        if await transferQueue.isEnqueuedOrActive(compositeID: compositeID) {
+            return
+        }
+        
+        // 2. Проверяем, не скачан ли уже файл в текущей сессии
         let alreadyImported = await coordinator.isAssetAlreadyImported(
             sourceFileID: compositeID,
             filename: filename,
@@ -197,7 +269,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
             return
         }
         
-        // 2. Создаем задание в координаторе, если еще нет
+        // 3. Создаем задание в координаторе, если еще нет
         let job: TransferJob
         if let existing = existingJob {
             job = existing
@@ -372,6 +444,30 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         self.pendingQueueCount = 0
         self.activeTransferCount = 0
     }
+    
+    // MARK: - CameraTransport Conformance (Session Synchronization)
+    
+    public func didChangeActiveSession(_ session: CaptureSession) async {
+        await syncWithSession(session)
+    }
+    
+    /// Синхронизирует дедупликацию и статусы файлов оглавления с активной сессией
+    public func syncWithSession(_ session: CaptureSession) async {
+        let imported = await coordinator.getImportedSourceFileIDs()
+        await transferQueue.resetImportedIDs(Array(imported))
+        
+        for idx in catalogFiles.indices {
+            let itemID = catalogFiles[idx].id
+            if imported.contains(itemID) {
+                catalogFiles[idx].status = .imported
+            } else {
+                let isEnqueuedOrActive = await transferQueue.isEnqueuedOrActive(compositeID: itemID)
+                if !isEnqueuedOrActive && catalogFiles[idx].status == .imported {
+                    catalogFiles[idx].status = .notImported
+                }
+            }
+        }
+    }
 }
 
 // MARK: - ICDeviceBrowserDelegate
@@ -430,10 +526,10 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
         self.isConnected = true
         self.connectionState = .sessionOpened(name: name)
         
-        // Синхронизируем уже импортированные файлы с базы данных
+        // Синхронизируем уже импортированные файлы с базы данных активной сессии
         Task {
             let imported = await coordinator.getImportedSourceFileIDs()
-            await transferQueue.registerExistingImportedIDs(Array(imported))
+            await transferQueue.resetImportedIDs(Array(imported))
         }
     }
     
@@ -494,7 +590,7 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
             
             // Если каталог уже готов — это новый снимок (live tethering)!
             if isCatalogReady {
-                if importMode == .onlyNew || importMode == .allUnimported {
+                if isAutoDownloadNewShotsEnabled {
                     Task {
                         await scheduleDownload(for: file, compositeID: compositeID, existingJob: nil)
                         await processQueue()
@@ -516,7 +612,7 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
         self.connectionState = .ready(name: name, totalItems: total)
         
         Task {
-            // Проверяем статус для каждого файла в каталоге
+            // Проверяем статус для каждого файла в каталоге в рамках текущей сессии
             let importedIDs = await coordinator.getImportedSourceFileIDs()
             for idx in catalogFiles.indices {
                 if importedIDs.contains(catalogFiles[idx].id) {
@@ -524,8 +620,8 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                 }
             }
             
-            // В режиме «Все неимпортированные» запускаем загрузку оставшихся
-            if importMode == .allUnimported {
+            // Если включена автозагрузка флешки при подключении, запускаем импорт всех неимпортированных
+            if isAutoDownloadCardOnConnectEnabled {
                 await importAllUnimported()
             }
         }

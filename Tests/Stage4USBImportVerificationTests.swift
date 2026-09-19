@@ -35,6 +35,7 @@ final class Stage4USBImportVerificationSuite {
     }
     
     func runAllTests() async throws {
+        defer { try? FileManager.default.removeItem(at: tempBaseURL) }
         try await testConnectionLifecycleStates()
         try await testInitialCatalogVsLiveShotsInOnlyNewMode()
         try await testQueueConcurrencyLimitAndSafeBaseline()
@@ -47,6 +48,11 @@ final class Stage4USBImportVerificationSuite {
         try await testInFlightCancellationKeepsSlotUntilCallbackAndFreesSafely()
         try await testRetryAfterErrorRecoversJobFromCoordinatorAndReenqueues()
         try await testVerificationFailureDoesNotMarkImportedAndAllowsRetry()
+        try await testIndependentAutoDownloadSettingsAndExplicitCommands()
+        try await testCardImportDeferredUntilCatalogIsReady()
+        try await testDuplicateJobPreventionOnRepeatedClicks()
+        try await testSessionScopedDeduplicationAllowsReimportInNewSession()
+        try await testNewShotArrivingDuringCardImport()
     }
     
     // MARK: - 1. Состояния жизненного цикла подключения
@@ -662,6 +668,303 @@ final class Stage4USBImportVerificationSuite {
         verify(await usb.transferQueue.isAlreadyImported(compositeID: item.id) == false, "Файл по-прежнему не в importedIDs")
         
         print("  ✓ Ошибка верификации не добавила файл в importedIDs, повтор успешно перезапустил загрузку")
+    }
+    
+    // MARK: - 13. Тест независимых настроек автозагрузки и неизменности настроек при явных командах
+    func testIndependentAutoDownloadSettingsAndExplicitCommands() async throws {
+        print("\n[13/17] Тест раздельных настроек автозагрузки и явных команд...")
+        
+        let storage = StorageManager(customBaseURL: tempBaseURL.appendingPathComponent("Storage_Settings_\(UUID().uuidString)"))
+        let db = CatalogDatabase(customDatabaseURL: tempBaseURL.appendingPathComponent("db_settings_\(UUID().uuidString).sqlite"))
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        await coordinator.bootstrap()
+        
+        // Очищаем UserDefaults перед тестом
+        UserDefaults.standard.removeObject(forKey: USBCameraManager.autoDownloadNewShotsKey)
+        UserDefaults.standard.removeObject(forKey: USBCameraManager.autoDownloadCardOnConnectKey)
+        
+        let usb = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        
+        // Проверяем значения по умолчанию
+        verify(usb.isAutoDownloadNewShotsEnabled == true, "Автозагрузка новых кадров по умолчанию включена (true)")
+        verify(usb.isAutoDownloadCardOnConnectEnabled == false, "Автозагрузка флешки при подключении по умолчанию выключена (false)")
+        verify(usb.importMode == .onlyNew, "Отображаемый режим по умолчанию — onlyNew")
+        
+        // Изменяем настройки напрямую
+        usb.setAutoDownloadNewShots(false)
+        verify(usb.isAutoDownloadNewShotsEnabled == false)
+        verify(usb.importMode == .selected)
+        
+        usb.setAutoDownloadCardOnConnect(true)
+        verify(usb.isAutoDownloadCardOnConnectEnabled == true)
+        
+        usb.setAutoDownloadNewShots(true)
+        verify(usb.importMode == .allUnimported)
+        
+        // Подключаем мок-камеру
+        let mockCamera = MockCameraDevice()
+        usb.connectedCamera = mockCamera
+        usb.isConnected = true
+        usb.isCatalogReady = true
+        
+        let file = MockCameraFile(name: "DSC_8001.NEF", size: 2048)
+        let item = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_8001.NEF",
+            fileSize: 2048,
+            creationDate: Date(timeIntervalSince1970: 1700000080),
+            cameraFile: file
+        )
+        usb.catalogFiles = [item]
+        
+        // Вызов явной команды importSelectedFiles НЕ должен менять isAutoDownloadNewShotsEnabled
+        usb.setAutoDownloadNewShots(false)
+        await usb.importSelectedFiles([item])
+        verify(usb.isAutoDownloadNewShotsEnabled == false, "importSelectedFiles не должен изменять настройку новых кадров")
+        
+        // Сбрасываем и тестируем importAllUnimported
+        usb.setAutoDownloadNewShots(true)
+        usb.setAutoDownloadCardOnConnect(false)
+        await usb.importAllUnimported()
+        verify(usb.isAutoDownloadNewShotsEnabled == true, "importAllUnimported не должен сбрасывать или изменять настройку новых кадров")
+        verify(usb.isAutoDownloadCardOnConnectEnabled == false, "importAllUnimported не должен изменять настройку автозагрузки карты при подключении")
+        
+        print("  ✓ Настройки независимы, сохраняются, и явные команды не меняют настройки live-съёмки")
+    }
+    
+    // MARK: - 14. Тест блокировки импорта до готовности каталога и автозапуска при флаге
+    func testCardImportDeferredUntilCatalogIsReady() async throws {
+        print("\n[14/17] Тест блокировки импорта до готовности каталога...")
+        
+        let storage = StorageManager(customBaseURL: tempBaseURL.appendingPathComponent("Storage_Ready_\(UUID().uuidString)"))
+        let db = CatalogDatabase(customDatabaseURL: tempBaseURL.appendingPathComponent("db_ready_\(UUID().uuidString).sqlite"))
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        await coordinator.bootstrap()
+        
+        let usb = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        let mockCamera = MockCameraDevice()
+        usb.connectedCamera = mockCamera
+        usb.isConnected = true
+        usb.isCatalogReady = false // Каталог еще читается!
+        
+        let file = MockCameraFile(name: "DSC_8002.NEF", size: 1024)
+        let item = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_8002.NEF",
+            fileSize: 1024,
+            creationDate: Date(timeIntervalSince1970: 1700000081),
+            cameraFile: file
+        )
+        usb.catalogFiles = [item]
+        
+        // 1. Попытка вызвать importAllUnimported до готовности каталога НЕ должна ничего ставить в очередь
+        await usb.importAllUnimported()
+        verify(await usb.transferQueue.totalQueueCount == 0, "Импорт оглавления не должен начинаться до isCatalogReady")
+        verify(!usb.isDownloading, "Скачивание не должно запускаться до готовности оглавления")
+        
+        // 2. Включаем автозагрузку карты при подключении
+        usb.setAutoDownloadCardOnConnect(true)
+        
+        // 3. Симулируем завершение чтения каталога камерой
+        usb.deviceDidBecomeReady(withCompleteContentCatalog: mockCamera)
+        verify(usb.isCatalogReady, "После вызова deviceDidBecomeReady каталог готов")
+        
+        // Даем небольшую паузу для асинхронного запуска в Task
+        try await Task.sleep(nanoseconds: 50_000_000)
+        
+        // Теперь файл должен автоматически встать в очередь и начать скачиваться!
+        verify(usb.isDownloading, "Автозагрузка карты при подключении должна автоматически запуститься после готовности каталога")
+        
+        print("  ✓ Импорт карты строго заблокирован до isCatalogReady и автоматически стартует при включенной настройке")
+    }
+    
+    // MARK: - 15. Тест защиты от повторной постановки активных/ожидающих файлов и создания дубликатов заданий
+    func testDuplicateJobPreventionOnRepeatedClicks() async throws {
+        print("\n[15/17] Тест защиты от создания дубликатов заданий при повторных нажатиях импорта...")
+        
+        let storage = StorageManager(customBaseURL: tempBaseURL.appendingPathComponent("Storage_DupJob_\(UUID().uuidString)"))
+        let db = CatalogDatabase(customDatabaseURL: tempBaseURL.appendingPathComponent("db_dupjob_\(UUID().uuidString).sqlite"))
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        await coordinator.bootstrap()
+        
+        let usb = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        let mockCamera = MockCameraDevice()
+        usb.connectedCamera = mockCamera
+        usb.isConnected = true
+        usb.isCatalogReady = true
+        
+        let file1 = MockCameraFile(name: "DSC_8003.NEF", size: 1024)
+        let item1 = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_8003.NEF",
+            fileSize: 1024,
+            creationDate: Date(timeIntervalSince1970: 1700000082),
+            cameraFile: file1
+        )
+        
+        let file2 = MockCameraFile(name: "DSC_8004.NEF", size: 2048)
+        let item2 = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_8004.NEF",
+            fileSize: 2048,
+            creationDate: Date(timeIntervalSince1970: 1700000083),
+            cameraFile: file2
+        )
+        
+        usb.catalogFiles = [item1, item2]
+        
+        // Первый клик импорта
+        await usb.importSelectedFiles([item1, item2])
+        
+        let initialJobsCount = await coordinator.jobs.count
+        verify(initialJobsCount == 2, "Должно быть создано ровно 2 задания переноса")
+        verify(await usb.transferQueue.totalQueueCount == 2, "В очереди ровно 2 элемента (1 активный + 1 ожидающий)")
+        
+        // Пользователь нажимает «Импортировать» повторно 5 раз подряд!
+        for _ in 1...5 {
+            await usb.importSelectedFiles([item1, item2])
+            await usb.importAllUnimported()
+        }
+        
+        let afterRepeatedJobsCount = await coordinator.jobs.count
+        verify(afterRepeatedJobsCount == 2, "Повторные нажатия НЕ должны создавать новые TransferJob в координаторе (осталось ровно 2)")
+        verify(await usb.transferQueue.totalQueueCount == 2, "В очереди по-прежнему ровно 2 элемента")
+        
+        print("  ✓ Повторные нажатия импорта полностью идемпотентны и не создают лишних заданий TransferJob")
+    }
+    
+    // MARK: - 16. Тест ограничения области дедупликации текущей сессией и повторного импорта в новую
+    func testSessionScopedDeduplicationAllowsReimportInNewSession() async throws {
+        print("\n[16/17] Тест сессионной дедупликации и импорта в новую сессию...")
+        
+        let storage = StorageManager(customBaseURL: tempBaseURL.appendingPathComponent("Storage_SessionScope_\(UUID().uuidString)"))
+        let db = CatalogDatabase(customDatabaseURL: tempBaseURL.appendingPathComponent("db_sessionscope_\(UUID().uuidString).sqlite"))
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        await coordinator.bootstrap()
+        
+        let usb = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        await coordinator.registerTransport(usb)
+        
+        let mockCamera = MockCameraDevice()
+        usb.connectedCamera = mockCamera
+        usb.isConnected = true
+        usb.isCatalogReady = true
+        
+        let cameraID = mockCamera.name ?? "nikon"
+        let file = MockCameraFile(name: "DSC_8005.NEF", size: 1024)
+        let item = CameraFileItem(
+            cameraID: cameraID,
+            filename: "DSC_8005.NEF",
+            fileSize: 1024,
+            creationDate: file.creationDate,
+            cameraFile: file
+        )
+        usb.catalogFiles = [item]
+        
+        // Импортируем файл в Сессию 1
+        await usb.importSelectedFiles([item])
+        verify(usb.isDownloading)
+        
+        // Симулируем успешную запись файла на диск (полный размер 1024 байта с сигнатурой TIFF/NEF)
+        let job1 = await coordinator.jobs.values.first(where: { $0.filename == "DSC_8005.NEF" })!
+        let targetURL1 = job1.stagingURL ?? job1.destinationURL
+        try? FileManager.default.createDirectory(at: targetURL1.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var validData = Data([0x49, 0x49, 0x2A, 0x00])
+        validData.append(Data(repeating: 0x20, count: 1020))
+        try validData.write(to: targetURL1)
+        
+        usb.didDownloadFile(file, error: nil, options: [:], contextInfo: nil)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        // Проверяем, что в Сессии 1 файл успешно импортирован
+        verify(usb.catalogFiles.first?.status == .imported, "В первой сессии файл должен иметь статус .imported")
+        verify(await usb.transferQueue.isAlreadyImported(compositeID: item.id), "В очереди Сессии 1 файл отмечен как imported")
+        
+        // Повторный импорт в Сессии 1 отсекается дедупликацией
+        mockCamera.lastRequestedFile = nil
+        await usb.importSelectedFiles([item])
+        verify(mockCamera.lastRequestedFile == nil, "В первой сессии файл не должен повторно запрашиваться")
+        
+        // Теперь создаем НОВУЮ сессию (Сессия 2)!
+        _ = try await coordinator.startNewSession(named: "Session2")
+        try await Task.sleep(nanoseconds: 50_000_000)
+        
+        // Проверяем дедупликацию в Сессии 2:
+        // 1. Статус файла в оглавлении должен сброситься в .notImported
+        verify(usb.catalogFiles.first?.status == .notImported, "В новой сессии файл должен быть доступен для импорта (.notImported)")
+        // 2. В очереди importedIDs должен быть очищен от чужой сессии
+        let isImportedInQueueSession2 = await usb.transferQueue.isAlreadyImported(compositeID: item.id)
+        verify(!isImportedInQueueSession2, "В очереди Сессии 2 файл НЕ должен считаться уже импортированным")
+        
+        // 3. Теперь файл МОЖЕТ быть импортирован в Сессию 2!
+        mockCamera.lastRequestedFile = nil
+        await usb.importSelectedFiles([item])
+        verify(usb.isDownloading, "В Сессию 2 файл должен успешно встать на скачивание")
+        verify(mockCamera.lastRequestedFile === file, "Камере отправлен запрос на передачу файла для Сессии 2")
+        
+        print("  ✓ Дедупликация строго сессионная: повторный импорт в ту же сессию блокируется, а в новую сессию успешно разрешен")
+    }
+    
+    // MARK: - 17. Тест прихода нового live-снимка во время пакетного импорта карты
+    func testNewShotArrivingDuringCardImport() async throws {
+        print("\n[17/17] Тест прихода нового кадра во время импорта с карты...")
+        
+        let storage = StorageManager(customBaseURL: tempBaseURL.appendingPathComponent("Storage_LiveDuringCard_\(UUID().uuidString)"))
+        let db = CatalogDatabase(customDatabaseURL: tempBaseURL.appendingPathComponent("db_liveduringcard_\(UUID().uuidString).sqlite"))
+        let coordinator = TransferCoordinator(storageManager: storage, database: db)
+        await coordinator.bootstrap()
+        
+        let usb = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        let mockCamera = MockCameraDevice()
+        usb.connectedCamera = mockCamera
+        usb.isConnected = true
+        usb.isCatalogReady = true
+        usb.setAutoDownloadNewShots(true) // Live tethering включен
+        
+        // На карте есть 2 старых снимка
+        let cardFile1 = MockCameraFile(name: "DSC_8010.NEF", size: 1024)
+        let cardItem1 = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_8010.NEF",
+            fileSize: 1024,
+            creationDate: Date(timeIntervalSince1970: 1700000010),
+            cameraFile: cardFile1
+        )
+        let cardFile2 = MockCameraFile(name: "DSC_8011.NEF", size: 1024)
+        let cardItem2 = CameraFileItem(
+            cameraID: "mock-z8",
+            filename: "DSC_8011.NEF",
+            fileSize: 1024,
+            creationDate: Date(timeIntervalSince1970: 1700000011),
+            cameraFile: cardFile2
+        )
+        usb.catalogFiles = [cardItem1, cardItem2]
+        
+        // Запускаем импорт файлов карты
+        await usb.importAllUnimported()
+        verify(usb.isDownloading, "Скачивание первого файла карты запущено")
+        verify(await usb.transferQueue.pendingCount == 1, "Второй файл карты ожидает в очереди")
+        
+        // В этот момент фотограф делает НОВЫЙ снимок на камеру!
+        let liveFile = MockCameraFile(name: "DSC_9999.NEF", size: 2048)
+        usb.cameraDevice(mockCamera, didAdd: [liveFile])
+        
+        try await Task.sleep(nanoseconds: 50_000_000)
+        
+        // Проверяем:
+        // 1. Новый снимок добавлен в оглавление
+        verify(usb.catalogFiles.contains(where: { $0.filename == "DSC_9999.NEF" }), "Новый снимок добавлен в catalogFiles")
+        // 2. Новый снимок автоматически поставлен в очередь
+        verify(await usb.transferQueue.totalQueueCount == 3, "Всего в очереди 3 файла (1 активный + 2 ожидающих)")
+        let expectedCompositeID = CameraFileItem.makeCompositeID(
+            cameraID: mockCamera.name ?? "nikon",
+            filename: "DSC_9999.NEF",
+            fileSize: 2048,
+            creationDate: liveFile.creationDate
+        )
+        verify(await usb.transferQueue.isEnqueuedOrActive(compositeID: expectedCompositeID), "Новый снимок поставлен в очередь")
+        
+        print("  ✓ Новый live-снимок успешно встал в очередь во время импорта с карты, не нарушая работу конвейера")
     }
 }
 

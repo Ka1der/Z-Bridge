@@ -137,6 +137,9 @@ public actor TransferCoordinator: CameraTransportDelegate {
         self.jobs = Dictionary(uniqueKeysWithValues: sessionJobs.map { ($0.id, $0) })
         
         onSessionChanged?(self.activeSession)
+        for transport in transports.values {
+            await transport.didChangeActiveSession(self.activeSession)
+        }
     }
     
     /// Восстанавливает историю, затем выбирает сессию для нового запуска приложения.
@@ -164,6 +167,10 @@ public actor TransferCoordinator: CameraTransportDelegate {
     public func registerTransport(_ transport: CameraTransport) {
         self.transports[transport.transportType] = transport
         transport.delegate = self
+        let currentSession = self.activeSession
+        Task {
+            await transport.didChangeActiveSession(currentSession)
+        }
     }
     
     // MARK: - Управление сессиями (История, Переименование, Завершение, Удаление)
@@ -187,6 +194,9 @@ public actor TransferCoordinator: CameraTransportDelegate {
         self.jobs = self.jobs.filter { !$0.value.state.isTerminal }
         
         onSessionChanged?(newSession)
+        for transport in transports.values {
+            await transport.didChangeActiveSession(newSession)
+        }
         return newSession
     }
     
@@ -215,6 +225,9 @@ public actor TransferCoordinator: CameraTransportDelegate {
         self.jobs = newJobs
         
         onSessionChanged?(switched)
+        for transport in transports.values {
+            await transport.didChangeActiveSession(switched)
+        }
         return switched
     }
     

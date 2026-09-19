@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 60;
+	objectVersion = 71;
 	objects = {
 
 /* Begin PBXFileReference section */
@@ -21,10 +21,10 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		1994C6C7BA5B4CA8B52FF10E /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (); explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/App; sourceTree = "<group>"; };
-		95B1664E9CFB4AF2843075DF /* Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (37E12B56FDE549AA85E2CC48 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/Resources; sourceTree = "<group>"; };
-		B500B782A80047BC88EDAA19 /* Core */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (); explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/Core; sourceTree = "<group>"; };
-		E0D7E6EBF21D4FE7BFAD713F /* UI */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (); explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/UI; sourceTree = "<group>"; };
+		1994C6C7BA5B4CA8B52FF10E /* NikonZbridge/App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/App; sourceTree = "<group>"; };
+		95B1664E9CFB4AF2843075DF /* NikonZbridge/Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (37E12B56FDE549AA85E2CC48 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/Resources; sourceTree = "<group>"; };
+		B500B782A80047BC88EDAA19 /* NikonZbridge/Core */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/Core; sourceTree = "<group>"; };
+		E0D7E6EBF21D4FE7BFAD713F /* NikonZbridge/UI */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/UI; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,10 +41,10 @@
 		01E9F51FAFD142D8BFF2525A = {
 			isa = PBXGroup;
 			children = (
-				1994C6C7BA5B4CA8B52FF10E /* App */,
-				B500B782A80047BC88EDAA19 /* Core */,
-				E0D7E6EBF21D4FE7BFAD713F /* UI */,
-				95B1664E9CFB4AF2843075DF /* Resources */,
+				1994C6C7BA5B4CA8B52FF10E /* NikonZbridge/App */,
+				B500B782A80047BC88EDAA19 /* NikonZbridge/Core */,
+				E0D7E6EBF21D4FE7BFAD713F /* NikonZbridge/UI */,
+				95B1664E9CFB4AF2843075DF /* NikonZbridge/Resources */,
 				80771A6C167747DC926DA93D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -73,10 +73,10 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				1994C6C7BA5B4CA8B52FF10E /* App */,
-				B500B782A80047BC88EDAA19 /* Core */,
-				E0D7E6EBF21D4FE7BFAD713F /* UI */,
-				95B1664E9CFB4AF2843075DF /* Resources */,
+				1994C6C7BA5B4CA8B52FF10E /* NikonZbridge/App */,
+				95B1664E9CFB4AF2843075DF /* NikonZbridge/Resources */,
+				B500B782A80047BC88EDAA19 /* NikonZbridge/Core */,
+				E0D7E6EBF21D4FE7BFAD713F /* NikonZbridge/UI */,
 			);
 			name = NikonZbridge;
 			productName = NikonZbridge;

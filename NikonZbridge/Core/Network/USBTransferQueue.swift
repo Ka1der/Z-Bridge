@@ -77,6 +77,11 @@ public actor USBTransferQueue {
         }
     }
     
+    /// Сброс и синхронизация множества импортированных идентификаторов под текущую активную сессию
+    public func resetImportedIDs(_ ids: [String]) {
+        importedIDs = Set(ids)
+    }
+    
     /// Добавление элемента в очередь с проверкой дедупликации
     /// Возвращает true, если элемент успешно добавлен, и false, если это дубликат
     @discardableResult
