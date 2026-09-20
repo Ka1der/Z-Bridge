@@ -13,7 +13,7 @@ public struct NikonTetherRootView: View {
     
     public var body: some View {
         ZStack {
-            Color(uiColor: .systemBackground).ignoresSafeArea()
+            AppTheme.Colors.background.ignoresSafeArea()
             
             VStack(spacing: 0) {
                 // 1. ВЕРХНЯЯ ПАНЕЛЬ: название сессии, один статус, кнопка «Импортировать», меню дополнительных действий
@@ -151,108 +151,52 @@ public struct NikonTetherRootView: View {
     // MARK: - 1. Top HUD
     
     private var topHUD: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AppTheme.Spacing.sm) {
             // Кнопка названия сессии с переходом к истории
             Button {
                 isShowingSessionSheet = true
             } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: AppTheme.Spacing.xs + 1) {
                     Image(systemName: "folder")
                         .font(.subheadline)
                     Text(appState.currentSession?.name ?? "Сессия")
-                        .font(.subheadline.bold())
+                        .font(AppTheme.Typography.subheadlineBold)
                         .lineLimit(1)
                 }
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 10)
-                .frame(minHeight: 44)
-                .background(Color(uiColor: .secondarySystemFill))
-                .clipShape(Capsule())
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .padding(.horizontal, AppTheme.Spacing.md)
+                .frame(minHeight: AppTheme.Dimensions.buttonHeight)
+                .glassPill()
             }
             .accessibilityLabel("Сессия: \(appState.currentSession?.name ?? "Сессия")")
             .accessibilityHint("Нажмите для перехода к истории сессий")
             
-            // Один статус подключения (не передает статус только цветом)
-            Button {
-                isShowingConnectionSheet = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: connectionStatusIcon)
-                        .font(.subheadline)
-                        .foregroundStyle(connectionStatusColor)
-                    
-                    ViewThatFits(in: .horizontal) {
-                        Text(appState.connectionStatusTitle)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                        
-                        Text(appState.shortConnectionStatusTitle)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .frame(minHeight: 44)
-                .background(Color(uiColor: .secondarySystemFill))
-                .clipShape(Capsule())
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Статус подключения: \(appState.connectionStatusTitle)")
-            .accessibilityHint("Нажмите для открытия настроек подключения")
-            
-            Spacer(minLength: 4)
-            
-            // Подписанная кнопка «Импортировать»
-            Button {
-                if appState.usbConnected {
-                    appState.isUSBBrowserPresented = true
-                } else {
+            // Один статус подключения (ConnectionStatusView)
+            ConnectionStatusView(
+                status: connectionStatusState,
+                title: appState.connectionStatusTitle,
+                shortTitle: appState.shortConnectionStatusTitle,
+                iconName: connectionStatusIcon,
+                style: .pill,
+                action: {
                     isShowingConnectionSheet = true
                 }
-            } label: {
-                HStack(spacing: 5) {
-                    if appState.usbConnected && !appState.currentUSBManager.isCatalogReady {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .tint(.white)
-                        Text("Чтение...")
-                            .font(.subheadline.bold())
-                            .lineLimit(1)
+            )
+            
+            Spacer(minLength: AppTheme.Spacing.xs)
+            
+            // Подписанная кнопка «Импортировать»
+            PrimaryImportButton(
+                isReadingCatalog: appState.usbConnected && !appState.currentUSBManager.isCatalogReady,
+                unimportedCount: appState.currentUSBManager.catalogFiles.filter { $0.status == .notImported }.count,
+                action: {
+                    if appState.usbConnected {
+                        appState.isUSBBrowserPresented = true
                     } else {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.subheadline)
-                        
-                        ViewThatFits(in: .horizontal) {
-                            Text("Импортировать")
-                                .font(.subheadline.bold())
-                                .lineLimit(1)
-                            
-                            Text("Импорт")
-                                .font(.subheadline.bold())
-                                .lineLimit(1)
-                        }
-                        
-                        let unimported = appState.currentUSBManager.catalogFiles.filter { $0.status == .notImported }.count
-                        if unimported > 0 {
-                            Text("\(unimported)")
-                                .font(.caption2.bold())
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(Color.white.opacity(0.35))
-                                .clipShape(Capsule())
-                        }
+                        isShowingConnectionSheet = true
                     }
                 }
-                .padding(.horizontal, 12)
-                .frame(minHeight: 44)
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
-            }
-            .accessibilityLabel(appState.usbConnected && !appState.currentUSBManager.isCatalogReady ? "Идет чтение карты памяти камеры" : "Импортировать снимки с камеры")
-            .accessibilityHint("Нажмите для выбора и загрузки снимков с карты памяти камеры")
+            )
             
             // Меню дополнительных действий
             Menu {
@@ -328,14 +272,25 @@ public struct NikonTetherRootView: View {
                     Label("Очистить галерею...", systemImage: "trash")
                 }
             } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.title3)
-                    .foregroundStyle(.primary)
-                    .frame(width: 44, height: 44)
-                    .background(Color(uiColor: .secondarySystemFill))
-                    .clipShape(Circle())
+                Image(systemName: "ellipsis")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                    .glassSurface(shape: Circle())
             }
             .accessibilityLabel("Дополнительные действия")
+        }
+    }
+    
+    private var connectionStatusState: ConnectionStatusView.Status {
+        if appState.isCameraConnected {
+            return .connected
+        } else if appState.isCameraConnecting {
+            return .connecting
+        } else if appState.isServerRunning {
+            return .idle
+        } else {
+            return .disconnected
         }
     }
     
@@ -350,16 +305,6 @@ public struct NikonTetherRootView: View {
             return "arrow.triangle.2.circlepath"
         } else {
             return "bolt.slash"
-        }
-    }
-    
-    private var connectionStatusColor: Color {
-        if appState.isCameraConnected {
-            return .green
-        } else if appState.isCameraConnecting {
-            return .orange
-        } else {
-            return .secondary
         }
     }
     
@@ -626,87 +571,19 @@ public struct NikonTetherRootView: View {
     
     @ViewBuilder
     private func compactTransferBar(job: TransferJob) -> some View {
-        Button {
-            appState.isQueuePresented = true
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: job.source.transportType == .usb ? "cable.connector" : "wifi")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.blue)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(job.filename)
-                            .font(.caption.bold())
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                        
-                        if let total = job.totalBytes, total > 0 {
-                            let progress = min(max(Double(job.transferredBytes) / Double(total), 0.0), 1.0)
-                            Text(String(format: "%.0f%%", progress * 100))
-                                .font(.caption2.bold())
-                                .foregroundStyle(.blue)
-                        }
-                    }
-                    
-                    HStack(spacing: 6) {
-                        let transferredMB = Double(job.transferredBytes) / 1_048_576.0
-                        if let total = job.totalBytes, total > 0 {
-                            let totalMB = Double(total) / 1_048_576.0
-                            Text(String(format: "%.1f / %.1f МБ", transferredMB, totalMB))
-                        } else {
-                            Text(String(format: "%.1f МБ", transferredMB))
-                        }
-                        
-                        if appState.currentTransferSpeedMBs > 0.05 {
-                            Text(String(format: "• %.1f МБ/с", appState.currentTransferSpeedMBs))
-                                .foregroundStyle(.green)
-                        }
-                    }
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                }
-                
-                // Индикатор прогресса
-                if let total = job.totalBytes, total > 0 {
-                    let progress = min(max(Double(job.transferredBytes) / Double(total), 0.0), 1.0)
-                    ProgressView(value: progress)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                        .frame(maxWidth: 70)
-                } else {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .scaleEffect(0.6)
-                }
-                
-                Spacer()
-                
-                // Кнопка отмены активного задания
-                Button(role: .destructive) {
-                    appState.cancelJob(id: job.id)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Отменить передачу файла")
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption2.bold())
-                    .foregroundStyle(.tertiary)
+        TransferProgressStrip(
+            filename: job.filename,
+            transferredBytes: job.transferredBytes,
+            totalBytes: job.totalBytes,
+            speedMBs: appState.currentTransferSpeedMBs,
+            isUSB: job.source.transportType == .usb,
+            onTap: {
+                appState.isQueuePresented = true
+            },
+            onCancel: {
+                appState.cancelJob(id: job.id)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(Color(uiColor: .secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.blue.opacity(0.25), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Активная передача \(job.filename). Нажмите для открытия очереди.")
+        )
     }
     
     // MARK: - Compact Banner & Empty Content Views
