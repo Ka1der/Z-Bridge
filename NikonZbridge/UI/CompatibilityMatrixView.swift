@@ -110,8 +110,6 @@ public struct CompatibilityMatrixView: View {
     }
     
     private func compatibilityCard(_ record: CompatibilityRecord) -> some View {
-        let isExpanded = expandedRecordID == record.id
-        
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {

@@ -75,6 +75,9 @@ public protocol CameraTransport: AnyObject, Sendable {
     
     /// Уведомление о смене активной сессии для синхронизации дедупликации и статусов файлов
     func didChangeActiveSession(_ session: CaptureSession) async
+    
+    /// Принудительное обновление оглавления носителя (если поддерживается транспортом)
+    func refreshCatalog() async
 }
 
 extension CameraTransport {
@@ -85,4 +88,7 @@ extension CameraTransport {
     
     /// Реализация по умолчанию для транспортов, не требующих отдельной синхронизации сессий
     public func didChangeActiveSession(_ session: CaptureSession) async {}
+    
+    /// Реализация по умолчанию для транспортов без отдельной процедуры обновления оглавления
+    public func refreshCatalog() async {}
 }

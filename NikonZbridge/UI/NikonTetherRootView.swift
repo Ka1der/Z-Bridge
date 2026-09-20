@@ -22,6 +22,13 @@ public struct NikonTetherRootView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 6)
                 
+                // 1a. КОМПАКТНЫЙ ПРОГРЕСС-БАР ПЕРЕНОСА (при активной передаче)
+                if let activeJob = appState.activeTransferJob {
+                    compactTransferBar(job: activeJob)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 6)
+                }
+                
                 // 2. КОМПАКТНЫЙ СТАТУС-БАННЕР (при наличии сохраненных снимков в сессии)
                 if let banner = appState.mainScreenState.compactBanner {
                     compactBannerView(banner)
@@ -107,7 +114,7 @@ public struct NikonTetherRootView: View {
             GalleryFilterSheetView(appState: appState)
         }
         .sheet(isPresented: $appState.isUSBBrowserPresented) {
-            USBCameraBrowserView(usbManager: appState.currentUSBManager)
+            USBCameraBrowserView(usbManager: appState.currentUSBManager, sessionName: appState.currentSession?.name)
         }
         .sheet(isPresented: $appState.isQueuePresented) {
             TransferQueueView(appState: appState)
@@ -206,27 +213,36 @@ public struct NikonTetherRootView: View {
                 }
             } label: {
                 HStack(spacing: 5) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.subheadline)
-                    
-                    ViewThatFits(in: .horizontal) {
-                        Text("Импортировать")
+                    if appState.usbConnected && !appState.currentUSBManager.isCatalogReady {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(.white)
+                        Text("Чтение...")
                             .font(.subheadline.bold())
                             .lineLimit(1)
+                    } else {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.subheadline)
                         
-                        Text("Импорт")
-                            .font(.subheadline.bold())
-                            .lineLimit(1)
-                    }
-                    
-                    let unimported = appState.currentUSBManager.catalogFiles.filter { $0.status == .notImported }.count
-                    if unimported > 0 {
-                        Text("\(unimported)")
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Color.white.opacity(0.35))
-                            .clipShape(Capsule())
+                        ViewThatFits(in: .horizontal) {
+                            Text("Импортировать")
+                                .font(.subheadline.bold())
+                                .lineLimit(1)
+                            
+                            Text("Импорт")
+                                .font(.subheadline.bold())
+                                .lineLimit(1)
+                        }
+                        
+                        let unimported = appState.currentUSBManager.catalogFiles.filter { $0.status == .notImported }.count
+                        if unimported > 0 {
+                            Text("\(unimported)")
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.white.opacity(0.35))
+                                .clipShape(Capsule())
+                        }
                     }
                 }
                 .padding(.horizontal, 12)
@@ -235,7 +251,7 @@ public struct NikonTetherRootView: View {
                 .foregroundStyle(.white)
                 .clipShape(Capsule())
             }
-            .accessibilityLabel("Импортировать снимки с камеры")
+            .accessibilityLabel(appState.usbConnected && !appState.currentUSBManager.isCatalogReady ? "Идет чтение карты памяти камеры" : "Импортировать снимки с камеры")
             .accessibilityHint("Нажмите для выбора и загрузки снимков с карты памяти камеры")
             
             // Меню дополнительных действий
@@ -604,6 +620,93 @@ public struct NikonTetherRootView: View {
         }
         .padding(.vertical, 8)
         .background(Color(uiColor: .secondarySystemBackground))
+    }
+    
+    // MARK: - Compact Transfer Bar (Активная передача)
+    
+    @ViewBuilder
+    private func compactTransferBar(job: TransferJob) -> some View {
+        Button {
+            appState.isQueuePresented = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: job.source.transportType == .usb ? "cable.connector" : "wifi")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.blue)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(job.filename)
+                            .font(.caption.bold())
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        
+                        if let total = job.totalBytes, total > 0 {
+                            let progress = min(max(Double(job.transferredBytes) / Double(total), 0.0), 1.0)
+                            Text(String(format: "%.0f%%", progress * 100))
+                                .font(.caption2.bold())
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                    
+                    HStack(spacing: 6) {
+                        let transferredMB = Double(job.transferredBytes) / 1_048_576.0
+                        if let total = job.totalBytes, total > 0 {
+                            let totalMB = Double(total) / 1_048_576.0
+                            Text(String(format: "%.1f / %.1f МБ", transferredMB, totalMB))
+                        } else {
+                            Text(String(format: "%.1f МБ", transferredMB))
+                        }
+                        
+                        if appState.currentTransferSpeedMBs > 0.05 {
+                            Text(String(format: "• %.1f МБ/с", appState.currentTransferSpeedMBs))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                }
+                
+                // Индикатор прогресса
+                if let total = job.totalBytes, total > 0 {
+                    let progress = min(max(Double(job.transferredBytes) / Double(total), 0.0), 1.0)
+                    ProgressView(value: progress)
+                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                        .frame(maxWidth: 70)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .scaleEffect(0.6)
+                }
+                
+                Spacer()
+                
+                // Кнопка отмены активного задания
+                Button(role: .destructive) {
+                    appState.cancelJob(id: job.id)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Отменить передачу файла")
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Color(uiColor: .secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.blue.opacity(0.25), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Активная передача \(job.filename). Нажмите для открытия очереди.")
     }
     
     // MARK: - Compact Banner & Empty Content Views

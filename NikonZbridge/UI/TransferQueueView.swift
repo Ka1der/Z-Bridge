@@ -160,11 +160,6 @@ public struct TransferQueueView: View {
                             .font(.caption2.bold())
                             .foregroundStyle(.blue)
                         Spacer()
-                        if let eta = appState.currentETASeconds {
-                            Text(String(format: "Осталось ~%.0f с", eta))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
                     }
                 }
             } else {

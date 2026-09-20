@@ -62,7 +62,11 @@ public struct PhotoTableView: View {
             tableHeader
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+                #if canImport(UIKit)
                 .background(Color(uiColor: .tertiarySystemFill))
+                #else
+                .background(Color.secondary.opacity(0.15))
+                #endif
             
             Divider()
             
@@ -156,106 +160,142 @@ public struct PhotoTableRow: View {
         group.primaryAsset?.fileURL
     }
     
-    public var body: some View {
-        HStack(spacing: 6) {
-            if isSelectionMode {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 14))
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                    .frame(width: 26)
-            } else {
-                Text("\(index)")
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .frame(width: 26, alignment: .leading)
-            }
-            
-            HStack(spacing: 6) {
-                ZStack {
-                    Color(uiColor: .secondarySystemFill)
-                    if case .success(let img) = previewState {
-                        #if canImport(UIKit)
-                        Image(uiImage: img)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                        #elseif canImport(AppKit)
-                        Image(nsImage: img)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                        #endif
-                    }
-                }
-                .frame(width: 28, height: 28)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                
-                Text(group.baseName)
-                    .font(.caption.bold().monospaced())
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-            }
-            .frame(minWidth: 90, alignment: .leading)
-            
-            Spacer()
-            
-            // Колонка отбора (флаг и рейтинг)
-            HStack(spacing: 3) {
-                if group.pickStatus == .picked {
-                    Image(systemName: "flag.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.green)
-                } else if group.pickStatus == .rejected {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.red)
-                }
-                
-                if group.rating > 0 {
-                    Text("★\(group.rating)")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.yellow)
-                }
-            }
-            .frame(width: 48, alignment: .center)
-            
-            Text(group.formatBadge)
-                .font(.system(size: 8, weight: .black))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(group.hasBothRawAndJpeg ? Color.green : (group.rawAsset != nil ? Color.orange : Color.blue))
-                .clipShape(RoundedRectangle(cornerRadius: 3))
-                .frame(width: 68, alignment: .center)
-            
-            Text("\(group.allAssets.count) файл(а)")
+    private var rowBackgroundColor: Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.18)
+        }
+        #if canImport(UIKit)
+        return isEven ? Color(uiColor: .systemBackground) : Color(uiColor: .secondarySystemBackground)
+        #else
+        return isEven ? Color.clear : Color.secondary.opacity(0.05)
+        #endif
+    }
+    
+    private var badgeColor: Color {
+        if group.hasBothRawAndJpeg {
+            return Color.green
+        } else if group.rawAsset != nil {
+            return Color.orange
+        } else {
+            return Color.blue
+        }
+    }
+    
+    @ViewBuilder
+    private var indexColumn: some View {
+        if isSelectionMode {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 14))
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                .frame(width: 26)
+        } else {
+            Text("\(index)")
                 .font(.caption2.monospaced())
                 .foregroundStyle(.secondary)
-                .frame(width: 70, alignment: .trailing)
-            
-            Text(group.formattedTotalSize)
-                .font(.caption2.monospaced())
-                .foregroundStyle(.primary)
-                .frame(width: 65, alignment: .trailing)
-            
-            if let primary = group.primaryAsset {
-                Text(primary.formattedTime)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .frame(width: 55, alignment: .trailing)
-            } else {
-                Text("—")
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .frame(width: 55, alignment: .trailing)
+                .frame(width: 26, alignment: .leading)
+        }
+    }
+    
+    @ViewBuilder
+    private var thumbnailAndNameColumn: some View {
+        HStack(spacing: 6) {
+            ZStack {
+                #if canImport(UIKit)
+                Color(uiColor: .secondarySystemFill)
+                #else
+                Color.secondary.opacity(0.2)
+                #endif
+                if case .success(let img) = previewState {
+                    #if canImport(UIKit)
+                    Image(uiImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                    #elseif canImport(AppKit)
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                    #endif
+                }
             }
+            .frame(width: 28, height: 28)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            
+            Text(group.baseName)
+                .font(.caption.bold().monospaced())
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+        .frame(minWidth: 90, alignment: .leading)
+    }
+    
+    @ViewBuilder
+    private var cullingColumn: some View {
+        HStack(spacing: 3) {
+            if group.pickStatus == .picked {
+                Image(systemName: "flag.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.green)
+            } else if group.pickStatus == .rejected {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.red)
+            }
+            
+            if group.rating > 0 {
+                Text("★\(group.rating)")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.yellow)
+            }
+        }
+        .frame(width: 48, alignment: .center)
+    }
+    
+    @ViewBuilder
+    private var detailsColumn: some View {
+        Text(group.formatBadge)
+            .font(.system(size: 8, weight: .black))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(badgeColor)
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .frame(width: 68, alignment: .center)
+        
+        Text("\(group.allAssets.count) файл(а)")
+            .font(.caption2.monospaced())
+            .foregroundStyle(.secondary)
+            .frame(width: 70, alignment: .trailing)
+        
+        Text(group.formattedTotalSize)
+            .font(.caption2.monospaced())
+            .foregroundStyle(.primary)
+            .frame(width: 65, alignment: .trailing)
+        
+        if let primary = group.primaryAsset {
+            Text(primary.formattedTime)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .frame(width: 55, alignment: .trailing)
+        } else {
+            Text("—")
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .frame(width: 55, alignment: .trailing)
+        }
+    }
+    
+    public var body: some View {
+        HStack(spacing: 6) {
+            indexColumn
+            thumbnailAndNameColumn
+            Spacer()
+            cullingColumn
+            detailsColumn
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .frame(minHeight: 44)
-        .background(
-            isSelected
-                ? Color.accentColor.opacity(0.18)
-                : (isEven ? Color(uiColor: .systemBackground) : Color(uiColor: .secondarySystemBackground))
-        )
+        .background(rowBackgroundColor)
         .overlay(
             Rectangle()
                 .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)

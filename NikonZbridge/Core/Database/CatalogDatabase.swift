@@ -956,4 +956,51 @@ public actor CatalogDatabase {
             updatedAt: updatedAt
         )
     }
+    
+    // MARK: - Диагностическая статистика базы данных
+    
+    public struct DatabaseStats: Sendable {
+        public let schemaVersion: Int32
+        public let totalSessions: Int
+        public let totalAssets: Int
+        public let journalMode: String
+        public let fileSizeBytes: Int64
+        public let databasePath: String
+        
+        public init(
+            schemaVersion: Int32,
+            totalSessions: Int,
+            totalAssets: Int,
+            journalMode: String,
+            fileSizeBytes: Int64,
+            databasePath: String
+        ) {
+            self.schemaVersion = schemaVersion
+            self.totalSessions = totalSessions
+            self.totalAssets = totalAssets
+            self.journalMode = journalMode
+            self.fileSizeBytes = fileSizeBytes
+            self.databasePath = databasePath
+        }
+    }
+    
+    public func getDatabaseStats() -> DatabaseStats {
+        let version = Self.getUserVersion(db: db)
+        let sessionsCount = getAllSessions().count
+        let assetsCount = getAllAssets().count
+        var size: Int64 = 0
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: databaseURL.path),
+           let fileSize = attrs[.size] as? Int64 {
+            size = fileSize
+        }
+        return DatabaseStats(
+            schemaVersion: version,
+            totalSessions: sessionsCount,
+            totalAssets: assetsCount,
+            journalMode: "WAL",
+            fileSizeBytes: size,
+            databasePath: databaseURL.path
+        )
+    }
 }
+

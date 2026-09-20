@@ -176,7 +176,11 @@ public struct BatchActionBarView: View {
         .shadow(color: Color.black.opacity(0.2), radius: 10, y: 4)
         .overlay(
             Capsule()
+                #if canImport(UIKit)
                 .stroke(Color(uiColor: .separator), lineWidth: 0.5)
+                #else
+                .stroke(Color.secondary.opacity(0.3), lineWidth: 0.5)
+                #endif
         )
         .padding(.horizontal, 16)
     }

@@ -29,6 +29,27 @@ public enum ImportFormatPreference: String, CaseIterable, Identifiable, Sendable
     public var id: String { rawValue }
 }
 
+/// 5 профессиональных групп настроек приложения
+public enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
+    case connection = "Подключение"
+    case importTab = "Импорт"
+    case sessions = "Сессии"
+    case clientScreen = "Монитор"
+    case diagnostics = "Диагностика"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .connection: return "cable.connector.horizontal"
+        case .importTab: return "arrow.down.circle"
+        case .sessions: return "folder"
+        case .clientScreen: return "tv"
+        case .diagnostics: return "stethoscope"
+        }
+    }
+}
+
 /// Порядок сортировки кадров в галерее
 public enum SortOrderOption: String, CaseIterable, Identifiable, Sendable {
     case dateDesc = "Сначала новые"
@@ -451,7 +472,9 @@ public final class AppState: ObservableObject {
         case .selectCardFiles:
             self.isUSBBrowserPresented = true
         case .refreshCard:
-            self.isUSBBrowserPresented = true
+            Task {
+                await currentUSBManager.refreshCatalog()
+            }
         case .viewTransferQueue:
             self.isQueuePresented = true
         case .resetFilters:
@@ -1050,6 +1073,21 @@ public final class AppState: ObservableObject {
         }
     }
     
+    public func fetchDatabaseStats() async -> CatalogDatabase.DatabaseStats {
+        await coordinator.getDatabaseStats()
+    }
+    
+    public func runCatalogReconciliation() async -> (missingCount: Int, recoveredCount: Int) {
+        let (missing, recovered) = await coordinator.reconcileDiskCatalog()
+        let assets = await coordinator.assets
+        let groups = await coordinator.captureGroups
+        await MainActor.run {
+            self.receivedFiles = assets.map { IngestedFile(from: $0) }
+            self.captureGroups = groups
+        }
+        return (missing, recovered)
+    }
+    
     public func renameSession(id: UUID, newName: String) {
         Task {
             do {
@@ -1205,7 +1243,7 @@ public final class AppState: ObservableObject {
     
     public func cancelJob(id: UUID) {
         Task {
-            await coordinator.interruptTransfer(jobID: id, reason: "Отменено пользователем")
+            await coordinator.cancelTransfer(jobID: id)
             await usbManager.cancelTransfer(jobID: id)
             diagnosticLogger.log(level: .info, subsystem: "Queue", message: "Задание \(id) отменено пользователем")
         }

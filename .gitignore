@@ -27,3 +27,4 @@ test_runner
 *.swiftdoc
 *.swiftmodule
 *.dSYM/
+.build/

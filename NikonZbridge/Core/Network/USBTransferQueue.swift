@@ -119,11 +119,13 @@ public actor USBTransferQueue {
         return item
     }
     
-    /// Завершение скачивания: помечаем как импортированный, освобождаем слот и возвращаем следующий элемент
-    public func markCompleted(compositeID: String) -> USBQueueItem? {
+    /// Завершение скачивания: помечаем как импортированный (при необходимости), освобождаем слот и возвращаем следующий элемент
+    public func markCompleted(compositeID: String, markAsImported: Bool = true) -> USBQueueItem? {
         activeTransfers.removeValue(forKey: compositeID)
         queuedIDs.remove(compositeID)
-        importedIDs.insert(compositeID)
+        if markAsImported {
+            importedIDs.insert(compositeID)
+        }
         return dequeueNextIfAvailable()
     }
     

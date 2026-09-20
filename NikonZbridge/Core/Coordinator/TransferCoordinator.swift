@@ -326,6 +326,26 @@ public actor TransferCoordinator: CameraTransportDelegate {
         await database.getSessionStats(id: id)
     }
     
+    public func getDatabaseStats() async -> CatalogDatabase.DatabaseStats {
+        await database.getDatabaseStats()
+    }
+    
+    public func reconcileDiskCatalog() async -> (missingCount: Int, recoveredCount: Int) {
+        let sessionAssets = await database.getAssets(for: activeSession.id)
+        let missingIDs = reconciler.reconcileAssetsWithDisk(knownAssets: sessionAssets)
+        for missingID in missingIDs {
+            await database.markAssetMissing(id: missingID, isMissing: true)
+        }
+        let knownAssetPaths = Set(sessionAssets.map { $0.fileURL.standardizedFileURL.path })
+        let untrackedAssets = reconciler.discoverAssetsInSessionFolder(session: activeSession, knownFilePaths: knownAssetPaths)
+        for untracked in untrackedAssets {
+            await database.upsertAsset(untracked)
+        }
+        self.assets = await database.getAssets(for: activeSession.id)
+        rebuildCaptureGroups()
+        return (missingIDs.count, untrackedAssets.count)
+    }
+    
     /// Очистить файлы активной сессии (с защитой активных заданий)
     public func clearActiveSession() async throws {
         let activeJobCount = jobs.values.filter { $0.sessionID == activeSession.id && !$0.state.isTerminal }.count
@@ -454,6 +474,30 @@ public actor TransferCoordinator: CameraTransportDelegate {
         return await database.getJob(id: id)
     }
     
+    public func getJob(id: UUID) async -> TransferJob? {
+        await getJob(by: id)
+    }
+    
+    public func upsertJobForTesting(_ job: TransferJob) async {
+        self.jobs[job.id] = job
+        await database.upsertJob(job)
+        onJobUpdated?(job)
+    }
+    
+    /// Поиск задания по sourceFileID среди активных заданий или в БД
+    public func findJob(bySourceFileID sourceFileID: String) async -> TransferJob? {
+        if let j = jobs.values.first(where: { $0.sourceFileID == sourceFileID }) {
+            return j
+        }
+        for session in allSessions {
+            let sessionJobs = await database.getJobs(for: session.id)
+            if let found = sessionJobs.first(where: { $0.sourceFileID == sourceFileID }) {
+                return found
+            }
+        }
+        return nil
+    }
+    
     /// Создание задания переноса для входящего файла с безопасным staging-путем и контролем места
     public func createTransferJob(
         source: CameraSource,
@@ -560,7 +604,11 @@ public actor TransferCoordinator: CameraTransportDelegate {
         }
         
         // 3. Разрешение бесконфликтного целевого имени перед атомарным перемещением
-        guard let targetSession = allSessions.first(where: { $0.id == job.sessionID }) ?? Optional(activeSession) else {
+        var targetSessionOpt = allSessions.first(where: { $0.id == job.sessionID })
+        if targetSessionOpt == nil {
+            targetSessionOpt = await database.getSession(by: job.sessionID)
+        }
+        guard let targetSession = targetSessionOpt ?? Optional(activeSession) else {
             throw TransferError.generic("Целевая сессия не найдена")
         }
         

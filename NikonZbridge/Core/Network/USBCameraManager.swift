@@ -52,6 +52,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     @Published public var isCatalogReady: Bool = false
     @Published public var pendingQueueCount: Int = 0
     @Published public var activeTransferCount: Int = 0
+    @Published public private(set) var targetSessionName: String = ""
     
     public var onFileIngested: (@Sendable (IngestedFile) -> Void)?
     public var onProgress: (@Sendable (Int64, Double) -> Void)?
@@ -63,6 +64,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     
     private var downloadStartTimes: [String: Date] = [:] // compositeID -> Date
     private var inFlightJobs: [String: UUID] = [:]       // compositeID -> JobID
+    private var compositeJobIDs: [String: UUID] = [:]    // compositeID -> JobID
     private var cameraFileMap: [String: ICCameraFile] = [:] // compositeID -> ICCameraFile
     private var cancellingCompositeIDs: Set<String> = []
     
@@ -89,6 +91,14 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         super.init()
         updateImportModeRepresentation()
         setupBrowser()
+        Task { [weak self] in
+            await self?.updateTargetSessionName()
+        }
+    }
+    
+    public func updateTargetSessionName() async {
+        let name = await coordinator.activeSession.name
+        self.targetSessionName = name
     }
     
     public func start() {
@@ -150,7 +160,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     
     /// Импорт только выбранных пользователем файлов (не изменяет настройку live-автозагрузки)
     public func importSelectedFiles(_ items: [CameraFileItem]) async {
-        guard connectedCamera != nil else { return }
+        guard connectedCamera != nil, isCatalogReady else { return }
         for item in items where item.status != .imported && item.status != .queued {
             if await transferQueue.isEnqueuedOrActive(compositeID: item.id) { continue }
             guard let file = item.cameraFile ?? cameraFileMap[item.id] else { continue }
@@ -243,6 +253,42 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         await processQueue()
     }
     
+    /// Повтор загрузки для конкретного файла из каталога (например, при ошибке)
+    public func retryTransfer(for item: CameraFileItem) async {
+        guard connectedCamera != nil else { return }
+        
+        var jobIDToRetry = compositeJobIDs[item.id] ?? inFlightJobs[item.id]
+        if jobIDToRetry == nil {
+            jobIDToRetry = (await coordinator.findJob(bySourceFileID: item.id))?.id
+        }
+        
+        if let jobID = jobIDToRetry {
+            do {
+                try await retryTransfer(jobID: jobID)
+                return
+            } catch {
+                // Если повторить через координатор не удалось, пробуем свежее планирование
+            }
+        }
+        
+        await transferQueue.unmarkImported(compositeID: item.id)
+        guard let file = item.cameraFile ?? cameraFileMap[item.id] else { return }
+        cameraFileMap[item.id] = file
+        await scheduleDownload(for: file, compositeID: item.id, existingJob: nil)
+        await processQueue()
+    }
+    
+    /// Повтор всех завершившихся ошибкой файлов
+    public func retryAllFailed() async {
+        let failedItems = catalogFiles.filter {
+            if case .failed = $0.status { return true }
+            return false
+        }
+        for item in failedItems {
+            await retryTransfer(for: item)
+        }
+    }
+    
     // MARK: - Планирование и исполнение очереди
     
     private func scheduleDownload(for cameraFile: ICCameraFile, compositeID: String, existingJob: TransferJob?) async {
@@ -291,6 +337,8 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
                 return
             }
         }
+        
+        compositeJobIDs[compositeID] = job.id
         
         let queueItem = USBQueueItem(
             compositeID: compositeID,
@@ -457,15 +505,44 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         await transferQueue.resetImportedIDs(Array(imported))
         
         for idx in catalogFiles.indices {
-            let itemID = catalogFiles[idx].id
-            if imported.contains(itemID) {
+            let item = catalogFiles[idx]
+            var isAlreadyImported = imported.contains(item.id)
+            if !isAlreadyImported {
+                isAlreadyImported = await coordinator.isAssetAlreadyImported(
+                    sourceFileID: item.id,
+                    filename: item.filename,
+                    fileSize: item.fileSize
+                )
+            }
+            
+            if isAlreadyImported {
                 catalogFiles[idx].status = .imported
+                await transferQueue.registerExistingImportedIDs([item.id])
             } else {
-                let isEnqueuedOrActive = await transferQueue.isEnqueuedOrActive(compositeID: itemID)
+                let isEnqueuedOrActive = await transferQueue.isEnqueuedOrActive(compositeID: item.id)
                 if !isEnqueuedOrActive && catalogFiles[idx].status == .imported {
                     catalogFiles[idx].status = .notImported
                 }
             }
+        }
+    }
+    
+    /// Принудительное обновление оглавления носителя: опрос доступных медиафайлов и синхронизация с активной сессией
+    public func refreshCatalog() async {
+        guard let camera = connectedCamera else { return }
+        
+        let mediaFiles = (camera.mediaFiles as? [ICCameraFile]) ?? (camera.contents as? [ICCameraFile]) ?? []
+        if !mediaFiles.isEmpty {
+            cameraDevice(camera, didAdd: mediaFiles)
+        }
+        
+        let currentActiveSession = await coordinator.activeSession
+        await syncWithSession(currentActiveSession)
+        
+        if isCatalogReady {
+            let name = camera.name ?? "Nikon Z"
+            let total = catalogFiles.count
+            self.connectionState = .ready(name: name, totalItems: total)
         }
     }
 }
@@ -759,13 +836,22 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                         actualSize: fileSize,
                         duration: duration
                     )
-                    // Только после успешной финализации отмечаем файл импортированным в очереди
-                    let nextItem = await transferQueue.markCompleted(compositeID: targetCompositeID)
-                    updateItemStatus(compositeID: targetCompositeID, status: .imported)
-                    self.isDownloading = false
-                    await MainActor.run {
-                        self.onFileIngested?(IngestedFile(from: asset))
+                    // Учитываем сессию: файл помечается импортированным в очереди и каталоге ТОЛЬКО для активной сессии
+                    let activeSessionID = await coord.activeSession.id
+                    let isForActiveSession = (asset.sessionID == activeSessionID)
+                    
+                    let nextItem = await transferQueue.markCompleted(compositeID: targetCompositeID, markAsImported: isForActiveSession)
+                    if isForActiveSession {
+                        updateItemStatus(compositeID: targetCompositeID, status: .imported)
+                        await MainActor.run {
+                            self.onFileIngested?(IngestedFile(from: asset))
+                        }
+                    } else {
+                        // Если файл был направлен в другую сессию (например, фоновую A при переключении на B),
+                        // для текущей активной сессии B он НЕ импортирован!
+                        updateItemStatus(compositeID: targetCompositeID, status: .notImported)
                     }
+                    self.isDownloading = false
                     await updateQueueCounters()
                     await processQueue(item: nextItem)
                 } catch {
@@ -777,7 +863,7 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                     await processQueue(item: nextItem)
                 }
             } else {
-                let nextItem = await transferQueue.markCompleted(compositeID: targetCompositeID)
+                let nextItem = await transferQueue.markCompleted(compositeID: targetCompositeID, markAsImported: false)
                 self.isDownloading = false
                 await updateQueueCounters()
                 await processQueue(item: nextItem)
