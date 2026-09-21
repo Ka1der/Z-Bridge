@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Переиспользуемая дизайн-система приложения NikonZbridge в концепции «Liquid Glass».
 /// Содержит семантические токены цветов, типографики, интервалов,

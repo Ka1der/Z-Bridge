@@ -33,19 +33,46 @@ public enum ImportFormatPreference: String, CaseIterable, Identifiable, Sendable
 public enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
     case connection = "Подключение"
     case importTab = "Импорт"
-    case sessions = "Сессии"
-    case clientScreen = "Монитор"
+    case sessions = "Сессии и хранение"
+    case clientScreen = "Клиентский экран"
     case diagnostics = "Диагностика"
     
     public var id: String { rawValue }
+    
+    public var title: String { rawValue }
+    
+    public var subtitle: String {
+        switch self {
+        case .connection:
+            return "Кабель USB-C, Wi-Fi, FTP-сервер и мастер"
+        case .importTab:
+            return "Live tethering, автозагрузка с карты и форматы"
+        case .sessions:
+            return "Старт с пустой сессии, метаданные и кэш превью"
+        case .clientScreen:
+            return "Внешний монитор, HDMI, удержание Hold и знак"
+        case .diagnostics:
+            return "Пути к файлам, SQLite WAL, сверка и DiskGuard"
+        }
+    }
     
     public var iconName: String {
         switch self {
         case .connection: return "cable.connector.horizontal"
         case .importTab: return "arrow.down.circle"
-        case .sessions: return "folder"
+        case .sessions: return "folder.badge.gearshape"
         case .clientScreen: return "tv"
         case .diagnostics: return "stethoscope"
+        }
+    }
+    
+    public var systemColor: Color {
+        switch self {
+        case .connection: return .blue
+        case .importTab: return .green
+        case .sessions: return .orange
+        case .clientScreen: return .purple
+        case .diagnostics: return .teal
         }
     }
 }
@@ -1097,9 +1124,15 @@ public final class AppState: ObservableObject {
     
     public func saveSessionMetadata(author: String?, copyright: String?, comment: String?) {
         guard let sessionID = currentSession?.id else { return }
-        self.sessionAuthor = author ?? ""
-        self.sessionCopyright = copyright ?? ""
-        self.sessionComment = comment ?? ""
+        saveSessionMetadata(for: sessionID, author: author, copyright: copyright, comment: comment)
+    }
+    
+    public func saveSessionMetadata(for sessionID: UUID, author: String?, copyright: String?, comment: String?) {
+        if currentSession?.id == sessionID {
+            self.sessionAuthor = author ?? ""
+            self.sessionCopyright = copyright ?? ""
+            self.sessionComment = comment ?? ""
+        }
         Task {
             await coordinator.updateSessionMetadata(
                 id: sessionID,
@@ -1107,6 +1140,27 @@ public final class AppState: ObservableObject {
                 copyright: copyright,
                 comment: comment
             )
+            let all = await coordinator.allSessions
+            await MainActor.run {
+                self.availableSessions = all
+                if let updated = all.first(where: { $0.id == sessionID }), self.currentSession?.id == sessionID {
+                    self.currentSession = updated
+                }
+            }
+        }
+    }
+    
+    public func switchAndExportSession(_ session: CaptureSession) {
+        if currentSession?.id == session.id {
+            presentExportForSession()
+        } else {
+            Task {
+                switchSession(to: session.id)
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                await MainActor.run {
+                    self.presentExportForSession()
+                }
+            }
         }
     }
     
