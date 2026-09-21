@@ -16,7 +16,7 @@ public struct USBQueueItem: Sendable {
         cameraFile: ICCameraFile,
         filename: String,
         fileSize: Int64,
-        jobID: UUID,
+        jobID: UUID = UUID(),
         enqueuedAt: Date = Date(),
         attempts: Int = 0
     ) {
@@ -85,7 +85,7 @@ public actor USBTransferQueue {
     /// Добавление элемента в очередь с проверкой дедупликации
     /// Возвращает true, если элемент успешно добавлен, и false, если это дубликат
     @discardableResult
-    public func enqueue(_ item: USBQueueItem) -> Bool {
+    public func enqueue(_ item: USBQueueItem, priority: Bool = false) -> Bool {
         // Защита от дубликатов: не планируем, если уже в очереди, активно передается или уже импортирован
         guard !queuedIDs.contains(item.compositeID),
               !importedIDs.contains(item.compositeID),
@@ -94,7 +94,11 @@ public actor USBTransferQueue {
         }
         
         queuedIDs.insert(item.compositeID)
-        pendingQueue.append(item)
+        if priority {
+            pendingQueue.insert(item, at: 0)
+        } else {
+            pendingQueue.append(item)
+        }
         return true
     }
     
@@ -193,8 +197,22 @@ public actor USBTransferQueue {
         pendingQueue.contains(where: { $0.compositeID == compositeID })
     }
     
+    /// Получить jobID по compositeID среди активных или ожидающих элементов
+    public func findJobID(by compositeID: String) -> UUID? {
+        if let active = activeTransfers[compositeID] {
+            return active.jobID
+        }
+        return pendingQueue.first(where: { $0.compositeID == compositeID })?.jobID
+    }
+    
+    /// Первый элемент в очереди ожидания без извлечения
+    public func peekPending() -> USBQueueItem? {
+        pendingQueue.first
+    }
+    
     /// Список всех активных элементов, занимающих слоты передачи
     public var allActiveItems: [USBQueueItem] {
         Array(activeTransfers.values)
     }
 }
+

@@ -33,6 +33,11 @@ public struct CaptureGroup: Identifiable, Sendable, Codable, Hashable {
         rawAsset != nil && (jpegAsset != nil || heifAsset != nil)
     }
     
+    /// Является ли кадр парным (RAW+JPEG или RAW+HEIF)
+    public var isPaired: Bool {
+        hasBothRawAndJpeg
+    }
+    
     /// Присутствуют ли одновременно RAW и HEIF
     public var hasBothRawAndHeif: Bool {
         rawAsset != nil && heifAsset != nil

@@ -1,144 +1,130 @@
 import SwiftUI
 
-/// Главный экран NikonZbridge с адаптивной и минималистичной разметкой
+/// Главный экран раздела «Снимки» NikonZbridge в дизайн-системе Liquid Glass
 public struct NikonTetherRootView: View {
-    @StateObject private var appState = AppState()
+    @ObservedObject var appState: AppState
+    public var showsSheets: Bool = false
     @Environment(\.scenePhase) private var scenePhase
-    @State private var isShowingConnectionSheet = false
-    @State private var isShowingSessionSheet = false
-    @State private var isShowingFilterSheet = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isShowingClearAlert = false
     
-    public init() {}
+    public init(appState: AppState, showsSheets: Bool = false) {
+        self.appState = appState
+        self.showsSheets = showsSheets
+    }
+    
+    public init() {
+        self.init(appState: AppState(), showsSheets: true)
+    }
     
     public var body: some View {
-        ZStack {
-            AppTheme.Colors.background.ignoresSafeArea()
+        GeometryReader { geometry in
+            let layoutMode = AdaptiveLayoutResolver.resolve(
+                width: geometry.size.width,
+                dynamicTypeSize: dynamicTypeSize
+            )
             
-            VStack(spacing: 0) {
-                // 1. ВЕРХНЯЯ ПАНЕЛЬ: название сессии, один статус, кнопка «Импортировать», меню дополнительных действий
-                topHUD
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 6)
+            ZStack {
+                AppTheme.Colors.background.ignoresSafeArea()
                 
-                // 1a. КОМПАКТНЫЙ ПРОГРЕСС-БАР ПЕРЕНОСА (при активной передаче)
-                if let activeJob = appState.activeTransferJob {
-                    compactTransferBar(job: activeJob)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 6)
+                switch layoutMode {
+                case .wide:
+                    wideContentView(geometry: geometry)
+                case .narrow:
+                    narrowContentView(geometry: geometry)
                 }
                 
-                // 2. КОМПАКТНЫЙ СТАТУС-БАННЕР (при наличии сохраненных снимков в сессии)
-                if let banner = appState.mainScreenState.compactBanner {
-                    compactBannerView(banner)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 6)
-                }
-                
-                // 3. ВТОРИЧНАЯ ПАНЕЛЬ ГАЛЕРЕИ (скрывается, когда галерея пуста)
-                if appState.mainScreenState.hasPhotos && !appState.mainScreenState.areAllPhotosFilteredOut {
-                    galleryControlsBar
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 6)
-                }
-                
-                Divider()
-                
-                // 4. ОСНОВНАЯ ОБЛАСТЬ КОНТЕНТА
-                mainContentArea
-            }
-            
-            // Всплывающее уведомление о новом кадре во время активной инспекции
-            if let notification = appState.pendingIncomingFrameNotification {
-                VStack {
-                    HStack(spacing: 8) {
-                        Image(systemName: "camera.fill")
-                            .foregroundStyle(.green)
-                        Text(notification)
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.primary)
-                        
-                        Button {
-                            appState.switchToPendingGroup()
-                        } label: {
-                            Text("Показать")
-                                .font(.caption.bold())
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color.accentColor)
-                                .foregroundStyle(.white)
-                                .clipShape(Capsule())
+                // Всплывающее уведомление о новом кадре во время активной инспекции
+                if let notification = appState.pendingIncomingFrameNotification {
+                    VStack {
+                        HStack(spacing: AppTheme.Spacing.sm) {
+                            Image(systemName: "camera.fill")
+                                .foregroundStyle(AppTheme.Colors.statusGreen)
+                            Text(notification)
+                                .font(AppTheme.Typography.subheadlineBold)
+                                .foregroundStyle(AppTheme.Colors.textPrimary)
+                            
+                            Button {
+                                appState.switchToPendingGroup()
+                            } label: {
+                                Text("Показать")
+                                    .font(AppTheme.Typography.captionBold)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(AppTheme.Colors.accent)
+                                    .foregroundStyle(Color.white)
+                                    .clipShape(Capsule())
+                            }
+                            
+                            Button {
+                                appState.dismissPendingNotification()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(AppTheme.Typography.captionBold)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                                    .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                            }
+                            .accessibilityLabel("Закрыть уведомление")
                         }
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                        .padding(.vertical, 6)
+                        .glassPill(shadowRadius: 10, shadowY: 4)
+                        .padding(.top, 45)
                         
-                        Button {
-                            appState.dismissPendingNotification()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                                .frame(width: 44, height: 44)
-                        }
-                        .accessibilityLabel("Закрыть уведомление")
+                        Spacer()
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Capsule())
-                    .shadow(radius: 8)
-                    .padding(.top, 45)
-                    
-                    Spacer()
                 }
-            }
-            
-            // Плавающая панель массовых действий при множественном выборе
-            if appState.isSelectionMode && !appState.selectedGroupIDs.isEmpty {
-                VStack {
-                    Spacer()
-                    BatchActionBarView(appState: appState)
-                        .padding(.bottom, 16)
+                
+                // Плавающая панель массовых действий при множественном выборе
+                if appState.isSelectionMode && !appState.selectedGroupIDs.isEmpty {
+                    VStack {
+                        Spacer()
+                        BatchActionBarView(appState: appState)
+                            .padding(.bottom, AppTheme.Spacing.md)
+                    }
                 }
+                
+                // Невидимые триггеры клавиатурных команд iPad
+                keyboardShortcutsView
             }
-            
-            // Невидимые триггеры клавиатурных команд iPad
-            keyboardShortcutsView
         }
-        .sheet(isPresented: $isShowingConnectionSheet) {
+        .sheet(isPresented: Binding(get: { showsSheets && appState.isShowingConnectionSheet }, set: { appState.isShowingConnectionSheet = $0 })) {
             ConnectionSheetView(appState: appState)
         }
-        .sheet(isPresented: $isShowingSessionSheet) {
+        .sheet(isPresented: Binding(get: { showsSheets && appState.isShowingSessionSheet }, set: { appState.isShowingSessionSheet = $0 })) {
             SessionManagementSheetView(appState: appState)
         }
-        .sheet(isPresented: $isShowingFilterSheet) {
+        .sheet(isPresented: Binding(get: { showsSheets && appState.isShowingFilterSheet }, set: { appState.isShowingFilterSheet = $0 })) {
             GalleryFilterSheetView(appState: appState)
         }
-        .sheet(isPresented: $appState.isUSBBrowserPresented) {
+        .sheet(isPresented: Binding(get: { showsSheets && appState.isUSBBrowserPresented }, set: { appState.isUSBBrowserPresented = $0 })) {
             USBCameraBrowserView(usbManager: appState.currentUSBManager, sessionName: appState.currentSession?.name)
         }
-        .sheet(isPresented: $appState.isQueuePresented) {
+        .sheet(isPresented: Binding(get: { showsSheets && appState.isQueuePresented }, set: { appState.isQueuePresented = $0 })) {
             TransferQueueView(appState: appState)
         }
-        .sheet(isPresented: $appState.isWizardPresented) {
+        .sheet(isPresented: Binding(get: { showsSheets && appState.isWizardPresented }, set: { appState.isWizardPresented = $0 })) {
             ConnectionWizardView(appState: appState)
         }
-        .sheet(isPresented: $appState.isMatrixPresented) {
+        .sheet(isPresented: Binding(get: { showsSheets && appState.isMatrixPresented }, set: { appState.isMatrixPresented = $0 })) {
             CompatibilityMatrixView()
         }
-        .sheet(isPresented: $appState.isComparePresented) {
+        .sheet(isPresented: Binding(get: { showsSheets && appState.isComparePresented }, set: { appState.isComparePresented = $0 })) {
             CompareView(appState: appState, initialGroupA: appState.selectedGroup, initialGroupB: appState.compareCandidateGroup)
         }
-        .sheet(isPresented: $appState.isExportSheetPresented) {
+        .sheet(isPresented: Binding(get: { showsSheets && appState.isExportSheetPresented }, set: { appState.isExportSheetPresented = $0 })) {
             ExportSheetView(appState: appState, groups: appState.exportTargetGroups)
         }
-        .sheet(isPresented: $appState.isClientControlSheetPresented) {
+        .sheet(isPresented: Binding(get: { showsSheets && appState.isClientControlSheetPresented }, set: { appState.isClientControlSheetPresented = $0 })) {
             ClientMonitorControlSheet(monitorManager: appState.clientMonitorManager, appState: appState)
         }
-        .fullScreenCover(isPresented: $appState.isClientMonitorPresented) {
+        .fullScreenCover(isPresented: Binding(get: { showsSheets && appState.isClientMonitorPresented }, set: { appState.isClientMonitorPresented = $0 })) {
             ClientMonitorView(monitorManager: appState.clientMonitorManager, appState: appState)
         }
         .onChange(of: scenePhase) { newPhase in
-            appState.handleScenePhaseChange(newPhase)
+            if showsSheets {
+                appState.handleScenePhaseChange(newPhase)
+            }
         }
         .alert("Очистить все снимки?", isPresented: $isShowingClearAlert) {
             Button("Очистить", role: .destructive) {
@@ -148,138 +134,351 @@ public struct NikonTetherRootView: View {
         }
     }
     
+    // MARK: - Широкая компоновка (iPad, ландшафтный режим)
+    
+    @ViewBuilder
+    private func wideContentView(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            topHUD
+                .padding(.horizontal, AppTheme.Spacing.md)
+                .padding(.top, AppTheme.Spacing.xs)
+                .padding(.bottom, AppTheme.Spacing.xs)
+            
+            if let activeJob = appState.activeTransferJob {
+                compactTransferBar(job: activeJob)
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .padding(.bottom, AppTheme.Spacing.xs)
+            }
+            
+            if let banner = appState.mainScreenState.compactBanner {
+                compactBannerView(banner)
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .padding(.bottom, AppTheme.Spacing.xs)
+            }
+            
+            if let emptyState = appState.mainScreenState.emptyState {
+                mainScreenEmptyContentView(emptyState)
+            } else {
+                switch appState.viewMode {
+                case .list:
+                    if appState.mainScreenState.hasPhotos && !appState.mainScreenState.areAllPhotosFilteredOut {
+                        galleryControlsBar
+                            .padding(.horizontal, AppTheme.Spacing.md)
+                            .padding(.bottom, AppTheme.Spacing.xs)
+                    }
+                    Divider()
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                    PhotoListView(
+                        groups: appState.filteredGroups,
+                        selectedGroup: appState.selectedGroup,
+                        isSelectionMode: appState.isSelectionMode,
+                        selectedGroupIDs: appState.selectedGroupIDs,
+                        onToggleSelect: { appState.toggleSelectGroup($0) },
+                        onSelect: { group in appState.selectedGroup = group }
+                    )
+                case .table:
+                    if appState.mainScreenState.hasPhotos && !appState.mainScreenState.areAllPhotosFilteredOut {
+                        galleryControlsBar
+                            .padding(.horizontal, AppTheme.Spacing.md)
+                            .padding(.bottom, AppTheme.Spacing.xs)
+                    }
+                    Divider()
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                    PhotoTableView(
+                        groups: appState.filteredGroups,
+                        selectedGroup: appState.selectedGroup,
+                        isSelectionMode: appState.isSelectionMode,
+                        selectedGroupIDs: appState.selectedGroupIDs,
+                        onToggleSelect: { appState.toggleSelectGroup($0) },
+                        onSelect: { group in appState.selectedGroup = group }
+                    )
+                case .icons, .viewer:
+                    // Широкое окно по макету: крупное фото слева и сетка миниатюр рядом справа
+                    HStack(spacing: 0) {
+                        // Левая панель: большая фотография с компактными действиями под ней
+                        let currentGroup = appState.selectedGroup ?? appState.filteredGroups.first
+                        if let currentGroup {
+                            PhotoDetailView(
+                                group: currentGroup,
+                                appState: appState,
+                                showsTopHUD: false
+                            )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            ZStack {
+                                AppTheme.Colors.photoBackground
+                                Text("Выберите кадр для просмотра")
+                                    .font(AppTheme.Typography.subheadline)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                        
+                        Divider()
+                        
+                        // Правая панель: управление («Снимки · 24», фильтры) и миниатюры рядом
+                        VStack(spacing: 0) {
+                            galleryControlsBar
+                                .padding(.horizontal, AppTheme.Spacing.sm)
+                                .padding(.vertical, AppTheme.Spacing.xs)
+                            
+                            Divider()
+                            
+                            IconsGridView(
+                                groups: appState.filteredGroups,
+                                selectedGroup: appState.selectedGroup,
+                                isSelectionMode: appState.isSelectionMode,
+                                selectedGroupIDs: appState.selectedGroupIDs,
+                                onToggleSelect: { appState.toggleSelectGroup($0) },
+                                onSelect: { group in
+                                    appState.selectedGroup = group
+                                }
+                            )
+                        }
+                        .frame(width: min(400, max(300, geometry.size.width * 0.38)))
+                        .background(AppTheme.Colors.surfacePrimary.opacity(0.6))
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Узкая компоновка (iPhone, узкий Split View)
+    
+    @ViewBuilder
+    private func narrowContentView(geometry: GeometryProxy) -> some View {
+        if appState.viewMode == .viewer {
+            viewerView
+        } else {
+            VStack(spacing: 0) {
+                topHUD
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .padding(.top, AppTheme.Spacing.xs)
+                    .padding(.bottom, AppTheme.Spacing.xs)
+                
+                if let activeJob = appState.activeTransferJob {
+                    compactTransferBar(job: activeJob)
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                        .padding(.bottom, AppTheme.Spacing.xs)
+                }
+                
+                if let banner = appState.mainScreenState.compactBanner {
+                    compactBannerView(banner)
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                        .padding(.bottom, AppTheme.Spacing.xs)
+                }
+                
+                if appState.mainScreenState.hasPhotos && !appState.mainScreenState.areAllPhotosFilteredOut {
+                    galleryControlsBar
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                        .padding(.bottom, AppTheme.Spacing.xs)
+                }
+                
+                Divider()
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                
+                mainContentArea
+            }
+        }
+    }
+    
     // MARK: - 1. Top HUD
     
     private var topHUD: some View {
-        HStack(spacing: AppTheme.Spacing.sm) {
-            // Кнопка названия сессии с переходом к истории
-            Button {
-                isShowingSessionSheet = true
-            } label: {
-                HStack(spacing: AppTheme.Spacing.xs + 1) {
-                    Image(systemName: "folder")
-                        .font(.subheadline)
-                    Text(appState.currentSession?.name ?? "Сессия")
-                        .font(AppTheme.Typography.subheadlineBold)
-                        .lineLimit(1)
+        VStack(spacing: AppTheme.Spacing.xs) {
+            // Основная строка заголовка: название сессии и статус камеры слева, действия справа
+            HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
+                // Если сайдбар свернут, показываем кнопку быстрого раскрытия
+                if appState.isSidebarCollapsed {
+                    Button {
+                        withAnimation {
+                            appState.toggleSidebar()
+                        }
+                    } label: {
+                        Image(systemName: "sidebar.leading")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(AppTheme.Colors.accent)
+                            .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                            .glassSurface(shape: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Развернуть боковую панель")
                 }
-                .foregroundStyle(AppTheme.Colors.textPrimary)
+                
+                // Название сессии + статус камеры (в 2 аккуратные строки слева)
+                Button {
+                    appState.isShowingSessionSheet = true
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text(appState.currentSession?.name ?? "Сессия")
+                                .font(AppTheme.Typography.title3.weight(.heavy))
+                                .foregroundStyle(AppTheme.Colors.textPrimary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(AppTheme.Colors.textTertiary)
+                        }
+                        
+                        ConnectionStatusView(
+                            status: connectionStatusState,
+                            title: appState.connectionStatusTitle,
+                            shortTitle: appState.shortConnectionStatusTitle,
+                            iconName: connectionStatusIcon,
+                            style: .inline,
+                            action: {
+                                appState.isShowingConnectionSheet = true
+                            }
+                        )
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Сессия: \(appState.currentSession?.name ?? "Сессия"), \(appState.connectionStatusTitle)")
+                .accessibilityHint("Нажмите для управления сессиями")
+                
+                Spacer(minLength: AppTheme.Spacing.xs)
+                
+                // Правый блок: кнопка «Импорт» и меню дополнительных действий •••
+                HStack(spacing: AppTheme.Spacing.xs + 2) {
+                    PrimaryImportButton(
+                        isReadingCatalog: appState.usbConnected && !appState.currentUSBManager.isCatalogReady,
+                        unimportedCount: appState.currentUSBManager.catalogFiles.filter { $0.status == .notImported }.count,
+                        action: {
+                            if appState.usbConnected {
+                                appState.isUSBBrowserPresented = true
+                            } else {
+                                appState.isShowingConnectionSheet = true
+                            }
+                        }
+                    )
+                    
+                    moreActionsMenu
+                }
+            }
+            
+            // Вторая строка: плашка карты памяти камеры по макету (если USB подключен и каталог готов)
+            if appState.usbConnected && appState.currentUSBManager.isCatalogReady && !appState.currentUSBManager.catalogFiles.isEmpty {
+                let totalFiles = appState.currentUSBManager.catalogFiles.count
+                let unimportedFiles = appState.currentUSBManager.catalogFiles.filter { $0.status == .notImported }.count
+                
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    Image(systemName: "creditcard")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(AppTheme.Colors.accent)
+                    
+                    Text(unimportedFiles > 0 ? "На карте \(totalFiles) файлов (новых: \(unimportedFiles))" : "На карте \(totalFiles) файлов")
+                        .font(AppTheme.Typography.captionBold)
+                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    Button {
+                        appState.isUSBBrowserPresented = true
+                    } label: {
+                        Text("Выбрать")
+                            .font(AppTheme.Typography.captionBold)
+                            .foregroundStyle(AppTheme.Colors.accent)
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 32)
+                            .background(AppTheme.Colors.accent.opacity(0.18))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Выбрать снимки с карты памяти камеры")
+                }
                 .padding(.horizontal, AppTheme.Spacing.md)
-                .frame(minHeight: AppTheme.Dimensions.buttonHeight)
+                .padding(.vertical, 6)
                 .glassPill()
             }
-            .accessibilityLabel("Сессия: \(appState.currentSession?.name ?? "Сессия")")
-            .accessibilityHint("Нажмите для перехода к истории сессий")
-            
-            // Один статус подключения (ConnectionStatusView)
-            ConnectionStatusView(
-                status: connectionStatusState,
-                title: appState.connectionStatusTitle,
-                shortTitle: appState.shortConnectionStatusTitle,
-                iconName: connectionStatusIcon,
-                style: .pill,
-                action: {
-                    isShowingConnectionSheet = true
-                }
-            )
-            
-            Spacer(minLength: AppTheme.Spacing.xs)
-            
-            // Подписанная кнопка «Импортировать»
-            PrimaryImportButton(
-                isReadingCatalog: appState.usbConnected && !appState.currentUSBManager.isCatalogReady,
-                unimportedCount: appState.currentUSBManager.catalogFiles.filter { $0.status == .notImported }.count,
-                action: {
-                    if appState.usbConnected {
-                        appState.isUSBBrowserPresented = true
-                    } else {
-                        isShowingConnectionSheet = true
-                    }
-                }
-            )
-            
-            // Меню дополнительных действий
-            Menu {
-                // Очередь переноса
-                Button {
-                    appState.isQueuePresented = true
-                } label: {
-                    if appState.activeQueueCount > 0 {
-                        Label("Очередь загрузки (\(appState.activeQueueCount))", systemImage: "tray.and.arrow.down")
-                    } else {
-                        Label("Очередь загрузки", systemImage: "tray.and.arrow.down")
-                    }
-                }
-                
-                // Клиентский монитор
-                Button {
-                    appState.presentClientControlSheet()
-                } label: {
-                    Label(
-                        appState.clientMonitorManager.config.isHoldEnabled
-                            ? "Клиентский монитор (HOLD)"
-                            : (appState.clientMonitorManager.externalDisplayStatus.isConnected ? "Клиентский монитор (HDMI)" : "Клиентский монитор"),
-                        systemImage: appState.clientMonitorManager.externalDisplayStatus.isConnected ? "tv.fill" : "tv"
-                    )
-                }
-                
-                // Экспорт сессии
-                Button {
-                    appState.presentExportForSession()
-                } label: {
-                    Label("Экспорт сессии...", systemImage: "square.and.arrow.up")
-                }
-                
-                Divider()
-                
-                // Настройки и мастер подключения
-                Button {
-                    isShowingConnectionSheet = true
-                } label: {
-                    Label("Настройки подключения...", systemImage: "gearshape")
-                }
-                
-                Button {
-                    appState.isWizardPresented = true
-                } label: {
-                    Label("Мастер подключения...", systemImage: "wand.and.stars")
-                }
-                
-                Button {
-                    appState.isMatrixPresented = true
-                } label: {
-                    Label("Таблица совместимости XMP...", systemImage: "info.circle")
-                }
-                
-                Divider()
-                
-                // Автопросмотр новых кадров
-                Button {
-                    appState.isAutoScrollEnabled.toggle()
-                } label: {
-                    Label(
-                        appState.isAutoScrollEnabled ? "Автопросмотр: Вкл" : "Автопросмотр: Выкл",
-                        systemImage: appState.isAutoScrollEnabled ? "checkmark.circle.fill" : "circle"
-                    )
-                }
-                
-                Divider()
-                
-                // Очистить снимки
-                Button(role: .destructive) {
-                    isShowingClearAlert = true
-                } label: {
-                    Label("Очистить галерею...", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(AppTheme.Colors.textPrimary)
-                    .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
-                    .glassSurface(shape: Circle())
-            }
-            .accessibilityLabel("Дополнительные действия")
         }
+    }
+    
+    // MARK: - Меню дополнительных действий
+    
+    private var moreActionsMenu: some View {
+        Menu {
+            // Очередь переноса
+            Button {
+                appState.isQueuePresented = true
+            } label: {
+                if appState.activeQueueCount > 0 {
+                    Label("Очередь загрузки (\(appState.activeQueueCount))", systemImage: "tray.and.arrow.down")
+                } else {
+                    Label("Очередь загрузки", systemImage: "tray.and.arrow.down")
+                }
+            }
+            
+            // Клиентский монитор
+            Button {
+                appState.presentClientControlSheet()
+            } label: {
+                Label(
+                    appState.clientMonitorManager.config.isHoldEnabled
+                        ? "Клиентский монитор (HOLD)"
+                        : (appState.clientMonitorManager.externalDisplayStatus.isConnected ? "Клиентский монитор (HDMI)" : "Клиентский монитор"),
+                    systemImage: appState.clientMonitorManager.externalDisplayStatus.isConnected ? "tv.fill" : "tv"
+                )
+            }
+            
+            // Экспорт сессии
+            Button {
+                appState.presentExportForSession()
+            } label: {
+                Label("Экспорт сессии...", systemImage: "square.and.arrow.up")
+            }
+            
+            Divider()
+            
+            // Настройки и мастер подключения
+            Button {
+                appState.isShowingConnectionSheet = true
+            } label: {
+                Label("Настройки подключения...", systemImage: "gearshape")
+            }
+            
+            Button {
+                appState.isWizardPresented = true
+            } label: {
+                Label("Мастер подключения...", systemImage: "wand.and.stars")
+            }
+            
+            Button {
+                appState.isMatrixPresented = true
+            } label: {
+                Label("Таблица совместимости XMP...", systemImage: "info.circle")
+            }
+            
+            Divider()
+            
+            // Автопросмотр новых кадров
+            Button {
+                appState.isAutoScrollEnabled.toggle()
+            } label: {
+                Label(
+                    appState.isAutoScrollEnabled ? "Автопросмотр: Вкл" : "Автопросмотр: Выкл",
+                    systemImage: appState.isAutoScrollEnabled ? "checkmark.circle.fill" : "circle"
+                )
+            }
+            
+            Divider()
+            
+            // Очистить снимки
+            Button(role: .destructive) {
+                isShowingClearAlert = true
+            } label: {
+                Label("Очистить галерею...", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                .glassSurface(shape: Circle())
+        }
+        .accessibilityLabel("Дополнительные действия")
     }
     
     private var connectionStatusState: ConnectionStatusView.Status {
@@ -308,89 +507,104 @@ public struct NikonTetherRootView: View {
         }
     }
     
-    // MARK: - 2. Вторичная панель управления галереей
+    // MARK: - 2. Панель управления галереей над сеткой
     
     @ViewBuilder
     private var galleryControlsBar: some View {
-        HStack(spacing: 8) {
-            // Счетчик кадров
-            Text("\(appState.filteredGroups.count) из \(appState.totalFramesCount) кадров")
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
-            
-            if appState.pairedCount > 0 {
-                Text("• \(appState.pairedCount) пар")
-                    .font(.caption)
-                    .foregroundStyle(.green)
+        HStack(spacing: AppTheme.Spacing.sm) {
+            // Заголовок с числом кадров по макету («Снимки · 24»)
+            HStack(spacing: 4) {
+                Text("Снимки · \(appState.filteredGroups.count)")
+                    .font(AppTheme.Typography.headline.weight(.heavy))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                
+                if appState.filteredGroups.count != appState.totalFramesCount {
+                    Text("из \(appState.totalFramesCount)")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                }
+                
+                if appState.pairedCount > 0 {
+                    Text("• \(appState.pairedCount) пар")
+                        .font(AppTheme.Typography.caption2Bold)
+                        .foregroundStyle(AppTheme.Colors.statusGreen)
+                }
             }
             
             Spacer()
             
-            // Меню выбора вида (Сетка, Просмотр, Список, Таблица)
+            // Меню вида (Сетка, Список, Таблица) и сортировки
             Menu {
-                Picker("Режим отображения", selection: $appState.viewMode) {
-                    Label("Сетка", systemImage: "square.grid.2x2").tag(ViewMode.icons)
-                    Label("Просмотр", systemImage: "photo.fill").tag(ViewMode.viewer)
-                    Label("Список", systemImage: "list.bullet").tag(ViewMode.list)
-                    Label("Таблица", systemImage: "tablecells").tag(ViewMode.table)
+                Section("Режим отображения") {
+                    Picker("Режим", selection: $appState.viewMode) {
+                        Label("Сетка", systemImage: "square.grid.2x2").tag(ViewMode.icons)
+                        Label("Список", systemImage: "list.bullet").tag(ViewMode.list)
+                        Label("Таблица", systemImage: "tablecells").tag(ViewMode.table)
+                    }
+                }
+                
+                Section("Сортировка") {
+                    Picker("Порядок", selection: Binding(
+                        get: { appState.sortOrder },
+                        set: { appState.setSortOrder($0) }
+                    )) {
+                        ForEach(SortOrderOption.allCases) { opt in
+                            Label(opt.title, systemImage: opt.iconName).tag(opt)
+                        }
+                    }
                 }
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: appState.viewMode.iconName)
-                    Text(appState.viewMode.rawValue)
-                        .font(.caption.bold())
-                }
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 10)
-                .frame(minHeight: 44)
-                .background(Color(uiColor: .secondarySystemFill))
-                .clipShape(Capsule())
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                    .glassSurface(shape: Circle())
             }
-            .accessibilityLabel("Режим отображения: \(appState.viewMode.rawValue)")
-            .accessibilityHint("Нажмите для выбора между сеткой, просмотром, списком и таблицей")
+            .accessibilityLabel("Вид и сортировка")
             
-            // Кнопка панели «Фильтры»
+            // Кнопка панели «Фильтры» со счетчиком
             Button {
-                isShowingFilterSheet = true
+                appState.isShowingFilterSheet = true
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: appState.hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    Image(systemName: appState.hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+                        .font(.system(size: 13, weight: .bold))
+                    
                     Text("Фильтры")
-                        .font(.caption.bold())
+                        .font(AppTheme.Typography.captionBold)
                     
                     if appState.activeFilterCount > 0 {
                         Text("\(appState.activeFilterCount)")
-                            .font(.caption2.bold())
+                            .font(AppTheme.Typography.caption2Bold)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
-                            .background(Color.accentColor)
-                            .foregroundStyle(.white)
+                            .background(AppTheme.Colors.accent)
+                            .foregroundStyle(Color.white)
                             .clipShape(Capsule())
                     }
                 }
-                .foregroundStyle(appState.hasActiveFilters ? Color.accentColor : .primary)
-                .padding(.horizontal, 10)
-                .frame(minHeight: 44)
-                .background(Color(uiColor: appState.hasActiveFilters ? .tertiarySystemFill : .secondarySystemFill))
-                .clipShape(Capsule())
+                .foregroundStyle(appState.hasActiveFilters ? AppTheme.Colors.accent : AppTheme.Colors.textPrimary)
+                .padding(.horizontal, AppTheme.Spacing.sm + 2)
+                .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
+                .glassPill()
             }
             .accessibilityLabel("Фильтры" + (appState.activeFilterCount > 0 ? ", активно: \(appState.activeFilterCount)" : ""))
-            .accessibilityHint("Нажмите для настройки фильтров формата, рейтинга и отбора")
             
-            // Быстрый сброс фильтров при их активности
+            // Кнопка быстрого сброса фильтров
             if appState.hasActiveFilters {
                 Button {
                     appState.resetFilters()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 44, height: 44)
+                        .font(.system(size: 16))
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                        .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Сбросить все фильтры")
             }
             
-            // Кнопка режима множественного выбора
+            // Кнопка режима множественного выбора «Выбрать»
             Button {
                 withAnimation {
                     appState.isSelectionMode.toggle()
@@ -401,20 +615,30 @@ public struct NikonTetherRootView: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: appState.isSelectionMode ? "checkmark.circle.fill" : "checkmark.circle")
+                        .font(.system(size: 13, weight: .bold))
                     Text(appState.isSelectionMode ? "Готово" : "Выбрать")
-                        .font(.caption.bold())
+                        .font(AppTheme.Typography.captionBold)
                 }
-                .foregroundStyle(appState.isSelectionMode ? Color.accentColor : .primary)
-                .padding(.horizontal, 10)
-                .frame(minHeight: 44)
-                .background(Color(uiColor: appState.isSelectionMode ? .tertiarySystemFill : .secondarySystemFill))
-                .clipShape(Capsule())
+                .foregroundStyle(appState.isSelectionMode ? Color.white : AppTheme.Colors.textPrimary)
+                .padding(.horizontal, AppTheme.Spacing.sm + 2)
+                .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
+                .background(
+                    Group {
+                        if appState.isSelectionMode {
+                            AppTheme.Colors.accent.clipShape(Capsule())
+                        } else {
+                            Color.clear
+                        }
+                    }
+                )
+                .glassPill()
             }
+            .buttonStyle(.plain)
             .accessibilityLabel(appState.isSelectionMode ? "Завершить выбор" : "Включить выбор кадров")
         }
     }
     
-    // MARK: - 3. Main Content Area
+    // MARK: - 3. Основная область контента (узкий экран)
     
     @ViewBuilder
     private var mainContentArea: some View {
@@ -473,15 +697,51 @@ public struct NikonTetherRootView: View {
         }
     }
     
-    // MARK: - Mode: Viewer
+    // MARK: - 4. Режим детального просмотра (Viewer - узкий экран)
     
     private var viewerView: some View {
         VStack(spacing: 0) {
+            // Верхняя навигационная плашка режима «Просмотр» по макету
+            HStack(spacing: AppTheme.Spacing.sm) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        appState.viewMode = .icons
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .bold))
+                        Text("Снимки")
+                            .font(AppTheme.Typography.subheadlineBold)
+                    }
+                    .foregroundStyle(AppTheme.Colors.accent)
+                    .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Вернуться к сетке снимков")
+                
+                Spacer()
+                
+                Text(appState.selectedGroup?.baseName ?? appState.selectedFile?.filename ?? "Снимок")
+                    .font(AppTheme.Typography.headline.weight(.heavy))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .lineLimit(1)
+                
+                Spacer()
+                
+                moreActionsMenu
+            }
+            .padding(.horizontal, AppTheme.Spacing.md)
+            .padding(.top, AppTheme.Spacing.xs)
+            .padding(.bottom, AppTheme.Spacing.xs)
+            .background(AppTheme.Colors.surfacePrimary.opacity(0.85))
+            
+            // Основная область кадра с зумом и инспектором
             if let currentGroup = appState.selectedGroup ?? appState.filteredGroups.first {
-                PhotoDetailView(group: currentGroup, appState: appState)
+                PhotoDetailView(group: currentGroup, appState: appState, showsTopHUD: false)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let currentFile = appState.selectedFile ?? appState.filteredFiles.first {
-                PhotoDetailView(file: currentFile, appState: appState)
+                PhotoDetailView(file: currentFile, appState: appState, showsTopHUD: false)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             
@@ -489,19 +749,19 @@ public struct NikonTetherRootView: View {
         }
     }
     
-    // MARK: - Bottom Filmstrip
+    // MARK: - Bottom Filmstrip (Горизонтальная лента миниатюр)
     
     private var bottomFilmstrip: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: AppTheme.Spacing.xs) {
             HStack {
                 Text("\(appState.filteredGroups.count) из \(appState.totalFramesCount) кадров")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.Typography.captionBold)
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
                 
                 if appState.pairedCount > 0 {
                     Text("• \(appState.pairedCount) пар")
-                        .font(.caption)
-                        .foregroundStyle(.green)
+                        .font(AppTheme.Typography.caption2Bold)
+                        .foregroundStyle(AppTheme.Colors.statusGreen)
                 }
                 
                 Spacer()
@@ -516,11 +776,12 @@ public struct NikonTetherRootView: View {
                         Image(systemName: "square.grid.2x2")
                         Text("Сетка")
                     }
-                    .font(.caption2.bold())
-                    .foregroundStyle(Color.accentColor)
-                    .frame(minHeight: 44)
+                    .font(AppTheme.Typography.captionBold)
+                    .foregroundStyle(AppTheme.Colors.accent)
+                    .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
                 }
-                .padding(.trailing, 8)
+                .buttonStyle(.plain)
+                .padding(.trailing, AppTheme.Spacing.sm)
                 
                 // Переключатель «Автопросмотр»
                 Button {
@@ -530,16 +791,17 @@ public struct NikonTetherRootView: View {
                         Image(systemName: appState.isAutoScrollEnabled ? "bolt.circle.fill" : "bolt.circle")
                         Text("Автопросмотр")
                     }
-                    .font(.caption2.bold())
-                    .foregroundStyle(appState.isAutoScrollEnabled ? Color.accentColor : .secondary)
-                    .frame(minHeight: 44)
+                    .font(AppTheme.Typography.captionBold)
+                    .foregroundStyle(appState.isAutoScrollEnabled ? AppTheme.Colors.accent : AppTheme.Colors.textSecondary)
+                    .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, AppTheme.Spacing.md)
             
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 8) {
+                    LazyHStack(spacing: AppTheme.Spacing.xs + 2) {
                         ForEach(appState.filteredGroups) { group in
                             FilmstripTile(
                                 group: group,
@@ -551,7 +813,7 @@ public struct NikonTetherRootView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, AppTheme.Spacing.md)
                 }
                 .frame(height: 72)
                 .onChange(of: appState.filteredGroups.first?.id) { _, newID in
@@ -563,8 +825,8 @@ public struct NikonTetherRootView: View {
                 }
             }
         }
-        .padding(.vertical, 8)
-        .background(Color(uiColor: .secondarySystemBackground))
+        .padding(.vertical, AppTheme.Spacing.xs)
+        .background(AppTheme.Colors.surfacePrimary.opacity(0.95))
     }
     
     // MARK: - Compact Transfer Bar (Активная передача)
@@ -586,30 +848,30 @@ public struct NikonTetherRootView: View {
         )
     }
     
-    // MARK: - Compact Banner & Empty Content Views
+    // MARK: - Compact Banner
     
     @ViewBuilder
     private func compactBannerView(_ banner: MainScreenCompactBanner) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.Spacing.sm) {
             Image(systemName: banner.systemImage)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(bannerIconColor(for: banner.style))
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(banner.title)
-                    .font(.caption.bold())
-                    .foregroundColor(.primary)
+                    .font(AppTheme.Typography.captionBold)
+                    .foregroundColor(AppTheme.Colors.textPrimary)
                 if let msg = banner.message {
                     Text(msg)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(AppTheme.Typography.caption2)
+                        .foregroundColor(AppTheme.Colors.textSecondary)
                 }
             }
             
             if banner.showsProgress {
                 ProgressView()
-                    .progressViewStyle(.circular)
-                    .scaleEffect(0.7)
+                    .controlSize(.mini)
+                    .tint(AppTheme.Colors.accent)
             }
             
             Spacer()
@@ -620,90 +882,94 @@ public struct NikonTetherRootView: View {
                 } label: {
                     if let icon = action.systemImage {
                         Label(action.title, systemImage: icon)
-                            .font(.caption.bold())
+                            .font(AppTheme.Typography.captionBold)
                     } else {
                         Text(action.title)
-                            .font(.caption.bold())
+                            .font(AppTheme.Typography.captionBold)
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.appPrimary)
                 .controlSize(.mini)
-                .frame(minHeight: 44)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, AppTheme.Spacing.md)
+        .padding(.vertical, AppTheme.Spacing.xs)
         .background(bannerBackgroundColor(for: banner.style))
-        .cornerRadius(8)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous))
     }
     
     private func bannerIconColor(for style: MainScreenCompactBanner.Style) -> Color {
         switch style {
-        case .error: return .red
-        case .warning: return .orange
-        case .info: return .blue
-        case .success: return .green
+        case .error: return AppTheme.Colors.statusRed
+        case .warning: return AppTheme.Colors.statusOrange
+        case .info: return AppTheme.Colors.accent
+        case .success: return AppTheme.Colors.statusGreen
         }
     }
     
     private func bannerBackgroundColor(for style: MainScreenCompactBanner.Style) -> Color {
         switch style {
-        case .error: return Color.red.opacity(0.18)
-        case .warning: return Color.orange.opacity(0.18)
-        case .info: return Color.blue.opacity(0.15)
-        case .success: return Color.green.opacity(0.15)
+        case .error: return AppTheme.Colors.statusRed.opacity(0.18)
+        case .warning: return AppTheme.Colors.statusOrange.opacity(0.18)
+        case .info: return AppTheme.Colors.accent.opacity(0.15)
+        case .success: return AppTheme.Colors.statusGreen.opacity(0.15)
         }
     }
     
+    // MARK: - 5. Пустые состояния в стиле Liquid Glass
+    
     @ViewBuilder
     private func mainScreenEmptyContentView(_ state: MainScreenEmptyState) -> some View {
-        VStack(spacing: 20) {
+        VStack(spacing: AppTheme.Spacing.lg) {
             Spacer()
             
             ZStack {
                 Circle()
-                    .stroke(Color(uiColor: .separator), lineWidth: 1)
-                    .frame(width: 130, height: 130)
+                    .fill(AppTheme.Colors.surfacePrimary)
+                    .frame(width: 120, height: 120)
+                    .overlay(
+                        Circle()
+                            .stroke(AppTheme.Colors.borderSubtle, lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.3), radius: 12, y: 6)
                 
                 Image(systemName: state.systemImage)
-                    .font(.system(size: 56, weight: .thin))
-                    .foregroundStyle(Color.accentColor)
+                    .font(.system(size: 48, weight: .light))
+                    .foregroundStyle(emptyStateIconColor(for: state.kind))
             }
             
-            VStack(spacing: 8) {
+            VStack(spacing: AppTheme.Spacing.xs) {
                 Text(state.title)
-                    .font(.title3.bold())
-                    .foregroundStyle(.primary)
+                    .font(AppTheme.Typography.title2.weight(.bold))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
                     .multilineTextAlignment(.center)
                 
                 Text(state.description)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.Typography.subheadline)
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, AppTheme.Spacing.xl)
                 
                 if state.showsProgress {
                     ProgressView()
-                        .progressViewStyle(.circular)
-                        .padding(.top, 4)
+                        .controlSize(.regular)
+                        .tint(AppTheme.Colors.accent)
+                        .padding(.top, AppTheme.Spacing.xs)
                 }
             }
             
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.Spacing.md) {
                 if let secondary = state.secondaryAction {
                     Button {
                         appState.handleMainScreenAction(secondary.type)
                     } label: {
                         if let icon = secondary.systemImage {
                             Label(secondary.title, systemImage: icon)
-                                .font(.caption.bold())
                         } else {
                             Text(secondary.title)
-                                .font(.caption.bold())
                         }
                     }
-                    .buttonStyle(.bordered)
-                    .frame(minHeight: 44)
+                    .buttonStyle(.appSecondaryGlass)
                 }
                 
                 if let primary = state.primaryAction {
@@ -712,21 +978,34 @@ public struct NikonTetherRootView: View {
                     } label: {
                         if let icon = primary.systemImage {
                             Label(primary.title, systemImage: icon)
-                                .font(.subheadline.bold())
                         } else {
                             Text(primary.title)
-                                .font(.subheadline.bold())
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .frame(minHeight: 44)
+                    .buttonStyle(.appPrimary)
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, AppTheme.Spacing.xs)
             
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, AppTheme.Spacing.lg)
+    }
+    
+    private func emptyStateIconColor(for kind: MainScreenEmptyState.Kind) -> Color {
+        switch kind {
+        case .error:
+            return AppTheme.Colors.statusRed
+        case .cardReady:
+            return AppTheme.Colors.statusGreen
+        case .connecting, .readingCard, .transferring:
+            return AppTheme.Colors.statusOrange
+        case .allFilteredOut, .cardEmptyOrNoMatchingFiles:
+            return AppTheme.Colors.accent
+        case .disconnected, .ftpWaiting:
+            return AppTheme.Colors.textSecondary
+        }
     }
     
     // MARK: - iPad Keyboard Shortcuts

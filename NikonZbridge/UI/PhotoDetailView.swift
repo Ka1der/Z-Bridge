@@ -1,8 +1,10 @@
 import SwiftUI
 
+/// Профессиональный просмотрщик кадра по макету Liquid Glass
 public struct PhotoDetailView: View {
     let group: CaptureGroup
     var appState: AppState?
+    public var showsTopHUD: Bool = false
     var onRatingChanged: ((Int) -> Void)?
     var onPickStatusChanged: ((PickStatus) -> Void)?
     var onInspectionChanged: ((Bool) -> Void)?
@@ -23,6 +25,7 @@ public struct PhotoDetailView: View {
     public init(
         group: CaptureGroup,
         appState: AppState? = nil,
+        showsTopHUD: Bool = false,
         onRatingChanged: ((Int) -> Void)? = nil,
         onPickStatusChanged: ((PickStatus) -> Void)? = nil,
         onInspectionChanged: ((Bool) -> Void)? = nil,
@@ -30,6 +33,7 @@ public struct PhotoDetailView: View {
     ) {
         self.group = group
         self.appState = appState
+        self.showsTopHUD = showsTopHUD
         self.onRatingChanged = onRatingChanged
         self.onPickStatusChanged = onPickStatusChanged
         self.onInspectionChanged = onInspectionChanged
@@ -37,7 +41,7 @@ public struct PhotoDetailView: View {
     }
     
     /// Инициализатор совместимости с одиночным IngestedFile
-    public init(file: IngestedFile, appState: AppState? = nil) {
+    public init(file: IngestedFile, appState: AppState? = nil, showsTopHUD: Bool = false) {
         if let asset = file.mediaAsset {
             self.group = CaptureGroup(asset: asset)
         } else {
@@ -55,6 +59,7 @@ public struct PhotoDetailView: View {
             self.group = CaptureGroup(asset: asset)
         }
         self.appState = appState
+        self.showsTopHUD = showsTopHUD
     }
     
     private var currentAsset: MediaAsset? {
@@ -62,10 +67,15 @@ public struct PhotoDetailView: View {
     }
     
     public var body: some View {
-        ZStack(alignment: .top) {
-            Color.black.ignoresSafeArea()
+        VStack(spacing: 0) {
+            // Верхняя плашка (если включена)
+            if showsTopHUD {
+                floatingHUD
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .padding(.top, AppTheme.Spacing.xs)
+            }
             
-            // Основная область фотографии с поддержкой панорамирования и зума
+            // Основная область фотографии: aspectRatio(.fit) — никогда не обрезается!
             GeometryReader { geo in
                 ZStack {
                     switch previewState {
@@ -75,26 +85,26 @@ public struct PhotoDetailView: View {
                     case .loading, .idle:
                         VStack(spacing: 10) {
                             ProgressView()
-                                .tint(.white)
+                                .tint(AppTheme.Colors.accent)
                             Text("Декодирование превью...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
                         }
                         
                     case .failure(let error):
                         VStack(spacing: 12) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.system(size: 36))
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(AppTheme.Colors.statusOrange)
                             
                             VStack(spacing: 4) {
                                 Text("Не удалось отобразить превью")
-                                    .font(.headline)
-                                    .foregroundStyle(.white)
+                                    .font(AppTheme.Typography.headline)
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
                                 
                                 Text(error.localizedDescription)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal, 24)
                             }
@@ -106,31 +116,27 @@ public struct PhotoDetailView: View {
                                     Image(systemName: "arrow.clockwise")
                                     Text("Повторить")
                                 }
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white)
+                                .font(AppTheme.Typography.captionBold)
+                                .foregroundStyle(Color.white)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
-                                .background(Color.white.opacity(0.15))
+                                .background(AppTheme.Colors.accent)
                                 .clipShape(Capsule())
                             }
+                            .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
                         }
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            // Верхняя парящая плашка с информацией о кадре, форматах и оригиналах
-            floatingHUD
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-            
-            // Нижняя панель отбора (Рейтинг, Флаги, Сравнение, Масштаб 1:1)
-            VStack {
-                Spacer()
-                cullingBar
-                    .padding(.bottom, 12)
-            }
+            // Нижняя панель действий кадра (вынесена под фото, не накладывается на изображение)
+            actionsCard
+                .padding(.horizontal, AppTheme.Spacing.md)
+                .padding(.vertical, AppTheme.Spacing.xs)
         }
+        .background(AppTheme.Colors.photoBackground.ignoresSafeArea())
         .sheet(isPresented: $isShowingEXIFSheet) {
             exifDetailSheet
         }
@@ -283,61 +289,183 @@ public struct PhotoDetailView: View {
         }
     }
     
+    // MARK: - Actions Card (Под фотографией по макету)
+    
+    private var actionsCard: some View {
+        GlassCard(cornerRadius: AppTheme.Radius.lg) {
+            VStack(spacing: AppTheme.Spacing.xs) {
+                // Верхняя строка: имя кадра, формат, качество, быстрый EXIF
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    Text(group.baseName)
+                        .font(AppTheme.Typography.subheadlineBold)
+                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                    
+                    Text(group.formatBadge)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(badgeColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    
+                    previewQualityBadge
+                    
+                    Spacer()
+                    
+                    // Кнопка EXIF
+                    Button {
+                        isShowingEXIFSheet = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            if let params = formattedQuickEXIF {
+                                Text(params)
+                                    .font(AppTheme.Typography.code)
+                            }
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 14))
+                        }
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Сведения EXIF")
+                    
+                    // Меню дополнительных действий (Overflow)
+                    secondaryActionsMenu
+                }
+                
+                Divider()
+                
+                // Нижняя строка: звезды 1..5, флаги отбора, сравнение, экспорт/шаринг
+                HStack(spacing: AppTheme.Spacing.md) {
+                    // Рейтинг 1..5
+                    HStack(spacing: 2) {
+                        ForEach(1...5, id: \.self) { star in
+                            Button {
+                                let newRating = (group.rating == star) ? 0 : star
+                                onRatingChanged?(newRating)
+                                appState?.setRating(newRating, for: group)
+                            } label: {
+                                Image(systemName: star <= group.rating ? "star.fill" : "star")
+                                    .font(.system(size: 17))
+                                    .foregroundStyle(star <= group.rating ? Color.yellow : AppTheme.Colors.textTertiary)
+                                    .frame(width: 32, height: AppTheme.Dimensions.minTouchTarget)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Рейтинг \(star) звёзд")
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Флаг Pick
+                    Button {
+                        let newStatus: PickStatus = (group.pickStatus == .picked) ? .unflagged : .picked
+                        onPickStatusChanged?(newStatus)
+                        appState?.setPickStatus(newStatus, for: group)
+                    } label: {
+                        Image(systemName: "flag.fill")
+                            .font(.system(size: 15))
+                            .foregroundStyle(group.pickStatus == .picked ? AppTheme.Colors.statusGreen : AppTheme.Colors.textSecondary)
+                            .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                            .background(
+                                group.pickStatus == .picked ? AppTheme.Colors.statusGreen.opacity(0.18) : Color.clear
+                            )
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(group.pickStatus == .picked ? "Снять флаг" : "Отобрать (Pick)")
+                    
+                    // Флаг Reject
+                    Button {
+                        let newStatus: PickStatus = (group.pickStatus == .rejected) ? .unflagged : .rejected
+                        onPickStatusChanged?(newStatus)
+                        appState?.setPickStatus(newStatus, for: group)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(group.pickStatus == .rejected ? AppTheme.Colors.statusRed : AppTheme.Colors.textSecondary)
+                            .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                            .background(
+                                group.pickStatus == .rejected ? AppTheme.Colors.statusRed.opacity(0.18) : Color.clear
+                            )
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(group.pickStatus == .rejected ? "Снять отметку отклонения" : "Отклонить (Reject)")
+                    
+                    // Поделиться / Экспорт
+                    if let asset = currentAsset {
+                        ShareLink(item: asset.fileURL) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 15))
+                                .foregroundStyle(AppTheme.Colors.accent)
+                                .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                        }
+                        .accessibilityLabel("Поделиться кадром")
+                    } else {
+                        Button {
+                            appState?.presentExport(for: [group])
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 15))
+                                .foregroundStyle(AppTheme.Colors.accent)
+                                .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Экспорт кадра")
+                    }
+                }
+            }
+            .padding(AppTheme.Spacing.md)
+        }
+    }
+    
+    private var badgeColor: Color {
+        if group.hasBothRawAndJpeg {
+            return AppTheme.Colors.statusGreen
+        } else if group.rawAsset != nil {
+            return AppTheme.Colors.statusOrange
+        } else if group.heifAsset != nil {
+            return Color.purple
+        } else {
+            return AppTheme.Colors.accent
+        }
+    }
+    
+    // MARK: - Floating Top HUD (опциональный)
+    
     private var floatingHUD: some View {
         HStack(spacing: 8) {
-            // Имя кадра и бейдж формата
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(group.baseName)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(AppTheme.Typography.captionBold)
+                        .foregroundStyle(Color.white)
                     
                     Text(group.formatBadge)
-                        .font(.system(size: 9, weight: .black))
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Color.white)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(group.hasBothRawAndJpeg ? Color.green.opacity(0.4) : (group.rawAsset != nil ? Color.orange.opacity(0.4) : Color.blue.opacity(0.4)))
-                        .foregroundStyle(.white)
+                        .background(badgeColor)
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 
                 if let asset = currentAsset {
                     Text("\(asset.filename) • \(asset.formattedSize)")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .font(AppTheme.Typography.caption2)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
                 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .glassSurface(shape: RoundedRectangle(cornerRadius: 10))
             
             Spacer()
             
-            // Бейдж типа превью (Оригинал vs Встроенное превью RAW)
             previewQualityBadge
             
-            // Инспектор метаданных (EXIF, камера, объектив, контрольная сумма)
-            Button {
-                isShowingEXIFSheet = true
-            } label: {
-                HStack(spacing: 5) {
-                    if let params = formattedQuickEXIF {
-                        Text(params)
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    }
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(.ultraThinMaterial)
-                .clipShape(Capsule())
-            }
-            .accessibilityLabel("Сведения и метаданные кадра")
-            
-            // Меню дополнительных действий (Secondary / Overflow Menu)
             secondaryActionsMenu
         }
     }
@@ -385,14 +513,7 @@ public struct PhotoDetailView: View {
                 }
             }
             
-            // 5. Поделиться оригиналом
-            if let asset = currentAsset {
-                ShareLink(item: asset.fileURL) {
-                    Label("Поделиться файлом (\(asset.format.displayName))...", systemImage: "square.and.arrow.up")
-                }
-            }
-            
-            // 6. Переключение активного формата / оригинала (RAW vs Companion)
+            // 5. Переключение активного формата / оригинала (RAW vs Companion)
             if group.allAssets.count > 1 {
                 Divider()
                 Menu("Выбрать оригинал") {
@@ -411,16 +532,14 @@ public struct PhotoDetailView: View {
             }
         } label: {
             Image(systemName: "ellipsis.circle")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(7)
-                .background(.ultraThinMaterial)
-                .clipShape(Circle())
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
         }
         .accessibilityLabel("Дополнительные действия кадра")
     }
     
-    // MARK: - Preview Quality Badge (Обозначение ограниченного превью vs полное разрешение)
+    // MARK: - Preview Quality Badge
     
     @ViewBuilder
     private var previewQualityBadge: some View {
@@ -432,238 +551,129 @@ public struct PhotoDetailView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "photo.badge.exclamationmark")
                             .font(.system(size: 11))
-                        Text("Превью • RAW")
+                        Text("RAW-превью")
                             .font(.system(size: 11, weight: .bold))
                     }
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(AppTheme.Colors.statusOrange)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(Color.orange.opacity(0.18))
+                    .padding(.vertical, 4)
+                    .background(AppTheme.Colors.statusOrange.opacity(0.18))
                     .clipShape(Capsule())
                 }
+                .buttonStyle(.plain)
             } else {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 11))
-                    Text("Оригинал 100%")
+                    Text("100%")
                         .font(.system(size: 11, weight: .bold))
                 }
-                .foregroundStyle(.green)
+                .foregroundStyle(AppTheme.Colors.statusGreen)
                 .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color.green.opacity(0.18))
+                .padding(.vertical, 4)
+                .background(AppTheme.Colors.statusGreen.opacity(0.18))
                 .clipShape(Capsule())
             }
         }
     }
     
-    // MARK: - Culling Bar (Bottom: Stars 1..5, Pick, Reject, Unflag)
-    
-    private var cullingBar: some View {
-        HStack(spacing: 12) {
-            // Звезды 1..5
-            HStack(spacing: 4) {
-                ForEach(1...5, id: \.self) { star in
-                    Button {
-                        let newRating = (group.rating == star) ? 0 : star
-                        onRatingChanged?(newRating)
-                        appState?.setRating(newRating, for: group)
-                    } label: {
-                        Image(systemName: star <= group.rating ? "star.fill" : "star")
-                            .font(.system(size: 18))
-                            .foregroundStyle(star <= group.rating ? Color.yellow : Color.white.opacity(0.35))
-                            .frame(width: 30, height: 30)
-                    }
-                    .accessibilityLabel("Рейтинг \(star) звёзд")
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.ultraThinMaterial)
-            .clipShape(Capsule())
-            
-            // Разделитель
-            Rectangle()
-                .fill(Color.white.opacity(0.2))
-                .frame(width: 1, height: 22)
-            
-            // Флаги отбора: Pick (зеленый флаг), Reject (красный крестик), Unflag
-            HStack(spacing: 6) {
-                // Pick
-                Button {
-                    let newStatus: PickStatus = (group.pickStatus == .picked) ? .unflagged : .picked
-                    onPickStatusChanged?(newStatus)
-                    appState?.setPickStatus(newStatus, for: group)
-                } label: {
-                    Image(systemName: "flag.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(group.pickStatus == .picked ? Color.green : Color.white.opacity(0.4))
-                        .padding(7)
-                        .background(group.pickStatus == .picked ? Color.green.opacity(0.25) : Color.white.opacity(0.08))
-                        .clipShape(Circle())
-                }
-                .accessibilityLabel("Отобрать (Pick)")
-                
-                // Reject
-                Button {
-                    let newStatus: PickStatus = (group.pickStatus == .rejected) ? .unflagged : .rejected
-                    onPickStatusChanged?(newStatus)
-                    appState?.setPickStatus(newStatus, for: group)
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(group.pickStatus == .rejected ? Color.red : Color.white.opacity(0.4))
-                        .padding(7)
-                        .background(group.pickStatus == .rejected ? Color.red.opacity(0.25) : Color.white.opacity(0.08))
-                        .clipShape(Circle())
-                }
-                .accessibilityLabel("Отклонить (Reject)")
-                
-                // Unflag
-                if group.pickStatus != .unflagged {
-                    Button {
-                        onPickStatusChanged?(.unflagged)
-                        appState?.setPickStatus(.unflagged, for: group)
-                    } label: {
-                        Image(systemName: "flag.slash")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .padding(7)
-                            .background(Color.white.opacity(0.08))
-                            .clipShape(Circle())
-                    }
-                    .accessibilityLabel("Снять флаг")
-                }
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
-            .background(.ultraThinMaterial)
-            .clipShape(Capsule())
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color.black.opacity(0.55))
-        .clipShape(Capsule())
-        .shadow(color: Color.black.opacity(0.3), radius: 6, y: 2)
-    }
+    // MARK: - Formatted Quick EXIF String
     
     private var formattedQuickEXIF: String? {
-        guard let exif = exifData, let exifSub = exif["{Exif}"] as? [String: Any] else {
-            return currentAsset?.metadata.quickExposureSummary
-        }
+        guard let exif = exifData else { return nil }
         var parts: [String] = []
-        if let exp = exifSub["ExposureTime"] as? Double {
-            parts.append(exp < 1.0 ? "1/\(Int(round(1.0 / exp)))" : "\(exp)s")
+        if let iso = exif["PhotographicSensitivity"] as? Int {
+            parts.append("ISO \(iso)")
+        } else if let isoArr = exif["PhotographicSensitivity"] as? [Int], let first = isoArr.first {
+            parts.append("ISO \(first)")
         }
-        if let fNum = exifSub["FNumber"] as? Double {
+        if let fNum = exif["FNumber"] as? Double {
             parts.append(String(format: "f/%.1f", fNum))
         }
-        if let iso = (exifSub["ISOSpeedRatings"] as? [Int])?.first {
-            parts.append("ISO \(iso)")
+        if let expTime = exif["ExposureTime"] as? Double {
+            if expTime < 1.0 && expTime > 0.0 {
+                let denom = Int(round(1.0 / expTime))
+                parts.append("1/\(denom)s")
+            } else {
+                parts.append(String(format: "%.1fs", expTime))
+            }
         }
         return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }
     
+    // MARK: - EXIF Detail Sheet
+    
     private var exifDetailSheet: some View {
         NavigationStack {
             List {
-                Section("Параметры съемки (EXIF)") {
-                    if let exifSub = exifData?["{Exif}"] as? [String: Any] {
-                        if let exp = exifSub["ExposureTime"] as? Double {
-                            row(title: "Выдержка", value: exp < 1.0 ? "1/\(Int(round(1.0 / exp))) s" : "\(exp) s")
-                        }
-                        if let fNum = exifSub["FNumber"] as? Double {
-                            row(title: "Диафрагма", value: String(format: "f/%.1f", fNum))
-                        }
-                        if let iso = (exifSub["ISOSpeedRatings"] as? [Int])?.first {
-                            row(title: "ISO", value: "\(iso)")
-                        }
-                        if let focal = exifSub["FocalLength"] as? Double {
-                            row(title: "Фокусное расстояние", value: "\(Int(focal)) мм")
-                        }
-                        if let lens = (exifSub["LensModel"] as? String) ?? (exifData?["{TIFF}"] as? [String: Any])?["LensModel"] as? String {
-                            row(title: "Объектив", value: lens)
-                        }
-                    } else if let summary = currentAsset?.metadata.quickExposureSummary {
-                        row(title: "Экспозиция", value: summary)
-                    } else {
-                        Text("Метаданные экспозиции недоступны")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                Section("Сведения о кадре") {
+                    LabeledContent("Имя группы", value: group.baseName)
+                    LabeledContent("Форматы", value: group.formatBadge)
+                    LabeledContent("Размер данных", value: group.formattedTotalSize)
+                    if let primary = group.primaryAsset {
+                        LabeledContent("Дата съемки", value: primary.formattedDateTime)
+                        LabeledContent("Имя основного файла", value: primary.filename)
                     }
                 }
                 
-                Section("Камера и файл") {
-                    if let tiff = exifData?["{TIFF}"] as? [String: Any], let model = tiff["Model"] as? String {
-                        row(title: "Камера", value: model)
-                    }
-                    if let session = appState?.currentSession {
-                        row(title: "Сессия", value: session.name)
-                    }
-                    if let asset = currentAsset {
-                        row(title: "Файл", value: asset.filename)
-                        row(title: "Формат", value: asset.format.displayName)
-                        row(title: "Размер", value: asset.formattedSize)
-                        row(title: "Дата и время", value: asset.formattedTime)
-                        if let sum = asset.sha256Checksum {
-                            row(title: "Контрольная сумма SHA-256", value: sum)
+                if let exif = exifData {
+                    Section("Параметры съемки (EXIF)") {
+                        if let camera = exif["Model"] as? String {
+                            LabeledContent("Камера", value: camera)
+                        }
+                        if let lens = exif["LensModel"] as? String {
+                            LabeledContent("Объектив", value: lens)
+                        }
+                        if let fLen = exif["FocalLength"] as? Double {
+                            LabeledContent("Фокусное расстояние", value: String(format: "%.1f мм", fLen))
+                        }
+                        if let fNum = exif["FNumber"] as? Double {
+                            LabeledContent("Диафрагма", value: String(format: "f/%.1f", fNum))
+                        }
+                        if let expTime = exif["ExposureTime"] as? Double {
+                            let valStr = expTime < 1.0 && expTime > 0.0 ? "1/\(Int(round(1.0 / expTime))) с" : String(format: "%.1f с", expTime)
+                            LabeledContent("Выдержка", value: valStr)
+                        }
+                        if let iso = exif["PhotographicSensitivity"] as? Int {
+                            LabeledContent("ISO", value: "\(iso)")
+                        } else if let isoArr = exif["PhotographicSensitivity"] as? [Int], let first = isoArr.first {
+                            LabeledContent("ISO", value: "\(first)")
+                        }
+                        if let wb = exif["WhiteBalance"] as? Int {
+                            LabeledContent("Баланс белого", value: wb == 0 ? "Авто" : "Ручной")
                         }
                     }
                 }
                 
-                Section("Доступные оригиналы на диске (\(group.allAssets.count))") {
+                Section("Файлы группы (\(group.allAssets.count))") {
                     ForEach(group.allAssets) { asset in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    Text(asset.filename)
-                                        .font(.subheadline.bold())
-                                    if asset.id == currentAsset?.id {
-                                        Text("Текущий")
-                                            .font(.system(size: 9, weight: .bold))
-                                            .padding(.horizontal, 5)
-                                            .padding(.vertical, 1)
-                                            .background(Color.blue.opacity(0.3))
-                                            .foregroundStyle(.blue)
-                                            .clipShape(Capsule())
-                                    }
-                                }
+                                Text(asset.filename)
+                                    .font(AppTheme.Typography.captionBold)
                                 Text("\(asset.format.displayName) • \(asset.formattedSize)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(AppTheme.Typography.caption2)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
                             }
                             Spacer()
-                            ShareLink(item: asset.fileURL) {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.caption)
+                            if asset.id == currentAsset?.id {
+                                Text("Активен")
+                                    .font(AppTheme.Typography.caption2Bold)
+                                    .foregroundStyle(AppTheme.Colors.statusGreen)
                             }
                         }
                     }
                 }
             }
-            .navigationTitle("Сведения о кадре")
-            #if os(iOS)
+            .navigationTitle("Метаданные кадра")
             .navigationBarTitleDisplayMode(.inline)
-            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Закрыть") {
+                    Button("Готово") {
                         isShowingEXIFSheet = false
                     }
                 }
             }
-        }
-        .presentationDetents([.medium, .large])
-    }
-    
-    private func row(title: String, value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(title)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .bold()
-                .multilineTextAlignment(.trailing)
         }
     }
 }

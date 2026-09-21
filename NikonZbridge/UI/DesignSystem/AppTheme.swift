@@ -106,6 +106,9 @@ public enum AppTheme {
                 ? UIColor(red: 0x0A / 255.0, green: 0x0A / 255.0, blue: 0x0C / 255.0, alpha: 1.0)
                 : UIColor(red: 0xEE / 255.0, green: 0xEF / 255.0, blue: 0xF2 / 255.0, alpha: 1.0)
         })
+        
+        /// Синоним для нейтрального фона области просмотра фото
+        public static let photoBackground = photoReviewBackground
     }
     
     // MARK: - 2. Интервалы (Spacing)

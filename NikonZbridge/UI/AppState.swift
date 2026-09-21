@@ -120,9 +120,46 @@ public enum PickFilterOption: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// 3 основных раздела адаптивного каркаса приложения (Liquid Glass)
+public enum AppSection: String, CaseIterable, Identifiable, Sendable {
+    case photos = "Снимки"
+    case camera = "Камера"
+    case sessions = "Сессии"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .photos: return "photo.on.rectangle"
+        case .camera: return "camera"
+        case .sessions: return "square.stack.3d.up"
+        }
+    }
+    
+    public var selectedIconName: String {
+        switch self {
+        case .photos: return "photo.fill"
+        case .camera: return "camera.fill"
+        case .sessions: return "square.stack.3d.up.fill"
+        }
+    }
+}
+
 /// Модель состояния для SwiftUI, отвязанная от деталей транспортов и хранилища
 @MainActor
 public final class AppState: ObservableObject {
+    // Навигация каркаса и централизованные модальные окна
+    @Published public var selectedSection: AppSection = .photos
+    @Published public var isSidebarCollapsed: Bool = false
+    @Published public var isSettingsPresented: Bool = false
+    @Published public var isShowingConnectionSheet: Bool = false
+    @Published public var isShowingSessionSheet: Bool = false
+    @Published public var isShowingFilterSheet: Bool = false
+    
+    public func toggleSidebar() {
+        isSidebarCollapsed.toggle()
+    }
+    
     // Состояние сети и сервера
     @Published public var serverState: FTPServerState = .stopped
     public var isServerRunning: Bool {

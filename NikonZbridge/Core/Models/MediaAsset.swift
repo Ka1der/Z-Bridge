@@ -166,8 +166,19 @@ public struct MediaAsset: Identifiable, Sendable, Codable, Hashable {
         return df
     }()
     
+    private static let dateTimeFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .medium
+        return df
+    }()
+    
     public var formattedTime: String {
         Self.timeFormatter.string(from: receivedAt)
+    }
+    
+    public var formattedDateTime: String {
+        Self.dateTimeFormatter.string(from: metadata.captureDate ?? receivedAt)
     }
     
     public var formattedSpeed: String {

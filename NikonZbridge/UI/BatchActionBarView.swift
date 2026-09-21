@@ -3,6 +3,7 @@ import SwiftUI
 /// Плавающая нижняя панель групповых действий при включенном режиме выбора
 public struct BatchActionBarView: View {
     @ObservedObject var appState: AppState
+    @State private var isShowingDeleteAlert = false
     
     public init(appState: AppState) {
         self.appState = appState
@@ -10,17 +11,17 @@ public struct BatchActionBarView: View {
     
     public var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: AppTheme.Spacing.sm) {
                 // Счетчик выбранных
-                HStack(spacing: 4) {
+                HStack(spacing: AppTheme.Spacing.xs) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(AppTheme.Colors.accent)
                     Text("\(appState.selectedGroupIDs.count)")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.primary)
+                        .font(AppTheme.Typography.subheadlineBold)
+                        .foregroundStyle(AppTheme.Colors.textPrimary)
                 }
-                .padding(.horizontal, 8)
-                .frame(minHeight: 44)
+                .padding(.horizontal, AppTheme.Spacing.sm)
+                .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Выбрано кадров: \(appState.selectedGroupIDs.count)")
                 
@@ -34,12 +35,12 @@ public struct BatchActionBarView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "square.split.2x1")
                         Text("Сравнить")
-                            .font(.caption.bold())
+                            .font(AppTheme.Typography.captionBold)
                     }
                     .padding(.horizontal, 10)
-                    .frame(minHeight: 44)
-                    .background(appState.canCompareSelected ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .foregroundStyle(appState.canCompareSelected ? Color.accentColor : Color.secondary)
+                    .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
+                    .background(appState.canCompareSelected ? AppTheme.Colors.accent.opacity(0.2) : Color.clear)
+                    .foregroundStyle(appState.canCompareSelected ? AppTheme.Colors.accent : AppTheme.Colors.textTertiary)
                     .clipShape(Capsule())
                 }
                 .disabled(!appState.canCompareSelected)
@@ -54,10 +55,10 @@ public struct BatchActionBarView: View {
                     Button("0") {
                         appState.batchSetRating(0)
                     }
-                    .font(.caption.bold())
-                    .frame(width: 36, height: 44)
+                    .font(AppTheme.Typography.captionBold)
+                    .frame(width: 36, height: AppTheme.Dimensions.minTouchTarget)
                     .contentShape(Rectangle())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
                     .accessibilityLabel("Снять рейтинг")
                     
                     ForEach(1...5, id: \.self) { star in
@@ -68,10 +69,10 @@ public struct BatchActionBarView: View {
                                 Image(systemName: "star.fill")
                                     .font(.system(size: 10))
                                 Text("\(star)")
-                                    .font(.caption2.bold())
+                                    .font(AppTheme.Typography.caption2Bold)
                             }
-                            .foregroundStyle(.yellow)
-                            .frame(width: 36, height: 44)
+                            .foregroundStyle(Color.yellow)
+                            .frame(width: 36, height: AppTheme.Dimensions.minTouchTarget)
                             .contentShape(Rectangle())
                         }
                         .accessibilityLabel("Установить рейтинг \(star) звезд")
@@ -87,8 +88,8 @@ public struct BatchActionBarView: View {
                         appState.batchSetPickStatus(.picked)
                     } label: {
                         Image(systemName: "flag.fill")
-                            .foregroundStyle(.green)
-                            .frame(width: 44, height: 44)
+                            .foregroundStyle(AppTheme.Colors.statusGreen)
+                            .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Пометить отобранным (Pick)")
@@ -98,8 +99,8 @@ public struct BatchActionBarView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.red)
-                            .frame(width: 44, height: 44)
+                            .foregroundStyle(AppTheme.Colors.statusRed)
+                            .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Пометить отклонённым (Reject)")
@@ -108,8 +109,8 @@ public struct BatchActionBarView: View {
                         appState.batchSetPickStatus(.unflagged)
                     } label: {
                         Image(systemName: "flag.slash")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 44, height: 44)
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                            .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Снять метку отбора")
@@ -122,19 +123,19 @@ public struct BatchActionBarView: View {
                 Button("Все") {
                     appState.selectAll()
                 }
-                .font(.caption.bold())
-                .frame(minWidth: 44, minHeight: 44)
+                .font(AppTheme.Typography.captionBold)
+                .frame(minWidth: AppTheme.Dimensions.minTouchTarget, minHeight: AppTheme.Dimensions.minTouchTarget)
                 .contentShape(Rectangle())
-                .foregroundStyle(.primary)
+                .foregroundStyle(AppTheme.Colors.textPrimary)
                 .accessibilityLabel("Выбрать все кадры")
                 
                 Button("Снять") {
                     appState.clearSelection()
                 }
-                .font(.caption)
-                .frame(minWidth: 44, minHeight: 44)
+                .font(AppTheme.Typography.caption)
+                .frame(minWidth: AppTheme.Dimensions.minTouchTarget, minHeight: AppTheme.Dimensions.minTouchTarget)
                 .contentShape(Rectangle())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppTheme.Colors.textSecondary)
                 .accessibilityLabel("Снять выбор со всех кадров")
                 
                 Divider()
@@ -147,41 +148,48 @@ public struct BatchActionBarView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "square.and.arrow.up")
                         Text("Экспорт")
-                            .font(.caption.bold())
+                            .font(AppTheme.Typography.captionBold)
                     }
                     .padding(.horizontal, 10)
-                    .frame(minHeight: 44)
-                    .background(Color.accentColor)
-                    .foregroundStyle(.white)
+                    .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
+                    .background(AppTheme.Colors.accent)
+                    .foregroundStyle(Color.white)
                     .clipShape(Capsule())
                 }
                 .accessibilityLabel("Экспортировать выбранные кадры")
                 
-                // Удаление выбранных
+                // Удаление выбранных с однозначной подписью и подтверждением
                 Button(role: .destructive) {
-                    appState.batchDeleteSelected()
+                    isShowingDeleteAlert = true
                 } label: {
-                    Image(systemName: "trash")
-                        .foregroundStyle(.red)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash")
+                        Text("Удалить (\(appState.selectedGroupIDs.count))")
+                            .font(AppTheme.Typography.captionBold)
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
+                    .background(AppTheme.Colors.statusRed.opacity(0.18))
+                    .foregroundStyle(AppTheme.Colors.statusRed)
+                    .clipShape(Capsule())
                 }
                 .accessibilityLabel("Удалить выбранные кадры из сессии")
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, AppTheme.Spacing.md)
             .padding(.vertical, 4)
         }
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
-        .shadow(color: Color.black.opacity(0.2), radius: 10, y: 4)
-        .overlay(
-            Capsule()
-                #if canImport(UIKit)
-                .stroke(Color(uiColor: .separator), lineWidth: 0.5)
-                #else
-                .stroke(Color.secondary.opacity(0.3), lineWidth: 0.5)
-                #endif
-        )
-        .padding(.horizontal, 16)
+        .glassPill(shadowRadius: 10, shadowY: 4)
+        .padding(.horizontal, AppTheme.Spacing.md)
+        .alert(
+            "Удалить \(appState.selectedGroupIDs.count) выбранных кадр(ов)?",
+            isPresented: $isShowingDeleteAlert
+        ) {
+            Button("Удалить", role: .destructive) {
+                appState.batchDeleteSelected()
+            }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Выбранные кадры будут безвозвратно удалены из текущей фотосессии. Это действие невозможно отменить.")
+        }
     }
 }

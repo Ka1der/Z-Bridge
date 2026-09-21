@@ -176,3 +176,103 @@ public struct CameraFileItem: Identifiable, @unchecked Sendable {
         ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)
     }
 }
+
+/// Режим фильтрации по формату файлов на карте памяти
+public enum CameraFileFormatFilter: String, CaseIterable, Identifiable, Sendable {
+    case all = "Все"
+    case rawOnly = "Только RAW"
+    case companionOnly = "Только Companion/JPEG"
+    
+    public var id: String { rawValue }
+    
+    public func matches(isRAW: Bool) -> Bool {
+        switch self {
+        case .all:
+            return true
+        case .rawOnly:
+            return isRAW
+        case .companionOnly:
+            return !isRAW
+        }
+    }
+}
+
+/// Статистика оглавления карты памяти
+public struct CameraCatalogStats: Equatable, Sendable {
+    public let totalCount: Int
+    public let totalBytes: Int64
+    public let unimportedCount: Int
+    public let unimportedBytes: Int64
+    public let importedCount: Int
+    public let importedBytes: Int64
+    public let inProgressCount: Int
+    public let failedCount: Int
+    
+    public init(
+        totalCount: Int = 0,
+        totalBytes: Int64 = 0,
+        unimportedCount: Int = 0,
+        unimportedBytes: Int64 = 0,
+        importedCount: Int = 0,
+        importedBytes: Int64 = 0,
+        inProgressCount: Int = 0,
+        failedCount: Int = 0
+    ) {
+        self.totalCount = totalCount
+        self.totalBytes = totalBytes
+        self.unimportedCount = unimportedCount
+        self.unimportedBytes = unimportedBytes
+        self.importedCount = importedCount
+        self.importedBytes = importedBytes
+        self.inProgressCount = inProgressCount
+        self.failedCount = failedCount
+    }
+    
+    public var formattedTotalSize: String {
+        ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
+    }
+    
+    public var formattedUnimportedSize: String {
+        ByteCountFormatter.string(fromByteCount: unimportedBytes, countStyle: .file)
+    }
+    
+    public static func calculate(from files: [CameraFileItem]) -> CameraCatalogStats {
+        var total = 0
+        var totalB: Int64 = 0
+        var unimp = 0
+        var unimpB: Int64 = 0
+        var imp = 0
+        var impB: Int64 = 0
+        var prog = 0
+        var failed = 0
+        
+        for file in files {
+            total += 1
+            totalB += file.fileSize
+            switch file.status {
+            case .notImported:
+                unimp += 1
+                unimpB += file.fileSize
+            case .queued, .importing:
+                prog += 1
+            case .imported:
+                imp += 1
+                impB += file.fileSize
+            case .failed:
+                failed += 1
+            }
+        }
+        
+        return CameraCatalogStats(
+            totalCount: total,
+            totalBytes: totalB,
+            unimportedCount: unimp,
+            unimportedBytes: unimpB,
+            importedCount: imp,
+            importedBytes: impB,
+            inProgressCount: prog,
+            failedCount: failed
+        )
+    }
+}
+

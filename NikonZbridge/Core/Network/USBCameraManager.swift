@@ -26,6 +26,10 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     @Published public var importMode: USBImportMode = .onlyNew
     @Published public var catalogFiles: [CameraFileItem] = []
     
+    public var catalogStats: CameraCatalogStats {
+        CameraCatalogStats.calculate(from: catalogFiles)
+    }
+    
     public static let autoDownloadNewShotsKey = "nikon_usb_auto_download_new_shots"
     public static let autoDownloadCardOnConnectKey = "nikon_usb_auto_download_card_on_connect"
     
@@ -53,6 +57,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     @Published public var pendingQueueCount: Int = 0
     @Published public var activeTransferCount: Int = 0
     @Published public private(set) var targetSessionName: String = ""
+    @Published public var isBatchSchedulingInProgress: Bool = false
     
     public var onFileIngested: (@Sendable (IngestedFile) -> Void)?
     public var onProgress: (@Sendable (Int64, Double) -> Void)?
@@ -147,20 +152,18 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         case .allUnimported:
             self.isAutoDownloadNewShotsEnabled = true
             self.isAutoDownloadCardOnConnectEnabled = true
-            if isCatalogReady {
-                Task {
-                    await importAllUnimported()
-                }
-            }
         case .selected:
             self.isAutoDownloadNewShotsEnabled = false
             self.isAutoDownloadCardOnConnectEnabled = false
         }
     }
     
-    /// Импорт только выбранных пользователем файлов (не изменяет настройку live-автозагрузки)
+    /// Импорт только выбранных пользователем файлов (не изменяет настройки автозагрузки)
     public func importSelectedFiles(_ items: [CameraFileItem]) async {
-        guard connectedCamera != nil, isCatalogReady else { return }
+        guard connectedCamera != nil, isCatalogReady, !isBatchSchedulingInProgress else { return }
+        isBatchSchedulingInProgress = true
+        defer { isBatchSchedulingInProgress = false }
+        
         for item in items where item.status != .imported && item.status != .queued {
             if await transferQueue.isEnqueuedOrActive(compositeID: item.id) { continue }
             guard let file = item.cameraFile ?? cameraFileMap[item.id] else { continue }
@@ -173,10 +176,32 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         await processQueue()
     }
     
-    /// Импорт всех ещё не импортированных файлов из каталога карты (не изменяет настройку live-автозагрузки)
+    /// Импорт всех ещё не импортированных файлов из каталога карты (не изменяет настройки автозагрузки)
     public func importAllUnimported() async {
-        guard connectedCamera != nil, isCatalogReady else { return }
+        guard connectedCamera != nil, isCatalogReady, !isBatchSchedulingInProgress else { return }
+        isBatchSchedulingInProgress = true
+        defer { isBatchSchedulingInProgress = false }
+        
         for item in catalogFiles where item.status == .notImported {
+            if await transferQueue.isEnqueuedOrActive(compositeID: item.id) { continue }
+            guard let file = item.cameraFile ?? cameraFileMap[item.id] else { continue }
+            await scheduleDownload(for: file, compositeID: item.id, existingJob: nil)
+        }
+        await processQueue()
+    }
+    
+    /// Импорт только не импортированных файлов, удовлетворяющих активному фильтру формата (не изменяет настройки автозагрузки)
+    public func importFilteredUnimported(matching filter: CameraFileFormatFilter) async {
+        guard connectedCamera != nil, isCatalogReady, !isBatchSchedulingInProgress else { return }
+        isBatchSchedulingInProgress = true
+        defer { isBatchSchedulingInProgress = false }
+        
+        let matchingItems = catalogFiles.filter { item in
+            guard item.status == .notImported else { return false }
+            return filter.matches(isRAW: item.isRAW)
+        }
+        
+        for item in matchingItems {
             if await transferQueue.isEnqueuedOrActive(compositeID: item.id) { continue }
             guard let file = item.cameraFile ?? cameraFileMap[item.id] else { continue }
             await scheduleDownload(for: file, compositeID: item.id, existingJob: nil)
@@ -291,7 +316,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     
     // MARK: - Планирование и исполнение очереди
     
-    private func scheduleDownload(for cameraFile: ICCameraFile, compositeID: String, existingJob: TransferJob?) async {
+    private func scheduleDownload(for cameraFile: ICCameraFile, compositeID: String, existingJob: TransferJob?, priority: Bool = false) async {
         guard let camera = connectedCamera else { return }
         let filename = cameraFile.name ?? catalogFiles.first(where: { $0.id == compositeID })?.filename ?? "DSC_0001.NEF"
         let fileSize = cameraFile.fileSize > 0 ? cameraFile.fileSize : (catalogFiles.first(where: { $0.id == compositeID })?.fileSize ?? 0)
@@ -349,7 +374,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
             attempts: job.attempts
         )
         
-        let didEnqueue = await transferQueue.enqueue(queueItem)
+        let didEnqueue = await transferQueue.enqueue(queueItem, priority: priority)
         if didEnqueue {
             updateItemStatus(compositeID: compositeID, status: .queued)
         }
@@ -410,7 +435,22 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         )
     }
     
-    /// Отмена загрузки
+    /// Отмена загрузки по идентификатору файла
+    public func cancelTransfer(compositeID: String) async {
+        if let jobID = inFlightJobs[compositeID] {
+            await cancelTransfer(jobID: jobID)
+            return
+        }
+        if let jobID = await transferQueue.findJobID(by: compositeID) {
+            await cancelTransfer(jobID: jobID)
+            return
+        }
+        _ = await transferQueue.cancel(compositeID: compositeID)
+        updateItemStatus(compositeID: compositeID, status: .notImported)
+        await updateQueueCounters()
+    }
+    
+    /// Отмена загрузки по идентификатору задания
     public func cancelTransfer(jobID: UUID) async {
         // 1. Поиск составного идентификатора: в выполняющихся (in-flight) либо в очереди ожидания (pending)
         let activeCompositeID = inFlightJobs.first(where: { $0.value == jobID })?.key
@@ -476,7 +516,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         }
     }
     
-    private func resetState() async {
+    public func resetState() async {
         await transferQueue.clearAll()
         self.connectedCamera = nil
         self.cameraName = nil
@@ -491,6 +531,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         self.connectionState = .disconnected
         self.pendingQueueCount = 0
         self.activeTransferCount = 0
+        self.isBatchSchedulingInProgress = false
     }
     
     // MARK: - CameraTransport Conformance (Session Synchronization)
@@ -669,7 +710,7 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
             if isCatalogReady {
                 if isAutoDownloadNewShotsEnabled {
                     Task {
-                        await scheduleDownload(for: file, compositeID: compositeID, existingJob: nil)
+                        await scheduleDownload(for: file, compositeID: compositeID, existingJob: nil, priority: true)
                         await processQueue()
                     }
                 }

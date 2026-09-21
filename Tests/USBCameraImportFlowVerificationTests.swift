@@ -47,11 +47,15 @@ final class USBCameraImportFlowVerificationSuite {
         try await testLargeCatalogPerformance()
         try await testBackgroundPersistenceOnDismissal()
         try await testAutoDownloadTogglesPersistence()
+        try await testFilteredImportDoesNotImportHiddenFiles()
+        try await testDoubleTapProtection()
+        try await testLiveTetheringPriorityOverPendingBatchQueue()
+        try await testCameraDisconnectAndCancelTransfer()
     }
     
     // MARK: - 1. Подсчет реального количества и общего объема доступных и общих файлов
     func testCameraCatalogStatsCalculation() async throws {
-        print("\n[1/9] Тест подсчета доступных и общих файлов оглавления...")
+        print("\n[1/13] Тест подсчета доступных и общих файлов оглавления...")
         
         let coordinator = try await makeCoordinator()
         let manager = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
@@ -65,8 +69,7 @@ final class USBCameraImportFlowVerificationSuite {
         
         manager.catalogFiles = [item1, item2, item3, item4, item5]
         
-        let browserView = USBCameraBrowserView(usbManager: manager)
-        let stats = browserView.stats
+        let stats = manager.catalogStats
         
         verify(stats.totalCount == 5, "Всего на карте должно быть 5 файлов")
         verify(stats.totalBytes == 165_000_000, "Общий объем на карте 165 МБ")
@@ -96,36 +99,18 @@ final class USBCameraImportFlowVerificationSuite {
         
         // Режим: Все
         let filterAll = CameraFileFormatFilter.all
-        let filteredAll = allItems.filter { _ in
-            switch filterAll {
-            case .all: return true
-            case .rawOnly: return false
-            case .companionOnly: return false
-            }
-        }
+        let filteredAll = allItems.filter { filterAll.matches(isRAW: $0.isRAW) }
         verify(filteredAll.count == 4, "Фильтр 'Все' должен возвращать все 4 файла")
         
         // Режим: Только RAW
         let filterRAW = CameraFileFormatFilter.rawOnly
-        let filteredRAW = allItems.filter { item in
-            switch filterRAW {
-            case .all: return true
-            case .rawOnly: return item.isRAW
-            case .companionOnly: return !item.isRAW
-            }
-        }
+        let filteredRAW = allItems.filter { filterRAW.matches(isRAW: $0.isRAW) }
         verify(filteredRAW.count == 2, "Фильтр 'Только RAW' должен возвращать 2 файла")
         verify(filteredRAW.allSatisfy { $0.isRAW }, "Все возвращенные файлы должны быть RAW")
         
         // Режим: Только Companion/JPEG
         let filterCompanion = CameraFileFormatFilter.companionOnly
-        let filteredCompanion = allItems.filter { item in
-            switch filterCompanion {
-            case .all: return true
-            case .rawOnly: return item.isRAW
-            case .companionOnly: return !item.isRAW
-            }
-        }
+        let filteredCompanion = allItems.filter { filterCompanion.matches(isRAW: $0.isRAW) }
         verify(filteredCompanion.count == 2, "Фильтр 'Только Companion' должен возвращать 2 файла")
         verify(filteredCompanion.allSatisfy { !$0.isRAW }, "Все возвращенные файлы должны быть не-RAW")
         
@@ -340,8 +325,7 @@ final class USBCameraImportFlowVerificationSuite {
         
         let start = Date()
         
-        let browserView = USBCameraBrowserView(usbManager: manager)
-        let stats = browserView.stats
+        let stats = manager.catalogStats
         
         let elapsed = Date().timeIntervalSince(start)
         
@@ -362,7 +346,7 @@ final class USBCameraImportFlowVerificationSuite {
     
     // MARK: - 8. Закрытие экрана не отменяет фоновую очередь
     func testBackgroundPersistenceOnDismissal() async throws {
-        print("\n[8/9] Тест независимости фоновой очереди от жизненного цикла окна...")
+        print("\n[8/13] Тест независимости фоновой очереди от жизненного цикла окна...")
         
         let coordinator = try await makeCoordinator()
         let manager = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
@@ -379,14 +363,7 @@ final class USBCameraImportFlowVerificationSuite {
         await manager.importSelectedFiles([item])
         verify(await manager.transferQueue.totalQueueCount == 1, "Задание должно быть поставлено в очередь")
         
-        // Создаем и имитируем закрытие представления (деинициализация USBCameraBrowserView)
-        do {
-            var browserView: USBCameraBrowserView? = USBCameraBrowserView(usbManager: manager)
-            _ = browserView?.stats
-            browserView = nil // Экран закрыт
-        }
-        
-        // Очередь и выполняющиеся задачи внутри manager / coordinator остаются активными!
+        // Очередь и выполняющиеся задачи внутри manager / coordinator остаются активными при скрытии UI!
         verify(await manager.transferQueue.totalQueueCount == 1, "Закрытие экрана НЕ должно отменять очередь переноса")
         verify(manager.catalogFiles.first?.status == .queued || manager.catalogFiles.first?.status == .importing(progress: 0.0), "Файл сохраняет статус очереди/передачи")
         
@@ -395,7 +372,7 @@ final class USBCameraImportFlowVerificationSuite {
     
     // MARK: - 9. Сохранение настроек независимых тумблеров автозагрузки
     func testAutoDownloadTogglesPersistence() async throws {
-        print("\n[9/9] Тест независимого сохранения тумблеров автозагрузки...")
+        print("\n[9/13] Тест независимого сохранения тумблеров автозагрузки...")
         
         let defaults = UserDefaults.standard
         let prevNew = defaults.object(forKey: USBCameraManager.autoDownloadNewShotsKey)
@@ -421,6 +398,155 @@ final class USBCameraImportFlowVerificationSuite {
         verify(freshManager.isAutoDownloadCardOnConnectEnabled == true)
         
         print("  ✓ Независимые настройки автозагрузки корректно сохраняются в UserDefaults")
+    }
+    
+    // MARK: - 10. Фильтрованный импорт исключает скрытые файлы
+    func testFilteredImportDoesNotImportHiddenFiles() async throws {
+        print("\n[10/13] Тест изоляции фильтрованного набора от скрытых файлов...")
+        
+        let coordinator = try await makeCoordinator()
+        let manager = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        
+        let rawFile1 = MockCameraFile(name: "DSC_0100.NEF", size: 40_000_000)
+        let rawFile2 = MockCameraFile(name: "DSC_0101.NEF", size: 42_000_000)
+        let jpgFile1 = MockCameraFile(name: "DSC_0100.JPG", size: 10_000_000)
+        let jpgFile2 = MockCameraFile(name: "DSC_0101.JPG", size: 12_000_000)
+        
+        let rawItem1 = CameraFileItem(cameraID: "nikon", filename: "DSC_0100.NEF", fileSize: 40_000_000, cameraFile: rawFile1)
+        let rawItem2 = CameraFileItem(cameraID: "nikon", filename: "DSC_0101.NEF", fileSize: 42_000_000, cameraFile: rawFile2)
+        let jpgItem1 = CameraFileItem(cameraID: "nikon", filename: "DSC_0100.JPG", fileSize: 10_000_000, cameraFile: jpgFile1)
+        let jpgItem2 = CameraFileItem(cameraID: "nikon", filename: "DSC_0101.JPG", fileSize: 12_000_000, cameraFile: jpgFile2)
+        
+        manager.catalogFiles = [rawItem1, rawItem2, jpgItem1, jpgItem2]
+        
+        let mockCamera = MockCameraDevice()
+        manager.connectedCamera = mockCamera
+        manager.isCatalogReady = true
+        
+        // Фиксируем настройки автозагрузки
+        manager.isAutoDownloadNewShotsEnabled = false
+        manager.isAutoDownloadCardOnConnectEnabled = false
+        
+        // Выполняем импорт только RAW
+        await manager.importFilteredUnimported(matching: .rawOnly)
+        
+        // Проверяем: только 2 RAW файла перешли в процесс импорта / очередь, а JPEG файлы остались .notImported
+        verify(manager.catalogFiles[0].status == .queued || manager.catalogFiles[0].status == .importing(progress: 0.0), "Первый RAW должен перейти в importing/queued")
+        verify(manager.catalogFiles[1].status == .queued, "Второй RAW должен быть queued")
+        verify(manager.catalogFiles[2].status == .notImported, "Первый JPEG НЕ должен быть затронут")
+        verify(manager.catalogFiles[3].status == .notImported, "Второй JPEG НЕ должен быть затронут")
+        
+        // Проверяем, что ручной импорт НЕ изменил настройки автозагрузки
+        verify(manager.isAutoDownloadNewShotsEnabled == false, "Ручной импорт не должен менять настройку live tethering")
+        verify(manager.isAutoDownloadCardOnConnectEnabled == false, "Ручной импорт не должен менять настройку автоимпорта с карты")
+        
+        print("  ✓ Фильтрованный импорт скачивает исключительно видимые файлы, не трогая скрытые")
+    }
+    
+    // MARK: - 11. Защита от двойного тапа (isBatchSchedulingInProgress)
+    func testDoubleTapProtection() async throws {
+        print("\n[11/13] Тест защиты от двойного тапа по кнопке импорта...")
+        
+        let coordinator = try await makeCoordinator()
+        let manager = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        
+        let file = MockCameraFile(name: "DSC_DOUBLE.NEF", size: 30_000_000)
+        let item = CameraFileItem(cameraID: "nikon", filename: "DSC_DOUBLE.NEF", fileSize: 30_000_000, cameraFile: file)
+        manager.catalogFiles = [item]
+        manager.connectedCamera = MockCameraDevice()
+        manager.isCatalogReady = true
+        
+        // Имитируем активный процесс планирования (первый тап еще исполняется)
+        manager.isBatchSchedulingInProgress = true
+        
+        // Второй тап пытается запустить импорт
+        await manager.importFilteredUnimported(matching: .all)
+        
+        // Задание НЕ должно дублироваться
+        verify(await manager.transferQueue.totalQueueCount == 0, "Второй вызов при активном планировании должен быть проигнорирован")
+        
+        // Снимаем блокировку
+        manager.isBatchSchedulingInProgress = false
+        await manager.importFilteredUnimported(matching: .all)
+        verify(await manager.transferQueue.totalQueueCount == 1, "После снятия блокировки файл успешно встает в очередь")
+        
+        print("  ✓ Защита от повторного запуска (двойной тап) предотвращает дублирование заданий")
+    }
+    
+    // MARK: - 12. Приоритет нового кадра (Live Tethering) над пакетной очередью с карты
+    func testLiveTetheringPriorityOverPendingBatchQueue() async throws {
+        print("\n[12/13] Тест приоритета live-tethering кадра перед пакетным импортом...")
+        
+        let queue = USBTransferQueue(maxConcurrentDownloads: 1)
+        let batchItem1 = USBQueueItem(
+            compositeID: "nikon_BATCH_1.NEF_100_0",
+            cameraFile: MockCameraFile(name: "BATCH_1.NEF"),
+            filename: "BATCH_1.NEF",
+            fileSize: 100
+        )
+        let batchItem2 = USBQueueItem(
+            compositeID: "nikon_BATCH_2.NEF_100_0",
+            cameraFile: MockCameraFile(name: "BATCH_2.NEF"),
+            filename: "BATCH_2.NEF",
+            fileSize: 100
+        )
+        let liveShot = USBQueueItem(
+            compositeID: "nikon_LIVE_SHOT.NEF_100_0",
+            cameraFile: MockCameraFile(name: "LIVE_SHOT.NEF"),
+            filename: "LIVE_SHOT.NEF",
+            fileSize: 100
+        )
+        
+        // Добавляем пакетные файлы в стандартном порядке
+        _ = await queue.enqueue(batchItem1, priority: false)
+        _ = await queue.enqueue(batchItem2, priority: false)
+        
+        // Приходит новый live-кадр прямо во время пакетного скачивания
+        _ = await queue.enqueue(liveShot, priority: true)
+        
+        // Проверяем: liveShot должен быть извлечен первым из очереди ожидания!
+        let next = await queue.dequeueNextIfAvailable()
+        verify(next?.filename == "LIVE_SHOT.NEF", "Свежий снимок должен иметь приоритет над пакетной очередью с карты")
+        
+        let second = await queue.markCompleted(compositeID: next!.compositeID)
+        verify(second?.filename == "BATCH_1.NEF", "Далее извлекается первый пакетный файл")
+        
+        print("  ✓ Live-кадр вставляется в голову очереди и обрабатывается в приоритетном порядке")
+    }
+    
+    // MARK: - 13. Отмена задания и отключение камеры
+    func testCameraDisconnectAndCancelTransfer() async throws {
+        print("\n[13/13] Тест отмены задания и отключения камеры...")
+        
+        let coordinator = try await makeCoordinator()
+        let manager = USBCameraManager(coordinator: coordinator, maxConcurrentDownloads: 1)
+        
+        let mockCamera = MockCameraDevice()
+        manager.connectedCamera = mockCamera
+        manager.isCatalogReady = true
+        
+        let file = MockCameraFile(name: "DSC_CANCEL.NEF", size: 50_000_000)
+        let item = CameraFileItem(cameraID: "nikon", filename: "DSC_CANCEL.NEF", fileSize: 50_000_000, cameraFile: file)
+        manager.catalogFiles = [item]
+        
+        await manager.importSelectedFiles([item])
+        verify(await manager.transferQueue.totalQueueCount == 1)
+        
+        // Отменяем задание по составному ID
+        await manager.cancelTransfer(compositeID: item.id)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        
+        verify(await manager.transferQueue.totalQueueCount == 0, "Очередь должна быть пуста после отмены")
+        verify(manager.catalogFiles.first?.status == .notImported, "Статус файла должен сброситься в notImported")
+        
+        // Имитируем отключение камеры
+        await manager.resetState()
+        verify(manager.connectedCamera == nil, "Камера сброшена")
+        verify(manager.isCatalogReady == false, "Каталог не готов")
+        verify(manager.catalogFiles.isEmpty, "Файлы каталога очищены")
+        verify(manager.isBatchSchedulingInProgress == false, "Флаг блокировки планирования сброшен")
+        
+        print("  ✓ Отмена и отключение камеры корректно сбрасывают состояние без зависаний")
     }
     
     // MARK: - Вспомогательные фабрики
@@ -456,6 +582,7 @@ final class MockCameraFile: ICCameraFile, @unchecked Sendable {
 final class MockCameraDevice: ICCameraDevice, @unchecked Sendable {
     var cancelDownloadCalled = false
     var lastRequestedFile: ICCameraFile?
+    weak var downloadDelegate: (any ICCameraDeviceDownloadDelegate)?
     var customName: String = "Nikon Z 8 (Mock)"
     
     override var name: String? {
@@ -464,6 +591,12 @@ final class MockCameraDevice: ICCameraDevice, @unchecked Sendable {
     
     override func cancelDownload() {
         cancelDownloadCalled = true
+        if let file = lastRequestedFile, let delegate = downloadDelegate as? USBCameraManager {
+            let cancelErr = NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError, userInfo: nil)
+            Task { @MainActor in
+                delegate.didDownloadFile(file, error: cancelErr, options: [:], contextInfo: nil)
+            }
+        }
     }
     
     override func requestDownloadFile(
@@ -474,5 +607,6 @@ final class MockCameraDevice: ICCameraDevice, @unchecked Sendable {
         contextInfo: UnsafeMutableRawPointer?
     ) {
         lastRequestedFile = file
+        self.downloadDelegate = downloadDelegate
     }
 }

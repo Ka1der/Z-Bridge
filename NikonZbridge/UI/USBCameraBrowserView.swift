@@ -1,55 +1,6 @@
 import SwiftUI
 import CoreGraphics
 
-/// Режим фильтрации по формату файлов на карте памяти
-public enum CameraFileFormatFilter: String, CaseIterable, Identifiable {
-    case all = "Все"
-    case rawOnly = "Только RAW"
-    case companionOnly = "Только Companion/JPEG"
-    
-    public var id: String { rawValue }
-}
-
-/// Статистика оглавления карты памяти
-public struct CameraCatalogStats: Equatable, Sendable {
-    public let totalCount: Int
-    public let totalBytes: Int64
-    public let unimportedCount: Int
-    public let unimportedBytes: Int64
-    public let importedCount: Int
-    public let importedBytes: Int64
-    public let inProgressCount: Int
-    public let failedCount: Int
-    
-    public init(
-        totalCount: Int = 0,
-        totalBytes: Int64 = 0,
-        unimportedCount: Int = 0,
-        unimportedBytes: Int64 = 0,
-        importedCount: Int = 0,
-        importedBytes: Int64 = 0,
-        inProgressCount: Int = 0,
-        failedCount: Int = 0
-    ) {
-        self.totalCount = totalCount
-        self.totalBytes = totalBytes
-        self.unimportedCount = unimportedCount
-        self.unimportedBytes = unimportedBytes
-        self.importedCount = importedCount
-        self.importedBytes = importedBytes
-        self.inProgressCount = inProgressCount
-        self.failedCount = failedCount
-    }
-    
-    public var formattedTotalSize: String {
-        ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
-    }
-    
-    public var formattedUnimportedSize: String {
-        ByteCountFormatter.string(fromByteCount: unimportedBytes, countStyle: .file)
-    }
-}
-
 /// Экран «Импорт с камеры» — специализированный интерфейс пакетного и выборочного переноса с карты памяти
 @MainActor
 public struct USBCameraBrowserView: View {
@@ -60,6 +11,7 @@ public struct USBCameraBrowserView: View {
     @State private var formatFilter: CameraFileFormatFilter = .all
     @State private var selectedFileIDs: Set<String> = []
     @State private var isSettingsExpanded: Bool = false
+    @State private var isImportActionInProgress: Bool = false
     
     public init(
         usbManager: USBCameraManager,
@@ -80,54 +32,24 @@ public struct USBCameraBrowserView: View {
     }
     
     public var stats: CameraCatalogStats {
-        var total = 0
-        var totalBytes: Int64 = 0
-        var unimported = 0
-        var unimportedBytes: Int64 = 0
-        var imported = 0
-        var importedBytes: Int64 = 0
-        var inProgress = 0
-        var failed = 0
-        
-        for item in usbManager.catalogFiles {
-            total += 1
-            totalBytes += item.fileSize
-            switch item.status {
-            case .notImported:
-                unimported += 1
-                unimportedBytes += item.fileSize
-            case .imported:
-                imported += 1
-                importedBytes += item.fileSize
-            case .queued, .importing:
-                inProgress += 1
-            case .failed:
-                failed += 1
-            }
-        }
-        return CameraCatalogStats(
-            totalCount: total,
-            totalBytes: totalBytes,
-            unimportedCount: unimported,
-            unimportedBytes: unimportedBytes,
-            importedCount: imported,
-            importedBytes: importedBytes,
-            inProgressCount: inProgress,
-            failedCount: failed
-        )
+        CameraCatalogStats.calculate(from: usbManager.catalogFiles)
     }
     
     private var filteredFiles: [CameraFileItem] {
-        usbManager.catalogFiles.filter { item in
-            switch formatFilter {
-            case .all:
-                return true
-            case .rawOnly:
-                return item.isRAW
-            case .companionOnly:
-                return !item.isRAW
-            }
-        }
+        usbManager.catalogFiles.filter { formatFilter.matches(isRAW: $0.isRAW) }
+    }
+    
+    /// Доступные для импорта файлы, удовлетворяющие текущему фильтру
+    private var filteredCandidateFiles: [CameraFileItem] {
+        filteredFiles.filter { $0.status == .notImported }
+    }
+    
+    private var filteredCandidateBytes: Int64 {
+        filteredCandidateFiles.reduce(0) { $0 + $1.fileSize }
+    }
+    
+    private var formattedFilteredCandidateSize: String {
+        ByteCountFormatter.string(fromByteCount: filteredCandidateBytes, countStyle: .file)
     }
     
     private var selectedStats: (count: Int, bytes: Int64) {
@@ -332,9 +254,14 @@ public struct USBCameraBrowserView: View {
             
             // Основная кнопка импорта
             Button {
+                guard !isImportActionInProgress else { return }
+                isImportActionInProgress = true
                 Task {
+                    defer { isImportActionInProgress = false }
                     if stats.failedCount > 0 && stats.unimportedCount == 0 && stats.inProgressCount == 0 {
                         await usbManager.retryAllFailed()
+                    } else if formatFilter != .all {
+                        await usbManager.importFilteredUnimported(matching: formatFilter)
                     } else {
                         await usbManager.importAllUnimported()
                     }
@@ -342,6 +269,9 @@ public struct USBCameraBrowserView: View {
             } label: {
                 HStack(spacing: 8) {
                     let s = stats
+                    let candidateCount = filteredCandidateFiles.count
+                    let candidateSize = formattedFilteredCandidateSize
+                    
                     if !usbManager.isConnected {
                         Image(systemName: "tray.and.arrow.down.fill")
                         Text("Камера не подключена")
@@ -360,14 +290,32 @@ public struct USBCameraBrowserView: View {
                         Image(systemName: "arrow.clockwise")
                         Text("Повторить ошибочные (\(s.failedCount))")
                             .fontWeight(.bold)
-                    } else if s.unimportedCount > 0 {
+                    } else if candidateCount > 0 {
                         Image(systemName: "tray.and.arrow.down.fill")
-                        Text("Загрузить \(s.unimportedCount) файлов (\(s.formattedUnimportedSize))")
-                            .fontWeight(.bold)
+                        switch formatFilter {
+                        case .all:
+                            Text("Загрузить все доступные (\(candidateCount) файлов, \(candidateSize))")
+                                .fontWeight(.bold)
+                        case .rawOnly:
+                            Text("Загрузить RAW (\(candidateCount) файлов, \(candidateSize))")
+                                .fontWeight(.bold)
+                        case .companionOnly:
+                            Text("Загрузить JPEG (\(candidateCount) файлов, \(candidateSize))")
+                                .fontWeight(.bold)
+                        }
                     } else {
                         Image(systemName: "checkmark")
-                        Text("Все файлы загружены")
-                            .fontWeight(.medium)
+                        switch formatFilter {
+                        case .all:
+                            Text("Все файлы загружены")
+                                .fontWeight(.medium)
+                        case .rawOnly:
+                            Text("Все RAW файлы уже загружены")
+                                .fontWeight(.medium)
+                        case .companionOnly:
+                            Text("Все JPEG файлы уже загружены")
+                                .fontWeight(.medium)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -379,17 +327,19 @@ public struct USBCameraBrowserView: View {
                 !usbManager.isConnected ||
                 !usbManager.isCatalogReady ||
                 stats.inProgressCount > 0 ||
-                (stats.unimportedCount == 0 && stats.failedCount == 0)
+                isImportActionInProgress ||
+                usbManager.isBatchSchedulingInProgress ||
+                (filteredCandidateFiles.isEmpty && stats.failedCount == 0)
             )
             
             // Раскрывающиеся независимые настройки автозагрузки
             DisclosureGroup(
                 isExpanded: $isSettingsExpanded,
                 content: {
-                    VStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Toggle(isOn: $usbManager.isAutoDownloadNewShotsEnabled) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Автозагрузка новых кадров (live tethering)")
+                                Text("Автоматически загружать новые кадры (live tethering)")
                                     .font(.subheadline)
                                 Text("Автоматически скачивать новые снимки при съемке")
                                     .font(.caption2)
@@ -401,13 +351,18 @@ public struct USBCameraBrowserView: View {
                         
                         Toggle(isOn: $usbManager.isAutoDownloadCardOnConnectEnabled) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Автозагрузка карты памяти при подключении")
+                                Text("Загружать файлы с карты при подключении")
                                     .font(.subheadline)
                                 Text("Автоматически ставить в очередь все кадры с карты при подключении USB")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
                         }
+                        
+                        Text("Ручной импорт не изменяет эти настройки. Параметры сохраняются между запусками.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 2)
                     }
                     .padding(.top, 6)
                 },
@@ -663,8 +618,11 @@ public struct USBCameraBrowserView: View {
                 .font(.subheadline)
                 
                 Button {
+                    guard !isImportActionInProgress else { return }
+                    isImportActionInProgress = true
                     let toImport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
                     Task {
+                        defer { isImportActionInProgress = false }
                         await usbManager.importSelectedFiles(toImport)
                         selectedFileIDs.removeAll()
                     }
@@ -677,7 +635,7 @@ public struct USBCameraBrowserView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .font(.subheadline)
-                .disabled(!usbManager.isConnected || !usbManager.isCatalogReady || count == 0)
+                .disabled(!usbManager.isConnected || !usbManager.isCatalogReady || count == 0 || isImportActionInProgress || usbManager.isBatchSchedulingInProgress)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)

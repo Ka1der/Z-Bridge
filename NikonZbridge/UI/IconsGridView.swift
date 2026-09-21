@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Режим отображения: сетка карточек фотографий (по умолчанию)
+/// Режим отображения: адаптивная сетка карточек фотографий (Liquid Glass)
 public struct IconsGridView: View {
     public let groups: [CaptureGroup]
     public let selectedGroup: CaptureGroup?
@@ -56,34 +56,53 @@ public struct IconsGridView: View {
         }
     }
     
-    private let columns = [
-        GridItem(.adaptive(minimum: 110, maximum: 160), spacing: 10)
-    ]
+    /// Расчет числа колонок сетки в зависимости от доступной ширины
+    public static func calculateColumnCount(for width: CGFloat) -> Int {
+        if width < 520 {
+            return 2 // iPhone в портрете, узкий Split View
+        } else if width < 850 {
+            return 3 // iPhone в ландшафте, 1/2 Split View
+        } else if width < 1200 {
+            return 4 // iPad в портрете / 2/3 Split View
+        } else {
+            return 5 // iPad Pro полноэкранный
+        }
+    }
     
     public var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(groups) { group in
-                    IconGridCard(
-                        group: group,
-                        isSelected: isSelectionMode ? selectedGroupIDs.contains(group.id) : (selectedGroup?.id == group.id),
-                        isSelectionMode: isSelectionMode
-                    )
-                    .onTapGesture {
-                        if isSelectionMode {
-                            onToggleSelect?(group)
-                        } else {
-                            onSelect(group)
+        GeometryReader { proxy in
+            let columnCount = Self.calculateColumnCount(for: proxy.size.width)
+            let columns = Array(
+                repeating: GridItem(.flexible(), spacing: AppTheme.Spacing.sm),
+                count: columnCount
+            )
+            
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: AppTheme.Spacing.sm) {
+                    ForEach(groups) { group in
+                        IconGridCard(
+                            group: group,
+                            isSelected: isSelectionMode ? selectedGroupIDs.contains(group.id) : (selectedGroup?.id == group.id),
+                            isSelectionMode: isSelectionMode
+                        )
+                        .onTapGesture {
+                            if isSelectionMode {
+                                onToggleSelect?(group)
+                            } else {
+                                onSelect(group)
+                            }
                         }
                     }
                 }
+                .padding(.horizontal, AppTheme.Spacing.md)
+                .padding(.top, AppTheme.Spacing.sm)
+                .padding(.bottom, AppTheme.Spacing.xxl + 40) // Запас под нижний dock / панель
             }
-            .padding(12)
         }
     }
 }
 
-/// Карточка кадра в сетке фотографий
+/// Карточка кадра в сетке фотографий по макету Liquid Glass
 public struct IconGridCard: View {
     public let group: CaptureGroup
     public let isSelected: Bool
@@ -120,156 +139,157 @@ public struct IconGridCard: View {
     }
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ZStack(alignment: .topTrailing) {
-                ZStack {
-                    Color(uiColor: .secondarySystemFill)
-                    switch previewState {
-                    case .success(let img):
-                        #if canImport(UIKit)
-                        Image(uiImage: img)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                        #elseif canImport(AppKit)
-                        Image(nsImage: img)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                        #endif
-                    case .loading, .idle:
-                        ProgressView()
-                            .scaleEffect(0.7)
-                    case .failure:
-                        VStack(spacing: 2) {
-                            Image(systemName: "exclamationmark.triangle")
-                                .font(.system(size: 16))
-                                .foregroundStyle(.orange)
-                            Text("Ошибка")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Button {
-                                loadThumbnail()
-                            } label: {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.caption2)
-                            }
-                            .frame(minWidth: 44, minHeight: 44)
+        ZStack(alignment: .bottom) {
+            // 1. Область миниатюры фотографии с пропорцией ~1:1
+            ZStack {
+                AppTheme.Colors.surfacePrimary
+                
+                switch previewState {
+                case .success(let img):
+                    #if canImport(UIKit)
+                    Image(uiImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                    #elseif canImport(AppKit)
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                    #endif
+                case .loading, .idle:
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(AppTheme.Colors.accent)
+                case .failure:
+                    VStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 20))
+                            .foregroundStyle(AppTheme.Colors.statusOrange)
+                        Text("Ошибка")
+                            .font(AppTheme.Typography.caption2)
+                            .foregroundStyle(AppTheme.Colors.textTertiary)
+                        Button {
+                            loadThumbnail()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption)
                         }
+                        .frame(minWidth: AppTheme.Dimensions.minTouchTarget, minHeight: AppTheme.Dimensions.minTouchTarget)
                     }
                 }
-                .frame(height: 110)
-                .clipped()
-                
-                // Верхний левый угол: индикатор выбора или флаг отбора
-                VStack {
-                    HStack {
-                        if isSelectionMode {
-                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 18))
-                                .foregroundStyle(isSelected ? Color.accentColor : Color.white.opacity(0.85))
-                                .background(Circle().fill(Color.black.opacity(0.4)))
-                                .padding(4)
-                        } else if group.pickStatus == .picked {
-                            Image(systemName: "flag.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.white)
-                                .padding(4)
-                                .background(Color.green)
-                                .clipShape(Circle())
-                                .padding(4)
-                        } else if group.pickStatus == .rejected {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                                .padding(4)
-                                .background(Color.red)
-                                .clipShape(Circle())
-                                .padding(4)
-                        }
-                        
-                        Spacer()
-                    }
-                    Spacer()
-                }
-                
-                // Бейдж формата кадра
-                Text(group.formatBadge)
-                    .font(.system(size: 8, weight: .black))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(badgeColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
-                    .padding(4)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(minHeight: 140, maxHeight: 180)
+            .aspectRatio(1.0, contentMode: .fill)
+            .clipped()
             
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(group.baseName)
-                        .font(.caption.bold())
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+            // 2. Верхние индикаторы (множественный выбор, рейтинг, флаг)
+            VStack {
+                HStack {
+                    if isSelectionMode {
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.85))
+                            .background(Circle().fill(Color.black.opacity(0.45)))
+                            .padding(AppTheme.Spacing.xs)
+                    } else if group.pickStatus == .picked {
+                        Image(systemName: "flag.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color.white)
+                            .padding(5)
+                            .background(AppTheme.Colors.statusGreen)
+                            .clipShape(Circle())
+                            .padding(AppTheme.Spacing.xs)
+                    } else if group.pickStatus == .rejected {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color.white)
+                            .padding(5)
+                            .background(AppTheme.Colors.statusRed)
+                            .clipShape(Circle())
+                            .padding(AppTheme.Spacing.xs)
+                    }
                     
                     Spacer()
                     
                     if group.rating > 0 {
-                        HStack(spacing: 1) {
+                        HStack(spacing: 2) {
                             Image(systemName: "star.fill")
-                                .font(.system(size: 8))
-                                .foregroundStyle(.yellow)
+                                .font(.system(size: 9))
+                                .foregroundStyle(Color.yellow)
                             Text("\(group.rating)")
-                                .font(.caption2.bold())
-                                .foregroundStyle(.yellow)
+                                .font(AppTheme.Typography.caption2Bold)
+                                .foregroundStyle(Color.yellow)
                         }
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.black.opacity(0.55))
+                        .clipShape(Capsule())
+                        .padding(AppTheme.Spacing.xs)
                     }
                 }
-                
-                HStack {
-                    Text(group.formattedTotalSize)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    if let primary = group.primaryAsset {
-                        Text(primary.formattedTime)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Spacer()
             }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 4)
+            
+            // 3. Компактная нижняя плашка кадра по макету:
+            // Имя кадра слева («DSC_0021»), формат справа («RAW+JPG»)
+            HStack(spacing: AppTheme.Spacing.xs) {
+                Text(group.baseName)
+                    .font(AppTheme.Typography.captionBold)
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                
+                Spacer()
+                
+                Text(formatBadgeTitle)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.9))
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.white.opacity(0.18))
+                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+            }
+            .padding(.horizontal, AppTheme.Spacing.xs + 2)
+            .padding(.vertical, 4)
+            .background(
+                LinearGradient(
+                    colors: [Color.black.opacity(0.85), Color.black.opacity(0.6), Color.clear],
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+            )
         }
-        .background(Color(uiColor: isSelected ? .secondarySystemFill : .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isSelected ? Color.accentColor : Color(uiColor: .separator), lineWidth: isSelected ? 2 : 0.5)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous)
+                .stroke(
+                    isSelected ? AppTheme.Colors.accent : AppTheme.Colors.borderSubtle,
+                    lineWidth: isSelected ? 2.0 : AppTheme.Dimensions.borderWidth
+                )
         )
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(group.baseName), формат \(group.formatBadge), рейтинг \(group.rating) звезд")
-        .accessibilityHint(isSelectionMode ? (isSelected ? "Выбран. Нажмите, чтобы снять выбор" : "Не выбран. Нажмите для выбора") : "Нажмите для просмотра кадра")
+        .accessibilityLabel("\(group.baseName), формат \(formatBadgeTitle), рейтинг \(group.rating) звезд")
+        .accessibilityHint(isSelectionMode ? (isSelected ? "Выбран. Нажмите для снятия" : "Не выбран. Нажмите для выбора") : "Нажмите для открытия просмотра кадра")
         .task(id: group.id) {
             loadThumbnail()
         }
         .onDisappear {
             if let url = primaryURL {
                 Task {
-                    await PreviewPipeline.shared.cancelLoading(for: url, maxPixelSize: 300)
+                    await PreviewPipeline.shared.cancelLoading(for: url, maxPixelSize: 350)
                 }
             }
         }
     }
     
-    private var badgeColor: Color {
+    private var formatBadgeTitle: String {
         if group.hasBothRawAndJpeg {
-            return Color.green
+            return "RAW+JPG"
         } else if group.rawAsset != nil {
-            return Color.orange
+            return "RAW"
         } else if group.heifAsset != nil {
-            return Color.purple
+            return "HEIF"
         } else {
-            return Color.blue
+            return "JPG"
         }
     }
     
@@ -277,7 +297,7 @@ public struct IconGridCard: View {
         guard let url = primaryURL else { return }
         previewState = .loading
         Task {
-            let result = await PreviewPipeline.shared.loadThumbnail(for: url, maxPixelSize: 300)
+            let result = await PreviewPipeline.shared.loadThumbnail(for: url, maxPixelSize: 350)
             if Task.isCancelled { return }
             switch result {
             case .success(let img):
