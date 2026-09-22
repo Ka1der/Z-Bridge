@@ -274,7 +274,15 @@ public final class AppState: ObservableObject {
     @Published public var availableSessions: [CaptureSession] = []
     @Published public var connectedSources: [CameraSource] = []
     @Published public var captureGroups: [CaptureGroup] = []
-    @Published public var selectedGroup: CaptureGroup?
+    @Published public var selectedGroup: CaptureGroup? {
+        didSet {
+            if oldValue?.id != selectedGroup?.id {
+                viewerZoom = 1.0
+                viewerPanOffset = .zero
+                isUserInspecting = false
+            }
+        }
+    }
     @Published public var activeJobs: [TransferJob] = []
     
     // Состояние полученных файлов и галереи (для SwiftUI представлений)
@@ -300,6 +308,16 @@ public final class AppState: ObservableObject {
     @Published public var ratingFilter: RatingFilterOption = .all
     @Published public var pickFilter: PickFilterOption = .all
     
+    // Псевдонимы совместимости для фильтров
+    public var selectedRatingFilter: RatingFilterOption {
+        get { ratingFilter }
+        set { ratingFilter = newValue }
+    }
+    public var selectedPickFilter: PickFilterOption {
+        get { pickFilter }
+        set { pickFilter = newValue }
+    }
+    
     // МНОЖЕСТВЕННЫЙ ВЫБОР И МАССОВЫЕ ДЕЙСТВИЯ (Этап 9)
     @Published public var isSelectionMode: Bool = false
     @Published public var selectedGroupIDs: Set<String> = []
@@ -307,6 +325,10 @@ public final class AppState: ObservableObject {
     // ИНСПЕКЦИЯ И ПАУЗА АВТОПЕРЕКЛЮЧЕНИЯ (Этап 9)
     @Published public var isUserInspecting: Bool = false
     @Published public var pendingIncomingFrameNotification: String? = nil
+    
+    // Состояние зума и панорамирования в полноэкранном просмотрщике (сохраняется при смене лейаута и поворотах)
+    @Published public var viewerZoom: CGFloat = 1.0
+    @Published public var viewerPanOffset: CGSize = .zero
     
     // СРАВНЕНИЕ ДВУХ КАДРОВ (CompareView)
     @Published public var isComparePresented: Bool = false
@@ -832,16 +854,25 @@ public final class AppState: ObservableObject {
     public let coordinator: TransferCoordinator
     private var server: FTPServer
     private let monitor = NetworkInterfaceMonitor.shared
-    private let usbManager = USBCameraManager.shared
+    private let usbManager: USBCameraManager
     
     public init(
         port: UInt16 = FTPServer.defaultPort,
         coordinator: TransferCoordinator = .shared,
+        usbManager: USBCameraManager? = nil,
         resumeLastSessionOnLaunch: Bool? = nil
     ) {
         self.serverPort = port
         self.coordinator = coordinator
         self.server = FTPServer(port: port, coordinator: coordinator)
+        
+        if let usbManager = usbManager {
+            self.usbManager = usbManager
+        } else if coordinator !== TransferCoordinator.shared {
+            self.usbManager = USBCameraManager(coordinator: coordinator)
+        } else {
+            self.usbManager = USBCameraManager.shared
+        }
         
         let defaults = UserDefaults.standard
         self.resumeLastSessionOnLaunch = resumeLastSessionOnLaunch
@@ -855,8 +886,8 @@ public final class AppState: ObservableObject {
         self.ftpUsername = creds.username
         self.ftpPassword = creds.password
         
-        self.isUSBAutoDownloadNewShotsEnabled = usbManager.isAutoDownloadNewShotsEnabled
-        self.isUSBAutoDownloadCardOnConnectEnabled = usbManager.isAutoDownloadCardOnConnectEnabled
+        self.isUSBAutoDownloadNewShotsEnabled = self.usbManager.isAutoDownloadNewShotsEnabled
+        self.isUSBAutoDownloadCardOnConnectEnabled = self.usbManager.isAutoDownloadCardOnConnectEnabled
         
         setupBindings()
     }

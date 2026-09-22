@@ -21,6 +21,7 @@ public struct PhotoDetailView: View {
     @State private var baseZoom: CGFloat = 1.0
     @State private var panOffset: CGSize = .zero
     @State private var basePanOffset: CGSize = .zero
+    @State private var loadedAssetID: UUID? = nil
     
     public init(
         group: CaptureGroup,
@@ -38,6 +39,13 @@ public struct PhotoDetailView: View {
         self.onPickStatusChanged = onPickStatusChanged
         self.onInspectionChanged = onInspectionChanged
         self.onOpenCompare = onOpenCompare
+        
+        let initialZoom = appState?.viewerZoom ?? 1.0
+        let initialPan = appState?.viewerPanOffset ?? .zero
+        _currentZoom = State(initialValue: initialZoom)
+        _baseZoom = State(initialValue: initialZoom)
+        _panOffset = State(initialValue: initialPan)
+        _basePanOffset = State(initialValue: initialPan)
     }
     
     /// Инициализатор совместимости с одиночным IngestedFile
@@ -60,6 +68,13 @@ public struct PhotoDetailView: View {
         }
         self.appState = appState
         self.showsTopHUD = showsTopHUD
+        
+        let initialZoom = appState?.viewerZoom ?? 1.0
+        let initialPan = appState?.viewerPanOffset ?? .zero
+        _currentZoom = State(initialValue: initialZoom)
+        _baseZoom = State(initialValue: initialZoom)
+        _panOffset = State(initialValue: initialPan)
+        _basePanOffset = State(initialValue: initialPan)
     }
     
     private var currentAsset: MediaAsset? {
@@ -147,9 +162,6 @@ public struct PhotoDetailView: View {
         }
         .task(id: "\(group.id)_\(currentAsset?.id.uuidString ?? "")") {
             loadCurrentPreview()
-        }
-        .onDisappear {
-            updateInspectionState(isInspecting: false)
         }
     }
     
@@ -243,6 +255,8 @@ public struct PhotoDetailView: View {
     private func updateInspectionState(isInspecting: Bool) {
         onInspectionChanged?(isInspecting)
         appState?.isUserInspecting = isInspecting
+        appState?.viewerZoom = currentZoom
+        appState?.viewerPanOffset = panOffset
     }
     
     private func toggle100PercentZoom() {
@@ -265,12 +279,20 @@ public struct PhotoDetailView: View {
     
     private func loadCurrentPreview() {
         guard let asset = currentAsset else { return }
+        
+        let isSameAsset = (loadedAssetID == asset.id)
+        loadedAssetID = asset.id
+        
         previewState = .loading
-        currentZoom = 1.0
-        baseZoom = 1.0
-        panOffset = .zero
-        basePanOffset = .zero
-        updateInspectionState(isInspecting: false)
+        if !isSameAsset {
+            let initialZoom = appState?.viewerZoom ?? 1.0
+            let initialPan = appState?.viewerPanOffset ?? .zero
+            currentZoom = initialZoom
+            baseZoom = initialZoom
+            panOffset = initialPan
+            basePanOffset = initialPan
+            updateInspectionState(isInspecting: initialZoom > 1.05)
+        }
         
         Task {
             let result = await PreviewPipeline.shared.loadThumbnail(for: asset.fileURL, maxPixelSize: 2560)

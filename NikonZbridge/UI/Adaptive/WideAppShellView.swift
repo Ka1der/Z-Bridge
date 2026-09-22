@@ -25,6 +25,8 @@ public struct WideAppShellView: View {
                         alignment: .trailing
                     )
                     .transition(reduceMotion ? .identity : .move(edge: .leading).combined(with: .opacity))
+            } else {
+                collapsedSidebarRail
             }
             
             // 2. Основная рабочая область активного раздела
@@ -190,5 +192,85 @@ public struct WideAppShellView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(section.rawValue)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+    
+    // MARK: - Свернутая панель навигации (быстрый доступ и раскрытие)
+    
+    private var collapsedSidebarRail: some View {
+        VStack(spacing: AppTheme.Spacing.md) {
+            Button {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+                    appState.toggleSidebar()
+                }
+            } label: {
+                Image(systemName: "sidebar.leading")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.accent)
+                    .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                    .glassSurface(shape: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Развернуть боковую панель")
+            .padding(.top, AppTheme.Spacing.lg)
+            
+            Divider()
+                .padding(.horizontal, AppTheme.Spacing.xs)
+            
+            // Быстрые иконки разделов
+            VStack(spacing: AppTheme.Spacing.sm) {
+                ForEach(AppSection.allCases) { section in
+                    let isSelected = appState.selectedSection == section
+                    Button {
+                        if appState.selectedSection != section {
+                            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                                appState.selectedSection = section
+                            }
+                        }
+                    } label: {
+                        Image(systemName: isSelected ? section.selectedIconName : section.iconName)
+                            .font(.system(size: 16, weight: isSelected ? .bold : .medium))
+                            .foregroundStyle(isSelected ? Color.white : AppTheme.Colors.textSecondary)
+                            .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                            .background(
+                                Group {
+                                    if isSelected {
+                                        AppTheme.Colors.accent
+                                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous))
+                                    } else {
+                                        Color.clear
+                                    }
+                                }
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(section.rawValue)
+                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+                }
+            }
+            
+            Spacer()
+            
+            // Кнопка «Настройки»
+            Button {
+                appState.isSettingsPresented = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.body)
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                    .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Настройки")
+            .padding(.bottom, AppTheme.Spacing.md)
+        }
+        .frame(width: 56)
+        .background(AppTheme.Colors.surfacePrimary.opacity(0.85))
+        .overlay(
+            Rectangle()
+                .fill(AppTheme.Colors.borderSubtle)
+                .frame(width: 1),
+            alignment: .trailing
+        )
+        .transition(reduceMotion ? .identity : .move(edge: .leading).combined(with: .opacity))
     }
 }

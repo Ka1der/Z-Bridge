@@ -92,7 +92,7 @@ final class AdaptiveAppShellVerificationTests {
         appState.setRatingFilter(.stars4Plus)
         appState.setPickFilter(.picked)
         appState.isSelectionMode = true
-        let mockID = UUID()
+        let mockID = UUID().uuidString
         appState.selectedGroupIDs = [mockID]
         
         // 2. Переключаемся в раздел «Камера»
@@ -103,8 +103,8 @@ final class AdaptiveAppShellVerificationTests {
         verify(appState.viewMode == .table, "viewMode не должен сбрасываться")
         verify(!appState.showRAW, "showRAW не должен сбрасываться")
         verify(appState.onlyPaired, "onlyPaired не должен сбрасываться")
-        verify(appState.selectedRatingFilter == .stars4Plus, "Рейтинг-фильтр должен сохраниться")
-        verify(appState.selectedPickFilter == .picked, "Флаг отбора должен сохраниться")
+        verify(appState.ratingFilter == .stars4Plus, "Рейтинг-фильтр должен сохраниться")
+        verify(appState.pickFilter == .picked, "Флаг отбора должен сохраниться")
         verify(appState.isSelectionMode, "Режим выбора должен сохраниться")
         verify(appState.selectedGroupIDs.contains(mockID), "Выделенные кадры должны сохраниться")
         
@@ -177,7 +177,7 @@ final class AdaptiveAppShellVerificationTests {
 @main
 struct AdaptiveAppShellTestRunner {
     static func main() async {
-        let suite = await AdaptiveAppShellVerificationTests()
+        let suite = AdaptiveAppShellVerificationTests()
         await suite.runAllTests()
     }
 }

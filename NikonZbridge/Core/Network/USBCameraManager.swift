@@ -578,13 +578,45 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         }
     }
     
+    /// Обновление оглавления носителя без триггера автозагрузки как для новых кадров
+    public func ingestDiscoveredCatalogFiles(_ files: [ICCameraFile], camera: ICCameraDevice) {
+        let camID = camera.name ?? "nikon"
+        
+        for file in files {
+            let filename = file.name ?? "DSC_0001.NEF"
+            let fileSize = file.fileSize
+            let creation = file.creationDate
+            
+            let compositeID = CameraFileItem.makeCompositeID(
+                cameraID: camID,
+                filename: filename,
+                fileSize: fileSize,
+                creationDate: creation
+            )
+            
+            cameraFileMap[compositeID] = file
+            
+            if !catalogFiles.contains(where: { $0.id == compositeID }) {
+                let fileItem = CameraFileItem(
+                    cameraID: camID,
+                    filename: filename,
+                    fileSize: fileSize,
+                    creationDate: creation,
+                    cameraFile: file,
+                    isInitialCatalog: true
+                )
+                catalogFiles.append(fileItem)
+            }
+        }
+    }
+    
     /// Принудительное обновление оглавления носителя: опрос доступных медиафайлов и синхронизация с активной сессией
     public func refreshCatalog() async {
         guard let camera = connectedCamera else { return }
         
         let mediaFiles = (camera.mediaFiles as? [ICCameraFile]) ?? (camera.contents as? [ICCameraFile]) ?? []
         if !mediaFiles.isEmpty {
-            cameraDevice(camera, didAdd: mediaFiles)
+            ingestDiscoveredCatalogFiles(mediaFiles, camera: camera)
         }
         
         let currentActiveSession = await coordinator.activeSession
@@ -711,13 +743,14 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                 isInitialCatalog: !isCatalogReady
             )
             
-            if !catalogFiles.contains(where: { $0.id == compositeID }) {
+            let isNewFile = !catalogFiles.contains(where: { $0.id == compositeID })
+            if isNewFile {
                 catalogFiles.append(fileItem)
                 newFilesAdded += 1
             }
             
-            // Если каталог уже готов — это новый снимок (live tethering)!
-            if isCatalogReady {
+            // Если каталог уже готов и обнаружен действительно новый снимок — это live tethering!
+            if isCatalogReady && isNewFile {
                 if isAutoDownloadNewShotsEnabled {
                     Task {
                         await scheduleDownload(for: file, compositeID: compositeID, existingJob: nil, priority: true)

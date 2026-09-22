@@ -288,23 +288,6 @@ public struct NikonTetherRootView: View {
         VStack(spacing: AppTheme.Spacing.xs) {
             // Основная строка заголовка: название сессии и статус камеры слева, действия справа
             HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
-                // Если сайдбар свернут, показываем кнопку быстрого раскрытия
-                if appState.isSidebarCollapsed {
-                    Button {
-                        withAnimation {
-                            appState.toggleSidebar()
-                        }
-                    } label: {
-                        Image(systemName: "sidebar.leading")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(AppTheme.Colors.accent)
-                            .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
-                            .glassSurface(shape: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Развернуть боковую панель")
-                }
-                
                 // Название сессии + статус камеры (в 2 аккуратные строки слева)
                 Button {
                     appState.isShowingSessionSheet = true

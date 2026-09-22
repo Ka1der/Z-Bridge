@@ -107,6 +107,8 @@ final class FinalUniversalUIVerificationSuite {
         
         let (coordinator, _, _) = try await makeIsolatedEnvironment(named: "Scenario2")
         let appState = AppState(port: 39202, coordinator: coordinator, resumeLastSessionOnLaunch: true)
+        await appState.waitUntilReady()
+        await appState.syncStateFromCoordinator()
         let manager = appState.currentUSBManager
         
         let mockCamera = MockCameraDevice()
@@ -426,7 +428,17 @@ final class MockCameraDevice: ICCameraDevice, @unchecked Sendable {
     
     override var name: String? { customName }
     
+    #if os(macOS)
     override func cancelDownload() {
+        performCancel()
+    }
+    #else
+    @objc func cancelDownload() {
+        performCancel()
+    }
+    #endif
+    
+    private func performCancel() {
         if let file = lastRequestedFile, let delegate = downloadDelegate as? USBCameraManager {
             let cancelErr = NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError, userInfo: nil)
             Task { @MainActor in
