@@ -77,7 +77,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
         var dbSessions = await database.getAllSessions()
         
         // 4. Импорт существующих папок съемок из Documents/Sessions, если их нет в БД
-        let knownPaths = Set(dbSessions.map { $0.folderURL.standardizedFileURL.path })
+        let knownPaths = Set(dbSessions.map { $0.folderURL.resolvingSymlinksInPath().standardizedFileURL.path })
         let discoveredFolders = reconciler.discoverExistingSessionFolders(in: sessionsRootURL, knownSessionFolderPaths: knownPaths)
         for disc in discoveredFolders {
             await database.upsertSession(disc)
@@ -123,7 +123,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
         
         // 7a. Сверка файлов на диске с каталогом: поиск недорегистрированных файлов
         // (на случай аварийного завершения процесса между сохранением файла на диск и записью в SQLite)
-        let knownAssetPaths = Set(sessionAssets.map { $0.fileURL.standardizedFileURL.path })
+        let knownAssetPaths = Set(sessionAssets.map { $0.fileURL.resolvingSymlinksInPath().standardizedFileURL.path })
         let untrackedAssets = reconciler.discoverAssetsInSessionFolder(session: activeSession, knownFilePaths: knownAssetPaths)
         for untracked in untrackedAssets {
             await database.upsertAsset(untracked)
@@ -336,7 +336,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
         for missingID in missingIDs {
             await database.markAssetMissing(id: missingID, isMissing: true)
         }
-        let knownAssetPaths = Set(sessionAssets.map { $0.fileURL.standardizedFileURL.path })
+        let knownAssetPaths = Set(sessionAssets.map { $0.fileURL.resolvingSymlinksInPath().standardizedFileURL.path })
         let untrackedAssets = reconciler.discoverAssetsInSessionFolder(session: activeSession, knownFilePaths: knownAssetPaths)
         for untracked in untrackedAssets {
             await database.upsertAsset(untracked)

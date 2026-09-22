@@ -920,77 +920,99 @@ public struct NikonTetherRootView: View {
     
     @ViewBuilder
     private func mainScreenEmptyContentView(_ state: MainScreenEmptyState) -> some View {
-        VStack(spacing: AppTheme.Spacing.lg) {
-            Spacer()
-            
-            ZStack {
-                Circle()
-                    .fill(AppTheme.Colors.surfacePrimary)
-                    .frame(width: 120, height: 120)
-                    .overlay(
-                        Circle()
-                            .stroke(AppTheme.Colors.borderSubtle, lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.3), radius: 12, y: 6)
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: AppTheme.Spacing.lg) {
+                Spacer(minLength: AppTheme.Spacing.md)
                 
-                Image(systemName: state.systemImage)
-                    .font(.system(size: 48, weight: .light))
-                    .foregroundStyle(emptyStateIconColor(for: state.kind))
-            }
-            
-            VStack(spacing: AppTheme.Spacing.xs) {
-                Text(state.title)
-                    .font(AppTheme.Typography.title2.weight(.bold))
-                    .foregroundStyle(AppTheme.Colors.textPrimary)
-                    .multilineTextAlignment(.center)
-                
-                Text(state.description)
-                    .font(AppTheme.Typography.subheadline)
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, AppTheme.Spacing.xl)
-                
-                if state.showsProgress {
-                    ProgressView()
-                        .controlSize(.regular)
-                        .tint(AppTheme.Colors.accent)
-                        .padding(.top, AppTheme.Spacing.xs)
+                ZStack {
+                    Circle()
+                        .fill(AppTheme.Colors.surfacePrimary)
+                        .frame(width: 104, height: 104)
+                        .overlay(
+                            Circle()
+                                .stroke(AppTheme.Colors.borderSubtle, lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.3), radius: 12, y: 6)
+                    
+                    Image(systemName: state.systemImage)
+                        .font(.system(size: 44, weight: .light))
+                        .foregroundStyle(emptyStateIconColor(for: state.kind))
                 }
-            }
-            
-            HStack(spacing: AppTheme.Spacing.md) {
-                if let secondary = state.secondaryAction {
-                    Button {
-                        appState.handleMainScreenAction(secondary.type)
-                    } label: {
-                        if let icon = secondary.systemImage {
-                            Label(secondary.title, systemImage: icon)
-                        } else {
-                            Text(secondary.title)
+                
+                VStack(spacing: AppTheme.Spacing.xs) {
+                    Text(state.title)
+                        .font(AppTheme.Typography.title2.weight(.bold))
+                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                        .multilineTextAlignment(.center)
+                    
+                    Text(state.description)
+                        .font(AppTheme.Typography.subheadline)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                    
+                    if state.showsProgress {
+                        ProgressView()
+                            .controlSize(.regular)
+                            .tint(AppTheme.Colors.accent)
+                            .padding(.top, AppTheme.Spacing.xs)
+                    }
+                }
+                
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.md) {
+                        if let secondary = state.secondaryAction {
+                            emptyStateButton(secondary, isPrimary: false)
+                        }
+                        if let primary = state.primaryAction {
+                            emptyStateButton(primary, isPrimary: true)
                         }
                     }
-                    .buttonStyle(.appSecondaryGlass)
-                }
-                
-                if let primary = state.primaryAction {
-                    Button {
-                        appState.handleMainScreenAction(primary.type)
-                    } label: {
-                        if let icon = primary.systemImage {
-                            Label(primary.title, systemImage: icon)
-                        } else {
-                            Text(primary.title)
+                    VStack(spacing: AppTheme.Spacing.sm) {
+                        if let primary = state.primaryAction {
+                            emptyStateButton(primary, isPrimary: true)
+                        }
+                        if let secondary = state.secondaryAction {
+                            emptyStateButton(secondary, isPrimary: false)
                         }
                     }
-                    .buttonStyle(.appPrimary)
                 }
+                .padding(.top, AppTheme.Spacing.xs)
+                
+                Spacer(minLength: AppTheme.Spacing.md)
             }
-            .padding(.top, AppTheme.Spacing.xs)
-            
-            Spacer()
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, AppTheme.Spacing.lg)
+            .padding(.bottom, AppTheme.Spacing.xxl)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, AppTheme.Spacing.lg)
+    }
+    
+    @ViewBuilder
+    private func emptyStateButton(_ action: MainScreenAction, isPrimary: Bool) -> some View {
+        Button {
+            appState.handleMainScreenAction(action.type)
+        } label: {
+            HStack(spacing: AppTheme.Spacing.xs + 2) {
+                if let icon = action.systemImage {
+                    Image(systemName: icon)
+                }
+                Text(action.title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+        .modifier(EmptyStateButtonModifier(isPrimary: isPrimary))
+    }
+    
+    private struct EmptyStateButtonModifier: ViewModifier {
+        let isPrimary: Bool
+        func body(content: Content) -> some View {
+            if isPrimary {
+                content.buttonStyle(.appPrimary)
+            } else {
+                content.buttonStyle(.appSecondaryGlass)
+            }
+        }
     }
     
     private func emptyStateIconColor(for kind: MainScreenEmptyState.Kind) -> Color {

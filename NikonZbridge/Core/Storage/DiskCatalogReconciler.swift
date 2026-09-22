@@ -100,7 +100,7 @@ public final class DiskCatalogReconciler: Sendable {
             let filename = fileURL.lastPathComponent
             if filename.hasPrefix(".") { continue }
             
-            let path = fileURL.standardizedFileURL.path
+            let path = fileURL.resolvingSymlinksInPath().standardizedFileURL.path
             if knownFilePaths.contains(path) { continue }
             
             let ext = fileURL.pathExtension.lowercased()
@@ -118,10 +118,13 @@ public final class DiskCatalogReconciler: Sendable {
             let exif = RAWPreviewExtractor.extractEXIFMetadata(from: fileURL)
             var metadata = AssetMetadata()
             if let exifSub = exif?["{Exif}"] as? [String: Any] {
-                metadata.exposureTime = exifSub["ExposureTime"] as? Double
-                metadata.fNumber = exifSub["FNumber"] as? Double
-                metadata.focalLength = exifSub["FocalLength"] as? Double
-                if let isoArray = exifSub["ISOSpeedRatings"] as? [Int], let first = isoArray.first {
+                if let shutter = exifSub["ExposureTime"] as? Double {
+                    metadata.exposureTime = shutter
+                }
+                if let fNum = exifSub["FNumber"] as? Double {
+                    metadata.fNumber = fNum
+                }
+                if let isos = exifSub["ISOSpeedRatings"] as? [Int], let first = isos.first {
                     metadata.iso = first
                 }
             }
@@ -132,7 +135,7 @@ public final class DiskCatalogReconciler: Sendable {
             let asset = MediaAsset(
                 sessionID: session.id,
                 filename: filename,
-                fileURL: fileURL,
+                fileURL: fileURL.resolvingSymlinksInPath().standardizedFileURL,
                 format: format,
                 fileSize: size,
                 metadata: metadata,

@@ -941,6 +941,14 @@ public final class AppState: ObservableObject {
         #endif
     }
     
+    /// Ожидание завершения начальной фоновой инициализации транспортов и сессии
+    @MainActor
+    public func waitUntilReady() async {
+        while !isStartupReady {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+    
     /// Синхронизация текущего состояния координатора (сессия, кадры, группы, очереди) в главное состояние UI
     @MainActor
     public func syncStateFromCoordinator() async {

@@ -545,8 +545,12 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         let imported = await coordinator.getImportedSourceFileIDs()
         await transferQueue.resetImportedIDs(Array(imported))
         
-        for idx in catalogFiles.indices {
-            let item = catalogFiles[idx]
+        let currentFiles = self.catalogFiles
+        guard !currentFiles.isEmpty else { return }
+        
+        var updatedFiles = currentFiles
+        for idx in updatedFiles.indices {
+            let item = updatedFiles[idx]
             var isAlreadyImported = imported.contains(item.id)
             if !isAlreadyImported {
                 isAlreadyImported = await coordinator.isAssetAlreadyImported(
@@ -557,13 +561,19 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
             }
             
             if isAlreadyImported {
-                catalogFiles[idx].status = .imported
+                updatedFiles[idx].status = .imported
                 await transferQueue.registerExistingImportedIDs([item.id])
             } else {
                 let isEnqueuedOrActive = await transferQueue.isEnqueuedOrActive(compositeID: item.id)
-                if !isEnqueuedOrActive && catalogFiles[idx].status == .imported {
-                    catalogFiles[idx].status = .notImported
+                if !isEnqueuedOrActive && updatedFiles[idx].status == .imported {
+                    updatedFiles[idx].status = .notImported
                 }
+            }
+        }
+        
+        for updated in updatedFiles {
+            if let idx = self.catalogFiles.firstIndex(where: { $0.id == updated.id }) {
+                self.catalogFiles[idx].status = updated.status
             }
         }
     }

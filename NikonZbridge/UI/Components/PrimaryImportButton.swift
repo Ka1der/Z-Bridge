@@ -64,6 +64,7 @@ public struct PrimaryImportButton: View {
                         Text(shortTitle)
                             .font(AppTheme.Typography.subheadlineBold)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                     
                     if unimportedCount > 0 {

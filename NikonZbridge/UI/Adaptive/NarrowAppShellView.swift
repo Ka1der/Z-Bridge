@@ -6,6 +6,7 @@ import SwiftUI
 public struct NarrowAppShellView: View {
     @ObservedObject var appState: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     
     public init(appState: AppState) {
         self.appState = appState
@@ -25,6 +26,9 @@ public struct NarrowAppShellView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 68)
+            }
             
             // 2. Плавающий нижний блок (плашка передачи + нижний док навигации)
             VStack(spacing: AppTheme.Spacing.xs) {
@@ -92,9 +96,12 @@ public struct NarrowAppShellView: View {
                 Image(systemName: isSelected ? section.selectedIconName : section.iconName)
                     .font(.system(size: 15, weight: isSelected ? .bold : .medium))
                 
-                Text(section.rawValue)
-                    .font(AppTheme.Typography.captionBold)
-                    .lineLimit(1)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Text(section.rawValue)
+                        .font(AppTheme.Typography.captionBold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
             }
             .foregroundStyle(isSelected ? Color.white : AppTheme.Colors.textSecondary)
             .padding(.horizontal, AppTheme.Spacing.md)

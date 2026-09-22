@@ -204,7 +204,7 @@ public actor CatalogDatabase {
         defer { sqlite3_finalize(stmt) }
         
         let idStr = session.id.uuidString
-        let folderPath = session.folderURL.standardizedFileURL.path
+        let folderPath = session.folderURL.resolvingSymlinksInPath().standardizedFileURL.path
         let activeInt: Int32 = (isActive ?? session.isActive) ? 1 : 0
         let closedInt: Int32 = session.isClosed ? 1 : 0
         
@@ -368,7 +368,7 @@ public actor CatalogDatabase {
     }
     
     public func updateSessionName(id: UUID, newName: String, folderPath: String) {
-        let oldPath = getSession(by: id)?.folderURL.standardizedFileURL.path ?? folderPath
+        let oldPath = getSession(by: id)?.folderURL.resolvingSymlinksInPath().standardizedFileURL.path ?? folderPath
         updateSessionNameAndPaths(
             id: id,
             newName: newName,
@@ -541,7 +541,7 @@ public actor CatalogDatabase {
         
         let idStr = asset.id.uuidString
         let sessionIDStr = asset.sessionID.uuidString
-        let pathStr = asset.fileURL.standardizedFileURL.path
+        let pathStr = asset.fileURL.resolvingSymlinksInPath().standardizedFileURL.path
         let formatStr = asset.format.displayName
         let statusStr = asset.verificationResult.isValid ? "valid" : "corrupted"
         let missingInt: Int32 = asset.isMissing ? 1 : 0
