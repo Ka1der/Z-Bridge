@@ -297,11 +297,29 @@ public final class AppState: ObservableObject {
     @Published public var importFormatPreference: ImportFormatPreference = .allFormats
     
     // РЕЖИМ ВНЕШНЕГО ВИДА И ФИЛЬТРЫ ОТОБРАЖЕНИЯ ГАЛЕРЕИ
-    @Published public var viewMode: ViewMode = .icons
+    @Published public var viewMode: ViewMode = .icons {
+        didSet {
+            if oldValue == .viewer && viewMode != .viewer {
+                isUserInspecting = false
+                viewerZoom = 1.0
+                viewerPanOffset = .zero
+                pendingIncomingFrameNotification = nil
+            }
+        }
+    }
     @Published public var showRAW: Bool = true
     @Published public var showJPG: Bool = true
     @Published public var showHEIF: Bool = true
     @Published public var onlyPaired: Bool = false
+    
+    /// Явный выход из режима детального просмотра кадра в галерею
+    public func exitViewer() {
+        viewMode = .icons
+        isUserInspecting = false
+        viewerZoom = 1.0
+        viewerPanOffset = .zero
+        pendingIncomingFrameNotification = nil
+    }
     
     // ФИЛЬТРЫ И СОРТИРОВКА (Этап 9)
     @Published public var sortOrder: SortOrderOption = .dateDesc

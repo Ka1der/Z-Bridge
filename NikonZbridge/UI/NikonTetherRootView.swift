@@ -688,7 +688,7 @@ public struct NikonTetherRootView: View {
             HStack(spacing: AppTheme.Spacing.sm) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        appState.viewMode = .icons
+                        appState.exitViewer()
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -752,7 +752,7 @@ public struct NikonTetherRootView: View {
                 // Кнопка возврата к сетке
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        appState.viewMode = .icons
+                        appState.exitViewer()
                     }
                 } label: {
                     HStack(spacing: 4) {

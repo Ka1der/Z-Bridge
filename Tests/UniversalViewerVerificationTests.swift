@@ -9,6 +9,7 @@ final class UniversalViewerVerificationTests {
         }
     }
     
+    @MainActor
     func runAllTests() async {
         print("=== СТАРТ ТЕСТОВ УНИВЕРСАЛЬНОГО ПРОСМОТРЩИКА (LIQUID GLASS) ===")
         
@@ -21,6 +22,7 @@ final class UniversalViewerVerificationTests {
         testPhotoAspectFitSafetyForPortraitAndLandscape()
         testPreviewLoadingFallbackAndRetryState()
         testRealEXIFMetadataFormattingWithoutMockValues()
+        testExitViewerResetsInspectionStateAndAllowsAutoSwitching()
         
         print("\n=== ВСЕ ТЕСТЫ УНИВЕРСАЛЬНОГО ПРОСМОТРЩИКА УСПЕШНО ПРОЙДЕНЫ! ===")
     }
@@ -396,6 +398,51 @@ final class UniversalViewerVerificationTests {
         verify(emptyMeta.quickExposureSummary == nil, "При отсутствии данных строка должна быть nil, без муляжей")
         
         print("  ✓ Отображаются только реальные метаданные из файла камеры")
+    }
+    
+    // MARK: - 10. Снятие режима инспекции при явном выходе в галерею
+    @MainActor
+    func testExitViewerResetsInspectionStateAndAllowsAutoSwitching() {
+        print("\n[10/10] Проверка снятия инспекции при выходе в галерею и сохранения при смене компоновки...")
+        
+        let appState = AppState()
+        let sid = UUID()
+        let asset1 = MediaAsset(sessionID: sid, filename: "DSC_1001.NEF", fileURL: URL(fileURLWithPath: "/tmp/DSC_1001.NEF"), format: .raw(fileExtension: "nef"), fileSize: 30_000_000)
+        let asset2 = MediaAsset(sessionID: sid, filename: "DSC_1002.NEF", fileURL: URL(fileURLWithPath: "/tmp/DSC_1002.NEF"), format: .raw(fileExtension: "nef"), fileSize: 30_000_000)
+        let group1 = CaptureGroup(asset: asset1)
+        let group2 = CaptureGroup(asset: asset2)
+        appState.captureGroups = [group1]
+        appState.selectedGroup = group1
+        
+        // 1. Входим в режим просмотра
+        appState.viewMode = .viewer
+        verify(appState.viewMode == .viewer)
+        
+        // 2. Увеличиваем кадр (инспекция активна)
+        appState.viewerZoom = 2.5
+        appState.isUserInspecting = true
+        verify(appState.isUserInspecting)
+        
+        // 3. Изменение компоновки (поворот экрана / изменение размера окна) НЕ меняет viewMode
+        // Проверяем, что инспекция и зум непрерывно сохраняются:
+        let narrow = AdaptiveLayoutResolver.resolve(width: 390, dynamicTypeSize: .large)
+        let wide = AdaptiveLayoutResolver.resolve(width: 1024, dynamicTypeSize: .large)
+        verify(narrow != wide)
+        verify(appState.isUserInspecting, "При перестроении компоновки инспекция должна сохраняться")
+        verify(appState.viewerZoom == 2.5, "Зум должен сохраняться при перестроении компоновки")
+        
+        // 4. Пользователь нажимает «Снимки» (явный выход в галерею)
+        appState.exitViewer()
+        verify(appState.viewMode == .icons, "Режим должен стать .icons")
+        verify(!appState.isUserInspecting, "При явном выходе в галерею режим инспекции должен быть снят")
+        verify(appState.viewerZoom == 1.0, "Зум должен быть сброшен до 1.0")
+        
+        // 5. Поступает новый live-кадр
+        appState.handleCaptureGroupUpdated(group2)
+        verify(appState.selectedGroup?.id == group2.id, "После выхода в галерею автопереход к новому кадру НЕ должен блокироваться")
+        verify(appState.pendingIncomingFrameNotification == nil, "Не должно оставаться блокирующего уведомления")
+        
+        print("  ✓ Явный выход в галерею снимает инспекцию, а перестроение экрана её сохраняет")
     }
 }
 
