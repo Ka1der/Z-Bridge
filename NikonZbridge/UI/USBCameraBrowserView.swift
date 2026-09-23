@@ -6,19 +6,35 @@ import CoreGraphics
 public struct USBCameraBrowserView: View {
     @ObservedObject var usbManager: USBCameraManager
     public var sessionName: String?
-    @Environment(\.dismiss) private var dismiss
     
-    @State private var formatFilter: CameraFileFormatFilter = .all
-    @State private var selectedFileIDs: Set<String> = []
+    @State private var localFormatFilter: CameraFileFormatFilter = .all
+    private var sharedFormatFilter: Binding<CameraFileFormatFilter>?
+    private var formatFilter: CameraFileFormatFilter {
+        get { sharedFormatFilter?.wrappedValue ?? localFormatFilter }
+        nonmutating set { if let sharedFormatFilter { sharedFormatFilter.wrappedValue = newValue } else { localFormatFilter = newValue } }
+    }
+    private var formatFilterBinding: Binding<CameraFileFormatFilter> {
+        Binding(get: { formatFilter }, set: { formatFilter = $0 })
+    }
+    @State private var localSelectedFileIDs: Set<String> = []
+    private var sharedSelectedFileIDs: Binding<Set<String>>?
+    private var selectedFileIDs: Set<String> {
+        get { sharedSelectedFileIDs?.wrappedValue ?? localSelectedFileIDs }
+        nonmutating set { if let sharedSelectedFileIDs { sharedSelectedFileIDs.wrappedValue = newValue } else { localSelectedFileIDs = newValue } }
+    }
     @State private var isSettingsExpanded: Bool = false
     @State private var isImportActionInProgress: Bool = false
     
     public init(
         usbManager: USBCameraManager,
-        sessionName: String? = nil
+        sessionName: String? = nil,
+        selectedFileIDs: Binding<Set<String>>? = nil,
+        formatFilter: Binding<CameraFileFormatFilter>? = nil
     ) {
         self.usbManager = usbManager
         self.sessionName = sessionName
+        self.sharedSelectedFileIDs = selectedFileIDs
+        self.sharedFormatFilter = formatFilter
     }
     
     private var currentTargetSessionName: String {
@@ -79,7 +95,7 @@ public struct USBCameraBrowserView: View {
     }
     
     public var body: some View {
-        NavigationStack {
+        Group {
             VStack(spacing: 0) {
                 // Верхняя информационная карточка управления импортом
                 headerSection
@@ -108,38 +124,6 @@ public struct USBCameraBrowserView: View {
                     pinnedSelectionBar
                 }
             }
-            .navigationTitle("Импорт с камеры")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Закрыть") {
-                        dismiss()
-                    }
-                }
-                if usbManager.isDownloading {
-                    ToolbarItem(placement: .confirmationAction) {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Импорт в фоне...")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        Task {
-                            await usbManager.refreshCatalog()
-                        }
-                    } label: {
-                        Label("Обновить", systemImage: "arrow.clockwise")
-                    }
-                    .disabled(!usbManager.isConnected || !usbManager.isCatalogReady)
-                }
-            }
             .task {
                 await usbManager.updateTargetSessionName()
             }
@@ -150,6 +134,16 @@ public struct USBCameraBrowserView: View {
     
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Импорт с камеры").font(.headline)
+                Spacer()
+                Button {
+                    Task { await usbManager.refreshCatalog() }
+                } label: {
+                    Label("Обновить", systemImage: "arrow.clockwise")
+                }
+                .disabled(!usbManager.isConnected || !usbManager.isCatalogReady)
+            }
             // Камера и статус подключения
             HStack {
                 HStack(spacing: 8) {
@@ -431,7 +425,7 @@ public struct USBCameraBrowserView: View {
     
     private var filterAndSelectionBar: some View {
         HStack {
-            Picker("Формат", selection: $formatFilter) {
+            Picker("Формат", selection: formatFilterBinding) {
                 ForEach(CameraFileFormatFilter.allCases) { filter in
                     Text(filter.rawValue).tag(filter)
                 }

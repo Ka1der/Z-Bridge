@@ -55,9 +55,6 @@ public struct AdaptiveAppShellView: View {
         .sheet(isPresented: $appState.isShowingFilterSheet) {
             GalleryFilterSheetView(appState: appState)
         }
-        .sheet(isPresented: $appState.isUSBBrowserPresented) {
-            USBCameraBrowserView(usbManager: appState.currentUSBManager, sessionName: appState.currentSession?.name)
-        }
         .sheet(isPresented: $appState.isQueuePresented) {
             TransferQueueView(appState: appState)
         }

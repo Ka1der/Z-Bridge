@@ -148,6 +148,12 @@ public enum PickFilterOption: String, CaseIterable, Identifiable, Sendable {
 }
 
 /// 3 основных раздела адаптивного каркаса приложения (Liquid Glass)
+public enum PhotoSource: String, CaseIterable, Identifiable {
+    case session = "В сессии"
+    case camera = "На камере"
+    public var id: String { rawValue }
+}
+
 public enum AppSection: String, CaseIterable, Identifiable, Sendable {
     case photos = "Снимки"
     case camera = "Камера"
@@ -198,7 +204,23 @@ public final class AppState: ObservableObject {
     @Published public var usbConnected: Bool = false
     @Published public var usbCameraName: String?
     @Published public var usbConnectionState: USBCameraConnectionState = .disconnected
-    @Published public var isUSBBrowserPresented: Bool = false
+    @Published public var photoSource: PhotoSource = .session
+    @Published public var selectedCameraFileIDs: Set<String> = []
+    @Published public var cameraFormatFilter: CameraFileFormatFilter = .all
+
+    // Совместимость существующих действий: открываем карту в основном разделе.
+    public var isUSBBrowserPresented: Bool {
+        get { selectedSection == .photos && photoSource == .camera }
+        set {
+            if newValue {
+                exitViewer()
+                photoSource = .camera
+                selectedSection = .photos
+            } else {
+                photoSource = .session
+            }
+        }
+    }
     @Published public var isUSBAutoDownloadNewShotsEnabled: Bool = true
     @Published public var isUSBAutoDownloadCardOnConnectEnabled: Bool = false
     

@@ -27,11 +27,31 @@ public struct NikonTetherRootView: View {
             ZStack {
                 AppTheme.Colors.background.ignoresSafeArea()
                 
-                switch layoutMode {
-                case .wide:
-                    wideContentView(geometry: geometry)
-                case .narrow:
-                    narrowContentView(geometry: geometry)
+                VStack(spacing: 0) {
+                    Picker("Источник снимков", selection: $appState.photoSource) {
+                        ForEach(PhotoSource.allCases) { source in
+                            Text(source.rawValue).tag(source)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .padding(.vertical, AppTheme.Spacing.sm)
+
+                    if appState.photoSource == .camera {
+                        USBCameraBrowserView(
+                            usbManager: appState.currentUSBManager,
+                            sessionName: appState.currentSession?.name,
+                            selectedFileIDs: $appState.selectedCameraFileIDs,
+                            formatFilter: $appState.cameraFormatFilter
+                        )
+                    } else {
+                        switch layoutMode {
+                        case .wide:
+                            wideContentView(geometry: geometry)
+                        case .narrow:
+                            narrowContentView(geometry: geometry)
+                        }
+                    }
                 }
                 
                 // Всплывающее уведомление о новом кадре во время активной инспекции
@@ -76,7 +96,7 @@ public struct NikonTetherRootView: View {
                 }
                 
                 // Плавающая панель массовых действий при множественном выборе
-                if appState.isSelectionMode && !appState.selectedGroupIDs.isEmpty {
+                if appState.photoSource == .session && appState.isSelectionMode && !appState.selectedGroupIDs.isEmpty {
                     VStack {
                         Spacer()
                         BatchActionBarView(appState: appState)
@@ -85,8 +105,11 @@ public struct NikonTetherRootView: View {
                 }
                 
                 // Невидимые триггеры клавиатурных команд iPad
-                keyboardShortcutsView
+                if appState.photoSource == .session { keyboardShortcutsView }
             }
+        }
+        .onChange(of: appState.photoSource) { source in
+            if source == .camera { appState.exitViewer() }
         }
         .sheet(isPresented: Binding(get: { showsSheets && appState.isShowingConnectionSheet }, set: { appState.isShowingConnectionSheet = $0 })) {
             ConnectionSheetView(appState: appState)
@@ -96,9 +119,6 @@ public struct NikonTetherRootView: View {
         }
         .sheet(isPresented: Binding(get: { showsSheets && appState.isShowingFilterSheet }, set: { appState.isShowingFilterSheet = $0 })) {
             GalleryFilterSheetView(appState: appState)
-        }
-        .sheet(isPresented: Binding(get: { showsSheets && appState.isUSBBrowserPresented }, set: { appState.isUSBBrowserPresented = $0 })) {
-            USBCameraBrowserView(usbManager: appState.currentUSBManager, sessionName: appState.currentSession?.name)
         }
         .sheet(isPresented: Binding(get: { showsSheets && appState.isQueuePresented }, set: { appState.isQueuePresented = $0 })) {
             TransferQueueView(appState: appState)
@@ -1056,7 +1076,7 @@ public struct NikonTetherRootView: View {
     }
     
     private func applyRating(_ rating: Int) {
-        if appState.isSelectionMode && !appState.selectedGroupIDs.isEmpty {
+        if appState.photoSource == .session && appState.isSelectionMode && !appState.selectedGroupIDs.isEmpty {
             appState.batchSetRating(rating)
         } else if let sel = appState.selectedGroup {
             appState.setRating(rating, for: sel)
@@ -1064,7 +1084,7 @@ public struct NikonTetherRootView: View {
     }
     
     private func applyPickStatus(_ status: PickStatus) {
-        if appState.isSelectionMode && !appState.selectedGroupIDs.isEmpty {
+        if appState.photoSource == .session && appState.isSelectionMode && !appState.selectedGroupIDs.isEmpty {
             appState.batchSetPickStatus(status)
         } else if let sel = appState.selectedGroup {
             appState.setPickStatus(status, for: sel)

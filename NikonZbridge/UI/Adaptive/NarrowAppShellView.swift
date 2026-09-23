@@ -13,7 +13,7 @@ public struct NarrowAppShellView: View {
     }
     
     public var body: some View {
-        ZStack(alignment: .bottom) {
+        VStack(spacing: 0) {
             // 1. Основная область активного раздела
             VStack(spacing: 0) {
                 switch appState.selectedSection {
@@ -26,9 +26,6 @@ public struct NarrowAppShellView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 68)
-            }
             
             // 2. Плавающий нижний блок (плашка передачи + нижний док навигации)
             VStack(spacing: AppTheme.Spacing.xs) {
