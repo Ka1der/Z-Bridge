@@ -16,6 +16,15 @@ public struct USBCameraBrowserView: View {
     private var formatFilterBinding: Binding<CameraFileFormatFilter> {
         Binding(get: { formatFilter }, set: { formatFilter = $0 })
     }
+    @State private var localViewMode: CameraBrowserViewMode = .gallery
+    private var sharedViewMode: Binding<CameraBrowserViewMode>?
+    private var viewMode: CameraBrowserViewMode {
+        get { sharedViewMode?.wrappedValue ?? localViewMode }
+        nonmutating set { if let sharedViewMode { sharedViewMode.wrappedValue = newValue } else { localViewMode = newValue } }
+    }
+    private var viewModeBinding: Binding<CameraBrowserViewMode> {
+        Binding(get: { viewMode }, set: { viewMode = $0 })
+    }
     @State private var localSelectedFileIDs: Set<String> = []
     private var sharedSelectedFileIDs: Binding<Set<String>>?
     private var selectedFileIDs: Set<String> {
@@ -29,12 +38,14 @@ public struct USBCameraBrowserView: View {
         usbManager: USBCameraManager,
         sessionName: String? = nil,
         selectedFileIDs: Binding<Set<String>>? = nil,
-        formatFilter: Binding<CameraFileFormatFilter>? = nil
+        formatFilter: Binding<CameraFileFormatFilter>? = nil,
+        viewMode: Binding<CameraBrowserViewMode>? = nil
     ) {
         self.usbManager = usbManager
         self.sessionName = sessionName
         self.sharedSelectedFileIDs = selectedFileIDs
         self.sharedFormatFilter = formatFilter
+        self.sharedViewMode = viewMode
     }
     
     private var currentTargetSessionName: String {
@@ -112,11 +123,16 @@ public struct USBCameraBrowserView: View {
                 
                 Divider()
                 
-                // Список файлов карты памяти с виртуализацией
+                // Список или Галерея файлов карты памяти с виртуализацией
                 if filteredFiles.isEmpty {
                     emptyStateView
                 } else {
-                    fileListView
+                    switch viewMode {
+                    case .list:
+                        fileListView
+                    case .gallery:
+                        fileGridView
+                    }
                 }
                 
                 // Закрепленная нижняя панель при наличии выделенных файлов
@@ -424,58 +440,93 @@ public struct USBCameraBrowserView: View {
     }
     
     private var filterAndSelectionBar: some View {
-        HStack {
-            Picker("Формат", selection: formatFilterBinding) {
-                ForEach(CameraFileFormatFilter.allCases) { filter in
-                    Text(filter.rawValue).tag(filter)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                formatFilterPicker
+                
+                Spacer()
+                
+                viewModePicker
+                
+                selectionMenu
+            }
+            
+            VStack(spacing: 8) {
+                formatFilterPicker
+                
+                HStack(spacing: 10) {
+                    viewModePicker
+                    
+                    Spacer()
+                    
+                    selectionMenu
                 }
             }
-            .pickerStyle(.segmented)
-            
-            Spacer()
-            
-            Menu {
-                Button {
-                    for f in filteredFiles where f.status == .notImported {
-                        selectedFileIDs.insert(f.id)
-                    }
-                } label: {
-                    Label("Выбрать все доступные", systemImage: "checklist")
-                }
-                
-                Button {
-                    selectedFileIDs.removeAll()
-                    for f in usbManager.catalogFiles where f.isRAW && f.status == .notImported {
-                        selectedFileIDs.insert(f.id)
-                    }
-                } label: {
-                    Label("Выбрать только RAW", systemImage: "camera.fill")
-                }
-                
-                Button {
-                    selectedFileIDs.removeAll()
-                    for f in usbManager.catalogFiles where !f.isRAW && f.status == .notImported {
-                        selectedFileIDs.insert(f.id)
-                    }
-                } label: {
-                    Label("Выбрать только Companion/JPEG", systemImage: "photo")
-                }
-                
-                Divider()
-                
-                Button(role: .destructive) {
-                    selectedFileIDs.removeAll()
-                } label: {
-                    Label("Снять выбор", systemImage: "xmark.circle")
+        }
+    }
+    
+    private var formatFilterPicker: some View {
+        Picker("Формат", selection: formatFilterBinding) {
+            ForEach(CameraFileFormatFilter.allCases) { filter in
+                Text(filter.rawValue).tag(filter)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+    
+    private var viewModePicker: some View {
+        Picker("Вид", selection: viewModeBinding) {
+            Label("Список", systemImage: "list.bullet")
+                .tag(CameraBrowserViewMode.list)
+            Label("Галерея", systemImage: "square.grid.2x2")
+                .tag(CameraBrowserViewMode.gallery)
+        }
+        .pickerStyle(.segmented)
+        .frame(minWidth: 150, maxWidth: 180)
+    }
+    
+    private var selectionMenu: some View {
+        Menu {
+            Button {
+                for f in filteredFiles where f.status == .notImported {
+                    selectedFileIDs.insert(f.id)
                 }
             } label: {
-                Label("Выбор", systemImage: "checklist")
-                    .font(.subheadline)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(cardBackgroundColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                Label("Выбрать все доступные", systemImage: "checklist")
             }
+            
+            Button {
+                selectedFileIDs.removeAll()
+                for f in usbManager.catalogFiles where f.isRAW && f.status == .notImported {
+                    selectedFileIDs.insert(f.id)
+                }
+            } label: {
+                Label("Выбрать только RAW", systemImage: "camera.fill")
+            }
+            
+            Button {
+                selectedFileIDs.removeAll()
+                for f in usbManager.catalogFiles where !f.isRAW && f.status == .notImported {
+                    selectedFileIDs.insert(f.id)
+                }
+            } label: {
+                Label("Выбрать только Companion/JPEG", systemImage: "photo")
+            }
+            
+            Divider()
+            
+            Button(role: .destructive) {
+                selectedFileIDs.removeAll()
+            } label: {
+                Label("Снять выбор", systemImage: "xmark.circle")
+            }
+        } label: {
+            Label("Выбор", systemImage: "checklist")
+                .font(.subheadline)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(cardBackgroundColor)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
     
@@ -587,6 +638,41 @@ public struct USBCameraBrowserView: View {
             }
         }
         .listStyle(.plain)
+    }
+    
+    private var fileGridView: some View {
+        ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 155, maximum: 230), spacing: 12)],
+                spacing: 12
+            ) {
+                ForEach(filteredFiles) { item in
+                    CameraFileGridCard(
+                        item: item,
+                        isSelected: selectedFileIDs.contains(item.id),
+                        onToggleSelect: {
+                            if selectedFileIDs.contains(item.id) {
+                                selectedFileIDs.remove(item.id)
+                            } else {
+                                selectedFileIDs.insert(item.id)
+                            }
+                        },
+                        onRetry: {
+                            Task {
+                                await usbManager.retryTransfer(for: item)
+                            }
+                        },
+                        onRequestThumbnail: {
+                            usbManager.requestThumbnail(for: item)
+                        }
+                    )
+                    .equatable()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, selectedStats.count > 0 ? 80 : 30)
+        }
     }
     
     private var pinnedSelectionBar: some View {
@@ -871,6 +957,226 @@ public struct CameraFileRowView: View, Equatable {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Color.secondary.opacity(0.1))
+                .clipShape(Capsule())
+        }
+    }
+}
+
+// MARK: - Элемент карточки галереи каталога с поддержкой Equatable
+
+public struct CameraFileGridCard: View, Equatable {
+    public let item: CameraFileItem
+    public let isSelected: Bool
+    public let onToggleSelect: () -> Void
+    public let onRetry: () -> Void
+    public let onRequestThumbnail: () -> Void
+    
+    public init(
+        item: CameraFileItem,
+        isSelected: Bool,
+        onToggleSelect: @escaping () -> Void,
+        onRetry: @escaping () -> Void,
+        onRequestThumbnail: @escaping () -> Void
+    ) {
+        self.item = item
+        self.isSelected = isSelected
+        self.onToggleSelect = onToggleSelect
+        self.onRetry = onRetry
+        self.onRequestThumbnail = onRequestThumbnail
+    }
+    
+    public static func == (lhs: CameraFileGridCard, rhs: CameraFileGridCard) -> Bool {
+        lhs.item.id == rhs.item.id &&
+        lhs.item.status == rhs.item.status &&
+        lhs.isSelected == rhs.isSelected &&
+        (lhs.item.thumbnail != nil) == (rhs.item.thumbnail != nil)
+    }
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 1. Превью фотографии (1:1 квадратная пропорция)
+            ZStack(alignment: .topLeading) {
+                Group {
+                    if let thumb = item.thumbnail {
+                        #if canImport(UIKit)
+                        Image(uiImage: UIImage(cgImage: thumb))
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                        #elseif canImport(AppKit)
+                        Image(nsImage: NSImage(cgImage: thumb, size: NSSize(width: 200, height: 200)))
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                        #else
+                        Image(decorative: thumb, scale: 1.0)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                        #endif
+                    } else {
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.12))
+                            .overlay(
+                                VStack(spacing: 8) {
+                                    Image(systemName: item.isRAW ? "camera.fill" : "photo")
+                                        .font(.title2)
+                                        .foregroundColor(.secondary.opacity(0.6))
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                }
+                            )
+                    }
+                }
+                .frame(minHeight: 140, maxHeight: 180)
+                .aspectRatio(1.0, contentMode: .fill)
+                .clipped()
+                
+                // Верхний оверлей: выбор слева, бэйдж формата справа
+                HStack(alignment: .top) {
+                    if item.status == .notImported {
+                        Button {
+                            onToggleSelect()
+                        } label: {
+                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundColor(isSelected ? .accentColor : .white.opacity(0.9))
+                                .background(Circle().fill(Color.black.opacity(0.5)))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(6)
+                    } else {
+                        statusLeadingBadge(for: item.status)
+                            .padding(6)
+                    }
+                    
+                    Spacer()
+                    
+                    Text(item.isRAW ? "RAW" : "JPEG")
+                        .font(.system(size: 10, weight: .bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background((item.isRAW ? Color.purple : Color.blue).opacity(0.85))
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .shadow(color: .black.opacity(0.3), radius: 2)
+                        .padding(6)
+                }
+            }
+            .contentShape(Rectangle())
+            .onAppear {
+                if item.thumbnail == nil {
+                    onRequestThumbnail()
+                }
+            }
+            
+            // 2. Информационная панель внизу карточки
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.filename)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundColor(.primary)
+                
+                HStack(spacing: 4) {
+                    Text(item.formattedSize)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    statusTrailingBadge(for: item.status)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color(white: 0.14))
+        }
+        .background(Color(white: 0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.08), lineWidth: isSelected ? 2.5 : 1)
+        )
+        .shadow(color: isSelected ? Color.accentColor.opacity(0.25) : Color.black.opacity(0.2), radius: isSelected ? 4 : 2, x: 0, y: 1)
+        .contentShape(RoundedRectangle(cornerRadius: 10))
+        .onTapGesture {
+            if item.status == .notImported {
+                onToggleSelect()
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func statusLeadingBadge(for status: CameraFileImportStatus) -> some View {
+        switch status {
+        case .imported:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 20))
+                .foregroundColor(.green)
+                .background(Circle().fill(Color.black.opacity(0.55)))
+        case .queued:
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 20))
+                .foregroundColor(.blue)
+                .background(Circle().fill(Color.black.opacity(0.55)))
+        case .importing:
+            ProgressView()
+                .scaleEffect(0.8)
+                .padding(3)
+                .background(Circle().fill(Color.black.opacity(0.55)))
+        case .failed:
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 20))
+                .foregroundColor(.red)
+                .background(Circle().fill(Color.black.opacity(0.55)))
+        case .notImported:
+            EmptyView()
+        }
+    }
+    
+    @ViewBuilder
+    private func statusTrailingBadge(for status: CameraFileImportStatus) -> some View {
+        switch status {
+        case .imported:
+            Text("Загружен")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.green)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Color.green.opacity(0.15))
+                .clipShape(Capsule())
+        case .queued:
+            Text("В очереди")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.blue)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Color.blue.opacity(0.15))
+                .clipShape(Capsule())
+        case .importing(let progress):
+            Text("\(Int(progress * 100))%")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.orange)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Color.orange.opacity(0.15))
+                .clipShape(Capsule())
+        case .failed:
+            Button {
+                onRetry()
+            } label: {
+                Text("Повторить")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .buttonStyle(.bordered)
+            .tint(.red)
+            .controlSize(.mini)
+        case .notImported:
+            Text("Доступен")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(Color.secondary.opacity(0.12))
                 .clipShape(Capsule())
         }
     }

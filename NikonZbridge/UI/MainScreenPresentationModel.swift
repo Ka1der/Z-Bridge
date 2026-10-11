@@ -268,8 +268,8 @@ public struct MainScreenPresentationModel: Sendable {
                 ),
                 secondaryAction: MainScreenAction(
                     type: .connectCamera,
-                    title: "Мастер подключения",
-                    systemImage: "questionmark.circle",
+                    title: "Настройки подключения",
+                    systemImage: "gearshape",
                     isPrimary: false
                 )
             )

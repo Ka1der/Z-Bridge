@@ -6,26 +6,151 @@
 	objectVersion = 71;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		24179CBBE308425B5A456C27 /* AdaptiveAppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E85C658C83D3DBFA384FEC /* AdaptiveAppShellView.swift */; };
+		CF3299C90811E4713BC53107 /* AdaptiveLayoutResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7376191F90DBBBB15E7B7AD7 /* AdaptiveLayoutResolver.swift */; };
+		885251740806C5AE97140EC4 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C845EB2127543BB1C4B41E46 /* AppState.swift */; };
+		9CF92208B2A151A06E387301 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80AD8280E2C31151461A5D3 /* AppTheme.swift */; };
+		F1C57C22A2A6BC982A9FEAD7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 244A9ABA041DDAFF2B26A740 /* Assets.xcassets */; };
+		46A074EBEFC9CAE0DB3C4820 /* BatchActionBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95CEA7352B2898DE086FDA76 /* BatchActionBarView.swift */; };
+		77D0068392EF58B764551411 /* CameraSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF02 /* CameraSectionView.swift */; };
+		1321D410A0737718DA239E80 /* CameraSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3FE0BF9368999B89D7AF11B /* CameraSource.swift */; };
+		88132881ABFECC73F5A7C30E /* CameraTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377555700A9F8E2A17E4BDD6 /* CameraTransport.swift */; };
+		11B9E709DCB49FAA5D7FEA81 /* CaptureGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA1B276D8EE9544F11B8BA6 /* CaptureGroup.swift */; };
+		017825A2BEFE87067DDBA8C1 /* CaptureSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8973BBF4101D784F7261A0 /* CaptureSession.swift */; };
+		35BA05778A679B740D94B40A /* CatalogDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C73C3E58BFEC6E8712F311 /* CatalogDatabase.swift */; };
+		E363BD007B5203BD91B289D6 /* ClientMonitorControlSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01C270B006752CFC97884780 /* ClientMonitorControlSheet.swift */; };
+		E9208A0F46DDD7A5FAB37DFD /* ClientMonitorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 802D800D115A20686E2D37AE /* ClientMonitorManager.swift */; };
+		FCB5E7263A6A0626A2F0EFFB /* ClientMonitorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A022E37F1688D119E93FFAE /* ClientMonitorModels.swift */; };
+		380C881A7D661E1F419E9DFD /* ClientMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 847DE41B513B2FE768F91EAE /* ClientMonitorView.swift */; };
+		F9EA7C5A6CD46873318BAA74 /* CompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5E01448F97A586031C07B2 /* CompareView.swift */; };
+		F1F4986CBCADDA49F386CF07 /* CompatibilityMatrixView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81075BF082DC674268D83BE /* CompatibilityMatrixView.swift */; };
+		8E7E7D91E3C6DCEA70AEC09F /* ConnectionReadinessChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBC99E2A1B6D5DA1570C2553 /* ConnectionReadinessChecker.swift */; };
+		97C91CD792D9F2BBE08A61FA /* ConnectionSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E741BFEFA80774B415CE0EB1 /* ConnectionSheetView.swift */; };
+		18150A0AA4C46829242B6215 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD218B427B904A4B420692A /* ConnectionStatusView.swift */; };
+		B3AC994C7FA858DBF4757ED2 /* DiagnosticLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8CDFAC7BAE841542CDE2088 /* DiagnosticLogger.swift */; };
+		31D3D8BFA70D00C1CDE935D8 /* DiskCatalogReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5746E978EE0B11048ADC8DB /* DiskCatalogReconciler.swift */; };
+		7D1A4118FF0643474EF6A8B5 /* DiskSpaceGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814B62440F7B37D5C3EC06BD /* DiskSpaceGuard.swift */; };
+		9200E3306262D40847569E39 /* ExportJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BFDE64F865C7EE505C94CCE /* ExportJob.swift */; };
+		1F59725B4EA82EB32D408131 /* ExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66831295710A29B2B365959A /* ExportManager.swift */; };
+		A760B799CF18BB8FEF2006E9 /* ExportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BAD42905BC34AC0E6B5ACA2 /* ExportSheetView.swift */; };
+		CD3CF9DA747829E3FCF441CC /* FTPAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D757302C93F653745E8554 /* FTPAuthManager.swift */; };
+		A7CB4F88824BE42C11F6FEE8 /* FTPCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A173DF1E04473735731F3E /* FTPCommand.swift */; };
+		A76D5CE30BCEFB0F88F587C7 /* FTPConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E494AF5333381DDD890D3F63 /* FTPConnection.swift */; };
+		BC6D1256A14B19EA3FADDAC7 /* FTPDataChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C90EE233294F916E2258E0 /* FTPDataChannel.swift */; };
+		974BF398404036F25F1A9AEB /* FTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F49B211B3ACB3993E1BCAF1 /* FTPServer.swift */; };
+		28EE727FC8FC358ED132444E /* FilmstripTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F1E8106CE0C9592DC2340 /* FilmstripTile.swift */; };
+		B68D022B1918D0695082A89A /* FramePairingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C20A52A18922B6A1BE5DF1A /* FramePairingEngine.swift */; };
+		7134F084D1BDA1E06BB1A2D9 /* GalleryFilterSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9DD0A209F29815E8B9C7C59 /* GalleryFilterSheetView.swift */; };
+		7A7BBEDA4319C8CFC1B024D9 /* GlassSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB43EDB73472D5858B5157F7 /* GlassSurface.swift */; };
+		82EBC5C50ACAB16FEDB24791 /* IconsGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44271FA22FE15E2676350201 /* IconsGridView.swift */; };
+		B46FA631369A251772AD867B /* IngestedFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FFB20EF6114445DCC339EEA /* IngestedFile.swift */; };
+		B38709E43193693A98D58ABE /* LifecycleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D5FB5348B0264754D9E676D /* LifecycleManager.swift */; };
+		6B2446EB73765672712768AC /* MainScreenPresentationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD970368EE1CFC54B402517E /* MainScreenPresentationModel.swift */; };
+		110B8CF74B6C3C1B25E2BE22 /* MediaAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A59BCE406356C659B337287 /* MediaAsset.swift */; };
+		17A67CAFBC3006D9D8E7A05A /* NarrowAppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3625A968FA114E545C9E2044 /* NarrowAppShellView.swift */; };
+		79DC54E07C21629B75E19E22 /* NetworkInterfaceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C121DB32DCBE50EACC4BFE17 /* NetworkInterfaceMonitor.swift */; };
+		03609E04675091E262D9D179 /* NikonCameraModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42969880D654B6C611720B2 /* NikonCameraModel.swift */; };
+		1FA0A7D7D84B5E5C6A0994C0 /* NikonCompatibilityMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F03E4F8107D7C39545F88E3 /* NikonCompatibilityMatrix.swift */; };
+		AFAD4E7ED639A933ACF8086D /* NikonTetherRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 068A44B6C2CCD7FFFFCED6EE /* NikonTetherRootView.swift */; };
+		FC92F547F36CB3D19D22F5AA /* NikonZbridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF55549477C4731D1C8E4C55 /* NikonZbridgeApp.swift */; };
+		45F95B3D6659D9E17F97866A /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8FD088B71D998B6E7CD950 /* PhotoDetailView.swift */; };
+		2A08EB35703538B1DE554171 /* PhotoListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9970846B3FC797F7AF1A976 /* PhotoListView.swift */; };
+		9A55E8363046C2FC868184E1 /* PhotoTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B62F30CD05B6DA5EF420B1 /* PhotoTableView.swift */; };
+		22B90A5D0FC02BDE38521B49 /* PreviewPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33D65E5D43E07DF64EEA2DF1 /* PreviewPipeline.swift */; };
+		331A2DEE96003AB0BBA991AC /* PrimaryImportButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66BF224C6EFFD0AF55528BE9 /* PrimaryImportButton.swift */; };
+		B21EE2DBF3FAFB0CB8E8005A /* RAWPreviewExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B7AC4CA80C46A305358EB39 /* RAWPreviewExtractor.swift */; };
+		89AE7F4CDDFB66582BE5335F /* SessionManagementSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED5267EBB6C08CE2F0E84343 /* SessionManagementSheetView.swift */; };
+		A273A3FC59F3F307C08B9DF4 /* SessionsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A5F042987DEF4696118EB8 /* SessionsSectionView.swift */; };
+		2EA3708912A540EE42CB67F5 /* StorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 593799755B0EA5DDC44BBBC8 /* StorageManager.swift */; };
+		BC76846B0B692EE729DA3764 /* TransferCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E7BE3B26BB4B7217ADB6C7C /* TransferCoordinator.swift */; };
+		0C0D59342C43EDEAE97066BF /* TransferJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65741B3AF0AD59746002111D /* TransferJob.swift */; };
+		ED6ABA1275E864596DCEC243 /* TransferProgressStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BCB6805065E4D38B9E69D8 /* TransferProgressStrip.swift */; };
+		414AA81A1FF3AC1A4A5F7A07 /* TransferQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68409E1D65C9D1C4879126B9 /* TransferQueueView.swift */; };
+		8AEDA88B2034D25ADBF7B545 /* USBCameraBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584D36C3146305BD6C6C37C2 /* USBCameraBrowserView.swift */; };
+		F37B11AE631E2DF07AA9706E /* USBCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D6F6CA227083EDABD16077A /* USBCameraManager.swift */; };
+		AB9F7ACCFB6478C7874C94EE /* USBImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0EBEE16727E65BAF4DFEEE7 /* USBImportModels.swift */; };
+		C40EF3C5C675F24592CA2599 /* USBTransferQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D7C64A9FD83E23FEEF15BA /* USBTransferQueue.swift */; };
+		367996B7142FFEB06C0A1804 /* WideAppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65A611A3663236564CC9DF73 /* WideAppShellView.swift */; };
+		4885862A7AE81A56F836D64F /* XMPCompatibilityGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4584058BE175245160F30E93 /* XMPCompatibilityGuide.swift */; };
+		EC4B1F391C473E31C8C68E72 /* XMPCompatibilityGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B324082CC2DAD7CA506D3B /* XMPCompatibilityGuideView.swift */; };
+		01127953D2DA13F7407275E5 /* XMPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 383B4E40896B2FF88262C538 /* XMPGenerator.swift */; };
+		957DEE4BFE50CEB9BD1A9243 /* XMPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF71AFCC352CB26B11CCE126 /* XMPModels.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		DCFA26ADD3D34476AC7F0241 /* NikonZbridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NikonZbridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A0E85C658C83D3DBFA384FEC /* AdaptiveAppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveAppShellView.swift; sourceTree = "<group>"; };
+		7376191F90DBBBB15E7B7AD7 /* AdaptiveLayoutResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveLayoutResolver.swift; sourceTree = "<group>"; };
+		C845EB2127543BB1C4B41E46 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		F80AD8280E2C31151461A5D3 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		244A9ABA041DDAFF2B26A740 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		95CEA7352B2898DE086FDA76 /* BatchActionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchActionBarView.swift; sourceTree = "<group>"; };
+		470898F50416704B96D9AF02 /* CameraSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSectionView.swift; sourceTree = "<group>"; };
+		B3FE0BF9368999B89D7AF11B /* CameraSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSource.swift; sourceTree = "<group>"; };
+		377555700A9F8E2A17E4BDD6 /* CameraTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraTransport.swift; sourceTree = "<group>"; };
+		AFA1B276D8EE9544F11B8BA6 /* CaptureGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureGroup.swift; sourceTree = "<group>"; };
+		EB8973BBF4101D784F7261A0 /* CaptureSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSession.swift; sourceTree = "<group>"; };
+		F6C73C3E58BFEC6E8712F311 /* CatalogDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogDatabase.swift; sourceTree = "<group>"; };
+		01C270B006752CFC97884780 /* ClientMonitorControlSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientMonitorControlSheet.swift; sourceTree = "<group>"; };
+		802D800D115A20686E2D37AE /* ClientMonitorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientMonitorManager.swift; sourceTree = "<group>"; };
+		8A022E37F1688D119E93FFAE /* ClientMonitorModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientMonitorModels.swift; sourceTree = "<group>"; };
+		847DE41B513B2FE768F91EAE /* ClientMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientMonitorView.swift; sourceTree = "<group>"; };
+		7E5E01448F97A586031C07B2 /* CompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompareView.swift; sourceTree = "<group>"; };
+		E81075BF082DC674268D83BE /* CompatibilityMatrixView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompatibilityMatrixView.swift; sourceTree = "<group>"; };
+		BBC99E2A1B6D5DA1570C2553 /* ConnectionReadinessChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionReadinessChecker.swift; sourceTree = "<group>"; };
+		E741BFEFA80774B415CE0EB1 /* ConnectionSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSheetView.swift; sourceTree = "<group>"; };
+		5AD218B427B904A4B420692A /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
+		E8CDFAC7BAE841542CDE2088 /* DiagnosticLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogger.swift; sourceTree = "<group>"; };
+		E5746E978EE0B11048ADC8DB /* DiskCatalogReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskCatalogReconciler.swift; sourceTree = "<group>"; };
+		814B62440F7B37D5C3EC06BD /* DiskSpaceGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSpaceGuard.swift; sourceTree = "<group>"; };
+		2BFDE64F865C7EE505C94CCE /* ExportJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportJob.swift; sourceTree = "<group>"; };
+		66831295710A29B2B365959A /* ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportManager.swift; sourceTree = "<group>"; };
+		1BAD42905BC34AC0E6B5ACA2 /* ExportSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportSheetView.swift; sourceTree = "<group>"; };
+		C2D757302C93F653745E8554 /* FTPAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPAuthManager.swift; sourceTree = "<group>"; };
+		61A173DF1E04473735731F3E /* FTPCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPCommand.swift; sourceTree = "<group>"; };
+		E494AF5333381DDD890D3F63 /* FTPConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPConnection.swift; sourceTree = "<group>"; };
+		23C90EE233294F916E2258E0 /* FTPDataChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPDataChannel.swift; sourceTree = "<group>"; };
+		3F49B211B3ACB3993E1BCAF1 /* FTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPServer.swift; sourceTree = "<group>"; };
+		527F1E8106CE0C9592DC2340 /* FilmstripTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilmstripTile.swift; sourceTree = "<group>"; };
+		1C20A52A18922B6A1BE5DF1A /* FramePairingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FramePairingEngine.swift; sourceTree = "<group>"; };
+		B9DD0A209F29815E8B9C7C59 /* GalleryFilterSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryFilterSheetView.swift; sourceTree = "<group>"; };
+		BB43EDB73472D5858B5157F7 /* GlassSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurface.swift; sourceTree = "<group>"; };
+		44271FA22FE15E2676350201 /* IconsGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconsGridView.swift; sourceTree = "<group>"; };
+		8AE08FD458FB7799655DB3A6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4FFB20EF6114445DCC339EEA /* IngestedFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestedFile.swift; sourceTree = "<group>"; };
+		6D5FB5348B0264754D9E676D /* LifecycleManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifecycleManager.swift; sourceTree = "<group>"; };
+		CD970368EE1CFC54B402517E /* MainScreenPresentationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainScreenPresentationModel.swift; sourceTree = "<group>"; };
+		9A59BCE406356C659B337287 /* MediaAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaAsset.swift; sourceTree = "<group>"; };
+		3625A968FA114E545C9E2044 /* NarrowAppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NarrowAppShellView.swift; sourceTree = "<group>"; };
+		C121DB32DCBE50EACC4BFE17 /* NetworkInterfaceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkInterfaceMonitor.swift; sourceTree = "<group>"; };
+		A42969880D654B6C611720B2 /* NikonCameraModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonCameraModel.swift; sourceTree = "<group>"; };
+		5F03E4F8107D7C39545F88E3 /* NikonCompatibilityMatrix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonCompatibilityMatrix.swift; sourceTree = "<group>"; };
+		068A44B6C2CCD7FFFFCED6EE /* NikonTetherRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonTetherRootView.swift; sourceTree = "<group>"; };
+		BF55549477C4731D1C8E4C55 /* NikonZbridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridgeApp.swift; sourceTree = "<group>"; };
+		8C8FD088B71D998B6E7CD950 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
+		F9970846B3FC797F7AF1A976 /* PhotoListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoListView.swift; sourceTree = "<group>"; };
+		91B62F30CD05B6DA5EF420B1 /* PhotoTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoTableView.swift; sourceTree = "<group>"; };
+		33D65E5D43E07DF64EEA2DF1 /* PreviewPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewPipeline.swift; sourceTree = "<group>"; };
+		66BF224C6EFFD0AF55528BE9 /* PrimaryImportButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryImportButton.swift; sourceTree = "<group>"; };
+		5B7AC4CA80C46A305358EB39 /* RAWPreviewExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWPreviewExtractor.swift; sourceTree = "<group>"; };
+		ED5267EBB6C08CE2F0E84343 /* SessionManagementSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManagementSheetView.swift; sourceTree = "<group>"; };
+		03A5F042987DEF4696118EB8 /* SessionsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsSectionView.swift; sourceTree = "<group>"; };
+		593799755B0EA5DDC44BBBC8 /* StorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageManager.swift; sourceTree = "<group>"; };
+		6E7BE3B26BB4B7217ADB6C7C /* TransferCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferCoordinator.swift; sourceTree = "<group>"; };
+		65741B3AF0AD59746002111D /* TransferJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferJob.swift; sourceTree = "<group>"; };
+		C5BCB6805065E4D38B9E69D8 /* TransferProgressStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgressStrip.swift; sourceTree = "<group>"; };
+		68409E1D65C9D1C4879126B9 /* TransferQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferQueueView.swift; sourceTree = "<group>"; };
+		584D36C3146305BD6C6C37C2 /* USBCameraBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBCameraBrowserView.swift; sourceTree = "<group>"; };
+		8D6F6CA227083EDABD16077A /* USBCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBCameraManager.swift; sourceTree = "<group>"; };
+		B0EBEE16727E65BAF4DFEEE7 /* USBImportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBImportModels.swift; sourceTree = "<group>"; };
+		93D7C64A9FD83E23FEEF15BA /* USBTransferQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBTransferQueue.swift; sourceTree = "<group>"; };
+		65A611A3663236564CC9DF73 /* WideAppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WideAppShellView.swift; sourceTree = "<group>"; };
+		4584058BE175245160F30E93 /* XMPCompatibilityGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XMPCompatibilityGuide.swift; sourceTree = "<group>"; };
+		D0B324082CC2DAD7CA506D3B /* XMPCompatibilityGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XMPCompatibilityGuideView.swift; sourceTree = "<group>"; };
+		383B4E40896B2FF88262C538 /* XMPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XMPGenerator.swift; sourceTree = "<group>"; };
+		EF71AFCC352CB26B11CCE126 /* XMPModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XMPModels.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		37E12B56FDE549AA85E2CC48 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 9859BCDA03D44905AC8C30F6 /* NikonZbridge */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		1994C6C7BA5B4CA8B52FF10E /* NikonZbridge/App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/App; sourceTree = "<group>"; };
-		95B1664E9CFB4AF2843075DF /* NikonZbridge/Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (37E12B56FDE549AA85E2CC48 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/Resources; sourceTree = "<group>"; };
-		B500B782A80047BC88EDAA19 /* NikonZbridge/Core */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/Core; sourceTree = "<group>"; };
-		E0D7E6EBF21D4FE7BFAD713F /* NikonZbridge/UI */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = NikonZbridge/UI; sourceTree = "<group>"; };
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		8949665A69B841039AAD25C4 /* Frameworks */ = {
@@ -38,15 +163,191 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		01E9F51FAFD142D8BFF2525A = {
+		01E9F51FAFD142D8BFF2525A /*  */ = {
 			isa = PBXGroup;
 			children = (
-				1994C6C7BA5B4CA8B52FF10E /* NikonZbridge/App */,
-				B500B782A80047BC88EDAA19 /* NikonZbridge/Core */,
-				E0D7E6EBF21D4FE7BFAD713F /* NikonZbridge/UI */,
-				95B1664E9CFB4AF2843075DF /* NikonZbridge/Resources */,
+				FAFB6F2FA0D27B007B3D8274 /* NikonZbridge */,
 				80771A6C167747DC926DA93D /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		CDEA0B45AADCF6B02718ABF4 /* Adaptive */ = {
+			isa = PBXGroup;
+			children = (
+				A0E85C658C83D3DBFA384FEC /* AdaptiveAppShellView.swift */,
+				7376191F90DBBBB15E7B7AD7 /* AdaptiveLayoutResolver.swift */,
+				470898F50416704B96D9AF02 /* CameraSectionView.swift */,
+				3625A968FA114E545C9E2044 /* NarrowAppShellView.swift */,
+				03A5F042987DEF4696118EB8 /* SessionsSectionView.swift */,
+				65A611A3663236564CC9DF73 /* WideAppShellView.swift */,
+			);
+			path = Adaptive;
+			sourceTree = "<group>";
+		};
+		A78DD48C6213383562F9D9BF /* App */ = {
+			isa = PBXGroup;
+			children = (
+				BF55549477C4731D1C8E4C55 /* NikonZbridgeApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A2D4A6CE93A6FD90D2BCA5CB /* ClientMonitor */ = {
+			isa = PBXGroup;
+			children = (
+				802D800D115A20686E2D37AE /* ClientMonitorManager.swift */,
+				8A022E37F1688D119E93FFAE /* ClientMonitorModels.swift */,
+			);
+			path = ClientMonitor;
+			sourceTree = "<group>";
+		};
+		0C08A5CB804F761A83AF2C8E /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				5AD218B427B904A4B420692A /* ConnectionStatusView.swift */,
+				66BF224C6EFFD0AF55528BE9 /* PrimaryImportButton.swift */,
+				C5BCB6805065E4D38B9E69D8 /* TransferProgressStrip.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		2119A00A3FE19AA03103A13E /* Coordinator */ = {
+			isa = PBXGroup;
+			children = (
+				6E7BE3B26BB4B7217ADB6C7C /* TransferCoordinator.swift */,
+			);
+			path = Coordinator;
+			sourceTree = "<group>";
+		};
+		EF0EB7A072037B5B7F6BEB02 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				A2D4A6CE93A6FD90D2BCA5CB /* ClientMonitor */,
+				2119A00A3FE19AA03103A13E /* Coordinator */,
+				D6623214B42406E71350F344 /* Database */,
+				C021F4B88348D805C0EE3FE1 /* Export */,
+				AE90F93810115FFAB0FA11CE /* ImagePipeline */,
+				FE9630356E1C1FDE24078132 /* Lifecycle */,
+				C867D66778086C6516BEAF85 /* Logging */,
+				2A70DAF43B7FFF8BE03F8590 /* Metadata */,
+				3AC00FC052E344D94316F219 /* Models */,
+				CC26D246FF60AC9AEAFFBCB9 /* Network */,
+				8A68C5BF1E96D30746AE6982 /* Storage */,
+				2F13A26A16A1CB405663901C /* Transports */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		D6623214B42406E71350F344 /* Database */ = {
+			isa = PBXGroup;
+			children = (
+				F6C73C3E58BFEC6E8712F311 /* CatalogDatabase.swift */,
+			);
+			path = Database;
+			sourceTree = "<group>";
+		};
+		59575E2C4D949937E7E3308C /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				F80AD8280E2C31151461A5D3 /* AppTheme.swift */,
+				BB43EDB73472D5858B5157F7 /* GlassSurface.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		C021F4B88348D805C0EE3FE1 /* Export */ = {
+			isa = PBXGroup;
+			children = (
+				66831295710A29B2B365959A /* ExportManager.swift */,
+			);
+			path = Export;
+			sourceTree = "<group>";
+		};
+		366310B36B6087F13BF311D0 /* FTP */ = {
+			isa = PBXGroup;
+			children = (
+				C2D757302C93F653745E8554 /* FTPAuthManager.swift */,
+				61A173DF1E04473735731F3E /* FTPCommand.swift */,
+				E494AF5333381DDD890D3F63 /* FTPConnection.swift */,
+				23C90EE233294F916E2258E0 /* FTPDataChannel.swift */,
+				3F49B211B3ACB3993E1BCAF1 /* FTPServer.swift */,
+			);
+			path = FTP;
+			sourceTree = "<group>";
+		};
+		AE90F93810115FFAB0FA11CE /* ImagePipeline */ = {
+			isa = PBXGroup;
+			children = (
+				33D65E5D43E07DF64EEA2DF1 /* PreviewPipeline.swift */,
+				5B7AC4CA80C46A305358EB39 /* RAWPreviewExtractor.swift */,
+			);
+			path = ImagePipeline;
+			sourceTree = "<group>";
+		};
+		FE9630356E1C1FDE24078132 /* Lifecycle */ = {
+			isa = PBXGroup;
+			children = (
+				6D5FB5348B0264754D9E676D /* LifecycleManager.swift */,
+			);
+			path = Lifecycle;
+			sourceTree = "<group>";
+		};
+		C867D66778086C6516BEAF85 /* Logging */ = {
+			isa = PBXGroup;
+			children = (
+				E8CDFAC7BAE841542CDE2088 /* DiagnosticLogger.swift */,
+			);
+			path = Logging;
+			sourceTree = "<group>";
+		};
+		2A70DAF43B7FFF8BE03F8590 /* Metadata */ = {
+			isa = PBXGroup;
+			children = (
+				4584058BE175245160F30E93 /* XMPCompatibilityGuide.swift */,
+				383B4E40896B2FF88262C538 /* XMPGenerator.swift */,
+				EF71AFCC352CB26B11CCE126 /* XMPModels.swift */,
+			);
+			path = Metadata;
+			sourceTree = "<group>";
+		};
+		3AC00FC052E344D94316F219 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B3FE0BF9368999B89D7AF11B /* CameraSource.swift */,
+				AFA1B276D8EE9544F11B8BA6 /* CaptureGroup.swift */,
+				EB8973BBF4101D784F7261A0 /* CaptureSession.swift */,
+				2BFDE64F865C7EE505C94CCE /* ExportJob.swift */,
+				1C20A52A18922B6A1BE5DF1A /* FramePairingEngine.swift */,
+				9A59BCE406356C659B337287 /* MediaAsset.swift */,
+				A42969880D654B6C611720B2 /* NikonCameraModel.swift */,
+				5F03E4F8107D7C39545F88E3 /* NikonCompatibilityMatrix.swift */,
+				65741B3AF0AD59746002111D /* TransferJob.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		CC26D246FF60AC9AEAFFBCB9 /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				BBC99E2A1B6D5DA1570C2553 /* ConnectionReadinessChecker.swift */,
+				366310B36B6087F13BF311D0 /* FTP */,
+				C121DB32DCBE50EACC4BFE17 /* NetworkInterfaceMonitor.swift */,
+				8D6F6CA227083EDABD16077A /* USBCameraManager.swift */,
+				B0EBEE16727E65BAF4DFEEE7 /* USBImportModels.swift */,
+				93D7C64A9FD83E23FEEF15BA /* USBTransferQueue.swift */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		FAFB6F2FA0D27B007B3D8274 /* NikonZbridge */ = {
+			isa = PBXGroup;
+			children = (
+				A78DD48C6213383562F9D9BF /* App */,
+				EF0EB7A072037B5B7F6BEB02 /* Core */,
+				07F51666EA9CF4247B08A4DA /* Resources */,
+				F57A490C904CC6D77C6F8A46 /* UI */,
+			);
+			path = NikonZbridge;
 			sourceTree = "<group>";
 		};
 		80771A6C167747DC926DA93D /* Products */ = {
@@ -55,6 +356,64 @@
 				DCFA26ADD3D34476AC7F0241 /* NikonZbridge.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		07F51666EA9CF4247B08A4DA /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				244A9ABA041DDAFF2B26A740 /* Assets.xcassets */,
+				8AE08FD458FB7799655DB3A6 /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		8A68C5BF1E96D30746AE6982 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				E5746E978EE0B11048ADC8DB /* DiskCatalogReconciler.swift */,
+				814B62440F7B37D5C3EC06BD /* DiskSpaceGuard.swift */,
+				4FFB20EF6114445DCC339EEA /* IngestedFile.swift */,
+				593799755B0EA5DDC44BBBC8 /* StorageManager.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		2F13A26A16A1CB405663901C /* Transports */ = {
+			isa = PBXGroup;
+			children = (
+				377555700A9F8E2A17E4BDD6 /* CameraTransport.swift */,
+			);
+			path = Transports;
+			sourceTree = "<group>";
+		};
+		F57A490C904CC6D77C6F8A46 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				CDEA0B45AADCF6B02718ABF4 /* Adaptive */,
+				C845EB2127543BB1C4B41E46 /* AppState.swift */,
+				95CEA7352B2898DE086FDA76 /* BatchActionBarView.swift */,
+				01C270B006752CFC97884780 /* ClientMonitorControlSheet.swift */,
+				847DE41B513B2FE768F91EAE /* ClientMonitorView.swift */,
+				7E5E01448F97A586031C07B2 /* CompareView.swift */,
+				E81075BF082DC674268D83BE /* CompatibilityMatrixView.swift */,
+				0C08A5CB804F761A83AF2C8E /* Components */,
+				E741BFEFA80774B415CE0EB1 /* ConnectionSheetView.swift */,
+				59575E2C4D949937E7E3308C /* DesignSystem */,
+				1BAD42905BC34AC0E6B5ACA2 /* ExportSheetView.swift */,
+				527F1E8106CE0C9592DC2340 /* FilmstripTile.swift */,
+				B9DD0A209F29815E8B9C7C59 /* GalleryFilterSheetView.swift */,
+				44271FA22FE15E2676350201 /* IconsGridView.swift */,
+				CD970368EE1CFC54B402517E /* MainScreenPresentationModel.swift */,
+				068A44B6C2CCD7FFFFCED6EE /* NikonTetherRootView.swift */,
+				8C8FD088B71D998B6E7CD950 /* PhotoDetailView.swift */,
+				F9970846B3FC797F7AF1A976 /* PhotoListView.swift */,
+				91B62F30CD05B6DA5EF420B1 /* PhotoTableView.swift */,
+				ED5267EBB6C08CE2F0E84343 /* SessionManagementSheetView.swift */,
+				68409E1D65C9D1C4879126B9 /* TransferQueueView.swift */,
+				584D36C3146305BD6C6C37C2 /* USBCameraBrowserView.swift */,
+				D0B324082CC2DAD7CA506D3B /* XMPCompatibilityGuideView.swift */,
+			);
+			path = UI;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -71,12 +430,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				1994C6C7BA5B4CA8B52FF10E /* NikonZbridge/App */,
-				95B1664E9CFB4AF2843075DF /* NikonZbridge/Resources */,
-				B500B782A80047BC88EDAA19 /* NikonZbridge/Core */,
-				E0D7E6EBF21D4FE7BFAD713F /* NikonZbridge/UI */,
 			);
 			name = NikonZbridge;
 			productName = NikonZbridge;
@@ -120,6 +473,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F1C57C22A2A6BC982A9FEAD7 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,6 +484,74 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				24179CBBE308425B5A456C27 /* AdaptiveAppShellView.swift in Sources */,
+				CF3299C90811E4713BC53107 /* AdaptiveLayoutResolver.swift in Sources */,
+				885251740806C5AE97140EC4 /* AppState.swift in Sources */,
+				9CF92208B2A151A06E387301 /* AppTheme.swift in Sources */,
+				46A074EBEFC9CAE0DB3C4820 /* BatchActionBarView.swift in Sources */,
+				77D0068392EF58B764551411 /* CameraSectionView.swift in Sources */,
+				1321D410A0737718DA239E80 /* CameraSource.swift in Sources */,
+				88132881ABFECC73F5A7C30E /* CameraTransport.swift in Sources */,
+				11B9E709DCB49FAA5D7FEA81 /* CaptureGroup.swift in Sources */,
+				017825A2BEFE87067DDBA8C1 /* CaptureSession.swift in Sources */,
+				35BA05778A679B740D94B40A /* CatalogDatabase.swift in Sources */,
+				E363BD007B5203BD91B289D6 /* ClientMonitorControlSheet.swift in Sources */,
+				E9208A0F46DDD7A5FAB37DFD /* ClientMonitorManager.swift in Sources */,
+				FCB5E7263A6A0626A2F0EFFB /* ClientMonitorModels.swift in Sources */,
+				380C881A7D661E1F419E9DFD /* ClientMonitorView.swift in Sources */,
+				F9EA7C5A6CD46873318BAA74 /* CompareView.swift in Sources */,
+				F1F4986CBCADDA49F386CF07 /* CompatibilityMatrixView.swift in Sources */,
+				8E7E7D91E3C6DCEA70AEC09F /* ConnectionReadinessChecker.swift in Sources */,
+				97C91CD792D9F2BBE08A61FA /* ConnectionSheetView.swift in Sources */,
+				18150A0AA4C46829242B6215 /* ConnectionStatusView.swift in Sources */,
+				B3AC994C7FA858DBF4757ED2 /* DiagnosticLogger.swift in Sources */,
+				31D3D8BFA70D00C1CDE935D8 /* DiskCatalogReconciler.swift in Sources */,
+				7D1A4118FF0643474EF6A8B5 /* DiskSpaceGuard.swift in Sources */,
+				9200E3306262D40847569E39 /* ExportJob.swift in Sources */,
+				1F59725B4EA82EB32D408131 /* ExportManager.swift in Sources */,
+				A760B799CF18BB8FEF2006E9 /* ExportSheetView.swift in Sources */,
+				CD3CF9DA747829E3FCF441CC /* FTPAuthManager.swift in Sources */,
+				A7CB4F88824BE42C11F6FEE8 /* FTPCommand.swift in Sources */,
+				A76D5CE30BCEFB0F88F587C7 /* FTPConnection.swift in Sources */,
+				BC6D1256A14B19EA3FADDAC7 /* FTPDataChannel.swift in Sources */,
+				974BF398404036F25F1A9AEB /* FTPServer.swift in Sources */,
+				28EE727FC8FC358ED132444E /* FilmstripTile.swift in Sources */,
+				B68D022B1918D0695082A89A /* FramePairingEngine.swift in Sources */,
+				7134F084D1BDA1E06BB1A2D9 /* GalleryFilterSheetView.swift in Sources */,
+				7A7BBEDA4319C8CFC1B024D9 /* GlassSurface.swift in Sources */,
+				82EBC5C50ACAB16FEDB24791 /* IconsGridView.swift in Sources */,
+				B46FA631369A251772AD867B /* IngestedFile.swift in Sources */,
+				B38709E43193693A98D58ABE /* LifecycleManager.swift in Sources */,
+				6B2446EB73765672712768AC /* MainScreenPresentationModel.swift in Sources */,
+				110B8CF74B6C3C1B25E2BE22 /* MediaAsset.swift in Sources */,
+				17A67CAFBC3006D9D8E7A05A /* NarrowAppShellView.swift in Sources */,
+				79DC54E07C21629B75E19E22 /* NetworkInterfaceMonitor.swift in Sources */,
+				03609E04675091E262D9D179 /* NikonCameraModel.swift in Sources */,
+				1FA0A7D7D84B5E5C6A0994C0 /* NikonCompatibilityMatrix.swift in Sources */,
+				AFAD4E7ED639A933ACF8086D /* NikonTetherRootView.swift in Sources */,
+				FC92F547F36CB3D19D22F5AA /* NikonZbridgeApp.swift in Sources */,
+				45F95B3D6659D9E17F97866A /* PhotoDetailView.swift in Sources */,
+				2A08EB35703538B1DE554171 /* PhotoListView.swift in Sources */,
+				9A55E8363046C2FC868184E1 /* PhotoTableView.swift in Sources */,
+				22B90A5D0FC02BDE38521B49 /* PreviewPipeline.swift in Sources */,
+				331A2DEE96003AB0BBA991AC /* PrimaryImportButton.swift in Sources */,
+				B21EE2DBF3FAFB0CB8E8005A /* RAWPreviewExtractor.swift in Sources */,
+				89AE7F4CDDFB66582BE5335F /* SessionManagementSheetView.swift in Sources */,
+				A273A3FC59F3F307C08B9DF4 /* SessionsSectionView.swift in Sources */,
+				2EA3708912A540EE42CB67F5 /* StorageManager.swift in Sources */,
+				BC76846B0B692EE729DA3764 /* TransferCoordinator.swift in Sources */,
+				0C0D59342C43EDEAE97066BF /* TransferJob.swift in Sources */,
+				ED6ABA1275E864596DCEC243 /* TransferProgressStrip.swift in Sources */,
+				414AA81A1FF3AC1A4A5F7A07 /* TransferQueueView.swift in Sources */,
+				8AEDA88B2034D25ADBF7B545 /* USBCameraBrowserView.swift in Sources */,
+				F37B11AE631E2DF07AA9706E /* USBCameraManager.swift in Sources */,
+				AB9F7ACCFB6478C7874C94EE /* USBImportModels.swift in Sources */,
+				C40EF3C5C675F24592CA2599 /* USBTransferQueue.swift in Sources */,
+				367996B7142FFEB06C0A1804 /* WideAppShellView.swift in Sources */,
+				4885862A7AE81A56F836D64F /* XMPCompatibilityGuide.swift in Sources */,
+				EC4B1F391C473E31C8C68E72 /* XMPCompatibilityGuideView.swift in Sources */,
+				01127953D2DA13F7407275E5 /* XMPGenerator.swift in Sources */,
+				957DEE4BFE50CEB9BD1A9243 /* XMPModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

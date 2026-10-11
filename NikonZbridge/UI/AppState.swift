@@ -52,7 +52,7 @@ public enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
     public var subtitle: String {
         switch self {
         case .connection:
-            return "Кабель USB-C, Wi-Fi, FTP-сервер и мастер"
+            return "Кабель USB-C, Wi-Fi, FTP-сервер и настройки"
         case .importTab:
             return "Live tethering, автозагрузка с карты и форматы"
         case .sessions:
@@ -229,6 +229,7 @@ public final class AppState: ObservableObject {
     }
     @Published public var selectedCameraFileIDs: Set<String> = []
     @Published public var cameraFormatFilter: CameraFileFormatFilter = .all
+    @Published public var cameraBrowserViewMode: CameraBrowserViewMode = .gallery
 
     // Совместимость существующих действий: открываем карту в основном разделе.
     public var isUSBBrowserPresented: Bool {
@@ -608,8 +609,10 @@ public final class AppState: ObservableObject {
     public func handleMainScreenAction(_ action: MainScreenActionType) {
         switch action {
         case .connectCamera:
+            self.isShowingConnectionSheet = true
             self.isWizardPresented = true
         case .openConnectionGuide:
+            self.isShowingConnectionSheet = true
             self.isWizardPresented = true
         case .retryConnection:
             currentUSBManager.start()

@@ -567,10 +567,10 @@ final class MainScreenPresentationModelTestSuite {
         appState.handleMainScreenAction(.selectCardFiles)
         verify(appState.isUSBBrowserPresented == true)
         
-        // Проверяем открытие мастера подключения
-        appState.isWizardPresented = false
+        // Проверяем открытие окна подключения
+        appState.isShowingConnectionSheet = false
         appState.handleMainScreenAction(.connectCamera)
-        verify(appState.isWizardPresented == true)
+        verify(appState.isShowingConnectionSheet == true)
         
         print("  ✓ handleMainScreenAction корректно переключает представления и выполняет действия")
     }

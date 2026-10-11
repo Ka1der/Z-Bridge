@@ -414,23 +414,10 @@ public struct CameraSectionView: View {
         }
     }
     
-    // MARK: - 6. Мастера и инструменты
+    // MARK: - 6. Инструменты и совместимость
     
     private var toolsSection: some View {
         VStack(spacing: AppTheme.Spacing.sm) {
-            Button {
-                appState.isWizardPresented = true
-            } label: {
-                HStack {
-                    Image(systemName: "wand.and.stars")
-                    Text("Мастер подключения Nikon Z...")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.appSecondaryGlass)
-            
             Button {
                 appState.isMatrixPresented = true
             } label: {

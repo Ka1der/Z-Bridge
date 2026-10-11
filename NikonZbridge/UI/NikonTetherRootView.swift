@@ -44,7 +44,8 @@ public struct NikonTetherRootView: View {
                             usbManager: appState.currentUSBManager,
                             sessionName: appState.currentSession?.name,
                             selectedFileIDs: $appState.selectedCameraFileIDs,
-                            formatFilter: $appState.cameraFormatFilter
+                            formatFilter: $appState.cameraFormatFilter,
+                            viewMode: $appState.cameraBrowserViewMode
                         )
                     } else {
                         switch layoutMode {
@@ -124,9 +125,6 @@ public struct NikonTetherRootView: View {
         }
         .sheet(isPresented: Binding(get: { showsSheets && appState.isQueuePresented }, set: { appState.isQueuePresented = $0 })) {
             TransferQueueView(appState: appState)
-        }
-        .sheet(isPresented: Binding(get: { showsSheets && appState.isWizardPresented }, set: { appState.isWizardPresented = $0 })) {
-            ConnectionWizardView(appState: appState)
         }
         .sheet(isPresented: Binding(get: { showsSheets && appState.isMatrixPresented }, set: { appState.isMatrixPresented = $0 })) {
             CompatibilityMatrixView()
@@ -439,17 +437,11 @@ public struct NikonTetherRootView: View {
             
             Divider()
             
-            // Настройки и мастер подключения
+            // Настройки подключения
             Button {
                 appState.isShowingConnectionSheet = true
             } label: {
                 Label("Настройки подключения...", systemImage: "gearshape")
-            }
-            
-            Button {
-                appState.isWizardPresented = true
-            } label: {
-                Label("Мастер подключения...", systemImage: "wand.and.stars")
             }
             
             Button {

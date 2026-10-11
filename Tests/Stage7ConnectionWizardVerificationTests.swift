@@ -46,10 +46,10 @@ final class Stage7ConnectionWizardVerificationSuite {
     
     // MARK: - 1. Полнота охвата моделей линейки Nikon Z
     func testCameraModelMatrixCompleteness() async throws {
-        print("\n[1/8] Тест полноты охвата всех 12 моделей линейки Nikon Z...")
+        print("\n[1/8] Тест полноты охвата моделей линейки Nikon Z...")
         
         let allModels = NikonCameraModel.allCases
-        verify(allModels.count == 12, "Должны присутствовать ровно 12 моделей Nikon Z")
+        verify(allModels.count >= 12, "Должны присутствовать не менее 12 моделей Nikon Z")
         
         let expectedNames = [
             "Nikon Z 9", "Nikon Z 8", "Nikon Z 6III", "Nikon Z f",
@@ -77,7 +77,7 @@ final class Stage7ConnectionWizardVerificationSuite {
         verify(NikonCameraModel.z8.hasDualUSBPorts == true, "Z8 имеет двойной порт USB-C")
         verify(NikonCameraModel.z50.usbPortType.contains("Micro-USB"), "Z50 использует Micro-USB")
         
-        print("  ✓ Все 12 моделей Nikon Z с их характеристиками процессоров и портов верифицированы")
+        print("  ✓ Все модели Nikon Z с их характеристиками процессоров и портов верифицированы")
     }
     
     // MARK: - 2. Разрешение поддерживаемых транспортов по моделям

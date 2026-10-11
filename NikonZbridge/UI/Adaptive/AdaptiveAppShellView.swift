@@ -58,9 +58,6 @@ public struct AdaptiveAppShellView: View {
         .sheet(isPresented: $appState.isQueuePresented) {
             TransferQueueView(appState: appState)
         }
-        .sheet(isPresented: $appState.isWizardPresented) {
-            ConnectionWizardView(appState: appState)
-        }
         .sheet(isPresented: $appState.isMatrixPresented) {
             CompatibilityMatrixView()
         }

@@ -76,9 +76,6 @@ public struct ConnectionSheetView: View {
                 }
             }
         }
-        .sheet(isPresented: $appState.isWizardPresented) {
-            ConnectionWizardView(appState: appState)
-        }
         .sheet(isPresented: $appState.isMatrixPresented) {
             CompatibilityMatrixView()
         }
@@ -399,28 +396,6 @@ public struct ConnectionSheetView: View {
                 .foregroundStyle(AppTheme.Colors.textPrimary)
                 
                 VStack(spacing: 8) {
-                    Button {
-                        appState.isWizardPresented = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "wand.and.stars")
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text("Мастер подключения Nikon Z")
-                                    .font(AppTheme.Typography.captionBold)
-                                Text("Пошаговый подбор настроек вашей модели")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(AppTheme.Colors.textSecondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                        }
-                        .padding(10)
-                        .background(AppTheme.Colors.surfaceSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
-                    }
-                    .buttonStyle(.plain)
-                    
                     Button {
                         appState.isMatrixPresented = true
                     } label: {

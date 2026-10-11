@@ -197,6 +197,21 @@ public enum CameraFileFormatFilter: String, CaseIterable, Identifiable, Sendable
     }
 }
 
+/// Режим отображения содержимого карты памяти в окне импорта с камеры
+public enum CameraBrowserViewMode: String, CaseIterable, Identifiable, Sendable {
+    case list = "Список"
+    case gallery = "Галерея"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .list: return "list.bullet"
+        case .gallery: return "square.grid.2x2"
+        }
+    }
+}
+
 /// Статистика оглавления карты памяти
 public struct CameraCatalogStats: Equatable, Sendable {
     public let totalCount: Int
