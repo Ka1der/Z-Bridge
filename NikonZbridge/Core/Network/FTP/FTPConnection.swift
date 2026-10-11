@@ -250,8 +250,8 @@ public actor FTPConnection {
         case .size(let filename):
             guard isAuthenticated else { await send(FTPResponse.notLoggedIn); return }
             // Не возвращаем фиктивный успех: проверяем реальное наличие файла
-            let active = await coordinator.activeSession
-            let targetURL = active.folderURL.appendingPathComponent(filename)
+            let folder = await coordinator.downloadDirectory
+            let targetURL = folder.appendingPathComponent((filename as NSString).lastPathComponent)
             if let attr = try? FileManager.default.attributesOfItem(atPath: targetURL.path),
                let size = attr[.size] as? Int64 {
                 await send(FTPResponse(code: 213, message: "\(size)"))
@@ -261,8 +261,8 @@ public actor FTPConnection {
             
         case .mdtm(let filename):
             guard isAuthenticated else { await send(FTPResponse.notLoggedIn); return }
-            let active = await coordinator.activeSession
-            let targetURL = active.folderURL.appendingPathComponent(filename)
+            let folder = await coordinator.downloadDirectory
+            let targetURL = folder.appendingPathComponent((filename as NSString).lastPathComponent)
             if let attr = try? FileManager.default.attributesOfItem(atPath: targetURL.path),
                let date = attr[.modificationDate] as? Date {
                 let df = DateFormatter()

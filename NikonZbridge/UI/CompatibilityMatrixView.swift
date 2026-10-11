@@ -1,69 +1,41 @@
 import SwiftUI
 
-/// Интерактивный экран таблицы аппаратной совместимости Nikon Z
+/// Интерактивный экран таблицы совместимости камер линейки Nikon Z
 public struct CompatibilityMatrixView: View {
     @Environment(\.dismiss) private var dismiss
     
-    @State private var selectedStatusFilter: StatusFilter = .all
     @State private var searchText: String = ""
-    @State private var expandedRecordID: UUID?
-    
-    enum StatusFilter: String, CaseIterable, Identifiable {
-        case all = "Все"
-        case verified = "В железе"
-        case protocolCompliant = "Протокол"
-        case untested = "Не проверено"
-        
-        var id: String { rawValue }
-    }
     
     public init() {}
     
-    private var filteredRecords: [CompatibilityRecord] {
-        let all = NikonCompatibilityMatrix.shared.allRecords
-        return all.filter { record in
-            let matchesSearch = searchText.isEmpty ||
-                record.model.fullName.localizedCaseInsensitiveContains(searchText) ||
-                record.transport.title.localizedCaseInsensitiveContains(searchText) ||
-                record.notes.localizedCaseInsensitiveContains(searchText)
+    private var filteredModels: [NikonCameraModel] {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return NikonCameraModel.allCases
+        }
+        let query = trimmed.lowercased()
+        let compactQuery = query.replacingOccurrences(of: " ", with: "")
+        
+        return NikonCameraModel.allCases.filter { model in
+            let name = model.fullName.lowercased()
+            let raw = model.rawValue.lowercased().replacingOccurrences(of: " ", with: "")
+            let proc = model.processor.rawValue.lowercased()
+            let sensor = model.sensorDescription.lowercased()
             
-            let matchesFilter: Bool
-            switch selectedStatusFilter {
-            case .all:
-                matchesFilter = true
-            case .verified:
-                matchesFilter = record.verificationStatus == .verified
-            case .protocolCompliant:
-                matchesFilter = record.verificationStatus == .protocolCompliant
-            case .untested:
-                matchesFilter = record.verificationStatus == .untested
-            }
-            
-            return matchesSearch && matchesFilter
+            return name.contains(query) ||
+                raw.contains(compactQuery) ||
+                proc.contains(query) ||
+                sensor.contains(query)
         }
     }
     
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Предупреждающий баннер честности спецификации
-                untestedNoticeBanner
-                    .padding()
-                
-                // Фильтры
-                Picker("Фильтр", selection: $selectedStatusFilter) {
-                    ForEach(StatusFilter.allCases) { filter in
-                        Text(filter.rawValue).tag(filter)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-                
-                // Список записей совместимости
+                // Список камер без задвоений
                 List {
-                    ForEach(filteredRecords) { record in
-                        compatibilityCard(record)
+                    ForEach(filteredModels) { model in
+                        cameraCard(model)
                             .listRowBackground(Color.clear)
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                     }
@@ -85,105 +57,104 @@ public struct CompatibilityMatrixView: View {
         }
     }
     
-    private var untestedNoticeBanner: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "shield.lefthalf.filled")
-                .foregroundStyle(.blue)
-                .font(.title3)
-            
-            VStack(alignment: .leading, spacing: 3) {
-                Text("ПРИНЦИП АППАРАТНОЙ ЧЕСТНОСТИ")
-                    .font(.caption.bold())
-                    .foregroundStyle(.blue)
-                Text("Все сочетания камер и интерфейсов, не прошедшие физическое тестирование на стенде, помечены как «Не проверено в железе». Мы не даем ложных гарантий совместимости.")
+    private func cameraCard(_ model: NikonCameraModel) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Заголовок камеры
+            HStack(spacing: 8) {
+                Text(model.fullName)
+                    .font(.headline.bold())
+                    .foregroundStyle(.white)
+                
+                Text(model.processor.rawValue)
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.15))
+                    .clipShape(Capsule())
+                    .foregroundStyle(.white)
+                
+                Text(model.sensorDescription)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(12)
-        .background(Color.blue.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-        )
-    }
-    
-    private func compatibilityCard(_ record: CompatibilityRecord) -> some View {
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(record.model.fullName)
-                            .font(.headline.bold())
-                            .foregroundStyle(.white)
-                        
-                        Text(record.model.processor.rawValue)
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.white.opacity(0.15))
-                            .clipShape(Capsule())
-                    }
-                    
-                    Text(record.transport.title)
-                        .font(.subheadline)
-                        .foregroundStyle(.orange)
-                }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.blue.opacity(0.2))
+                    .clipShape(Capsule())
+                    .foregroundStyle(.blue)
                 
                 Spacer()
-                
-                // Бейдж статуса проверки
-                statusBadge(record.verificationStatus)
             }
             
-            HStack(spacing: 8) {
-                Text("Прошивки: \(record.firmwareVersion)")
-                    .font(.caption2)
+            Divider()
+                .background(Color.white.opacity(0.1))
+            
+            // Способы подключения
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Способы подключения:")
+                    .font(.caption2.bold())
                     .foregroundStyle(.secondary)
                 
-                Text("•")
-                    .foregroundStyle(.secondary)
-                    .font(.caption2)
+                // 1. Кабель
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "cable.connector")
+                        .foregroundStyle(.orange)
+                        .font(.subheadline)
+                        .frame(width: 22)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(cableTitle(for: model))
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.white)
+                        Text(cableSubtitle(for: model))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 
-                Text("Источник: \(record.infoSource.rawValue)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                // 2. Wi-Fi
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "wifi")
+                        .foregroundStyle(.cyan)
+                        .font(.subheadline)
+                        .frame(width: 22)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Встроенный Wi-Fi (FTP)")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.white)
+                        Text("Диапазоны: \(model.wifiBands.joined(separator: ", ")) · Прямое подключение к iPad/Mac или через общий роутер")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                // 3. Ethernet (проводная сеть)
+                if let eth = ethernetInfo(for: model) {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "network")
+                            .foregroundStyle(.green)
+                            .font(.subheadline)
+                            .frame(width: 22)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(eth.title)
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.white)
+                            Text(eth.details)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             
             // Чипы возможностей
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(record.capabilities) { cap in
-                        HStack(spacing: 4) {
-                            Image(systemName: cap.icon)
-                                .font(.caption2)
-                            Text(cap.rawValue)
-                                .font(.caption2)
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.blue.opacity(0.15))
-                        .foregroundStyle(.blue)
-                        .clipShape(Capsule())
-                    }
+                    chipView(icon: "bolt.horizontal.fill", text: "Автоотправка при съёмке")
+                    chipView(icon: "square.stack.3d.forward.dottedline", text: "Связывание RAW + JPEG")
+                    chipView(icon: "sdcard", text: "Просмотр и выборка с карты памяти")
+                    chipView(icon: "arrow.down.to.line", text: "Потоковый приём по FTP")
                 }
-            }
-            
-            // Примечания и особенности
-            if !record.notes.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Примечания:")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.secondary)
-                    Text(record.notes)
-                        .font(.caption)
-                        .foregroundStyle(record.verificationStatus == .untested ? .orange : .white.opacity(0.85))
-                }
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(record.verificationStatus == .untested ? Color.orange.opacity(0.1) : Color.white.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
         .padding(14)
@@ -191,45 +162,63 @@ public struct CompatibilityMatrixView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(badgeBorderColor(record.verificationStatus), lineWidth: 1)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
     }
     
-    private func statusBadge(_ status: HardwareVerificationStatus) -> some View {
+    private func chipView(icon: String, text: String) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: status.icon)
+            Image(systemName: icon)
                 .font(.caption2)
-            Text(status.rawValue)
-                .font(.caption2.bold())
+            Text(text)
+                .font(.caption2)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(badgeBackgroundColor(status))
-        .foregroundStyle(badgeForegroundColor(status))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(Color.blue.opacity(0.15))
+        .foregroundStyle(.blue)
         .clipShape(Capsule())
     }
     
-    private func badgeBackgroundColor(_ status: HardwareVerificationStatus) -> Color {
-        switch status {
-        case .verified: return Color.green.opacity(0.2)
-        case .protocolCompliant: return Color.yellow.opacity(0.2)
-        case .untested: return Color.orange.opacity(0.2)
+    private func cableTitle(for model: NikonCameraModel) -> String {
+        switch model {
+        case .z50:
+            return "Кабель Micro-USB (PTP)"
+        case .z8:
+            return "Двойной порт USB-C (PTP / Питание)"
+        default:
+            return "Прямой кабель USB-C (PTP)"
         }
     }
     
-    private func badgeForegroundColor(_ status: HardwareVerificationStatus) -> Color {
-        switch status {
-        case .verified: return Color.green
-        case .protocolCompliant: return Color.yellow
-        case .untested: return Color.orange
+    private func cableSubtitle(for model: NikonCameraModel) -> String {
+        switch model {
+        case .z50:
+            return "Разъем Micro-B. Автоматический импорт новых кадров и просмотр карты памяти."
+        case .z8:
+            return "Верхний порт: передача данных SuperSpeed 3.2. Нижний порт: независимое питание USB-PD."
+        default:
+            return "SuperSpeed USB 3.2. Мгновенное обнаружение, чтение карты памяти и импорт без задержек."
         }
     }
     
-    private func badgeBorderColor(_ status: HardwareVerificationStatus) -> Color {
-        switch status {
-        case .verified: return Color.green.opacity(0.3)
-        case .protocolCompliant: return Color.yellow.opacity(0.3)
-        case .untested: return Color.orange.opacity(0.5)
+    private func ethernetInfo(for model: NikonCameraModel) -> (title: String, details: String)? {
+        if model.hasBuiltInRJ45 {
+            return (
+                title: "Встроенный Ethernet 1000BASE-T (RJ-45)",
+                details: "Аппаратный порт RJ-45 в корпусе. Скорость до 110 МБ/с, максимальная надёжность передачи по FTP."
+            )
+        } else if model.supportedTransports.contains(.usbToEthernet) {
+            return (
+                title: "Адаптер USB-C ➔ Ethernet (FTP)",
+                details: "Подключение гигабитного адаптера USB-LAN в порт данных. Проводная сеть без встроенного RJ-45."
+            )
+        } else if model.supportedTransports.contains(.wt7Transmitter) {
+            return (
+                title: "Передатчик WT-7 (Ethernet / Wi-Fi)",
+                details: "Внешний беспроводной модуль с аппаратным разъемом LAN и антеннами повышенной дальности."
+            )
         }
+        return nil
     }
 }

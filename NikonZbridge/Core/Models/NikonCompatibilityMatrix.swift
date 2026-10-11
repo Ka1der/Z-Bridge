@@ -350,7 +350,83 @@ public final class NikonCompatibilityMatrix: Sendable {
             notes: "Только Wi-Fi 2.4 ГГц. Скорость беспроводной передачи умеренная (рекомендуется передавать JPEG либо использовать USB)."
         ))
         
-        // MARK: - Nikon Z 50, Z 30, Z fc (DX)
+        // MARK: - Nikon Z 5II & Z 5IIC (EXPEED 7)
+        records.append(CompatibilityRecord(
+            model: .z5ii,
+            firmwareVersion: "v1.00",
+            transport: .directUSB,
+            capabilities: [.autoSendOnShoot, .rawJpegPairing, .cardBrowser, .autoRetry, .usbPowerDelivery],
+            infoSource: .officialManual,
+            verificationStatus: .verified,
+            notes: "USB-C SuperSpeed 3.2. Поддержка прямого импорта PTP и питания USB-PD."
+        ))
+        records.append(CompatibilityRecord(
+            model: .z5ii,
+            firmwareVersion: "v1.00",
+            transport: .builtInWiFiFTP,
+            capabilities: [.autoSendOnShoot, .rawJpegPairing, .streamingFTP],
+            infoSource: .officialManual,
+            verificationStatus: .verified,
+            notes: "Wi-Fi 2.4/5 ГГц с встроенным FTP-клиентом."
+        ))
+        records.append(CompatibilityRecord(
+            model: .z5ii,
+            firmwareVersion: "v1.00",
+            transport: .usbToEthernet,
+            capabilities: [.autoSendOnShoot, .rawJpegPairing, .streamingFTP],
+            infoSource: .officialManual,
+            verificationStatus: .protocolCompliant,
+            notes: "Поддержка адаптеров USB-C Ethernet в меню сети."
+        ))
+        
+        records.append(CompatibilityRecord(
+            model: .z5iic,
+            firmwareVersion: "v1.00",
+            transport: .directUSB,
+            capabilities: [.autoSendOnShoot, .rawJpegPairing, .cardBrowser, .autoRetry, .usbPowerDelivery],
+            infoSource: .officialManual,
+            verificationStatus: .verified,
+            notes: "Компактный корпус FX, разъем USB-C SuperSpeed 3.2."
+        ))
+        records.append(CompatibilityRecord(
+            model: .z5iic,
+            firmwareVersion: "v1.00",
+            transport: .builtInWiFiFTP,
+            capabilities: [.autoSendOnShoot, .rawJpegPairing, .streamingFTP],
+            infoSource: .officialManual,
+            verificationStatus: .verified,
+            notes: "Встроенный двухдиапазонный Wi-Fi 2.4/5 ГГц (FTP)."
+        ))
+        records.append(CompatibilityRecord(
+            model: .z5iic,
+            firmwareVersion: "v1.00",
+            transport: .usbToEthernet,
+            capabilities: [.autoSendOnShoot, .rawJpegPairing, .streamingFTP],
+            infoSource: .officialManual,
+            verificationStatus: .protocolCompliant,
+            notes: "Поддержка адаптеров USB-C Ethernet."
+        ))
+        
+        // MARK: - Nikon Z 50II, Z 50, Z 30, Z fc (DX)
+        records.append(CompatibilityRecord(
+            model: .z50ii,
+            firmwareVersion: "v1.00",
+            transport: .directUSB,
+            capabilities: [.autoSendOnShoot, .rawJpegPairing, .cardBrowser, .autoRetry, .usbPowerDelivery],
+            infoSource: .officialManual,
+            verificationStatus: .verified,
+            notes: "Разъем USB-C SuperSpeed. Процессор EXPEED 7 с поддержкой быстрого импорта."
+        ))
+        records.append(CompatibilityRecord(
+            model: .z50ii,
+            firmwareVersion: "v1.00",
+            transport: .builtInWiFiFTP,
+            capabilities: [.autoSendOnShoot, .rawJpegPairing, .streamingFTP],
+            infoSource: .officialManual,
+            verificationStatus: .verified,
+            notes: "Wi-Fi 2.4/5 ГГц."
+        ))
+        
         records.append(CompatibilityRecord(
             model: .z50,
             firmwareVersion: "v2.50",

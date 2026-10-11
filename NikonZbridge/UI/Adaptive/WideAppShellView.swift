@@ -37,7 +37,7 @@ public struct WideAppShellView: View {
                 case .camera:
                     CameraSectionView(appState: appState)
                 case .sessions:
-                    SessionsSectionView(appState: appState)
+                    if AppFeatures.sessionManagementEnabled { SessionsSectionView(appState: appState) } else { NikonTetherRootView(appState: appState) }
                 }
                 
                 // 3. Полноразмерная полоса прогресса передачи внизу экрана (референс iPad)
@@ -118,7 +118,7 @@ public struct WideAppShellView: View {
             
             // Список разделов
             VStack(spacing: AppTheme.Spacing.xs) {
-                ForEach(AppSection.allCases) { section in
+                ForEach(AppSection.visibleCases) { section in
                     sidebarItem(for: section)
                 }
             }
@@ -218,7 +218,7 @@ public struct WideAppShellView: View {
             
             // Быстрые иконки разделов
             VStack(spacing: AppTheme.Spacing.sm) {
-                ForEach(AppSection.allCases) { section in
+                ForEach(AppSection.visibleCases) { section in
                     let isSelected = appState.selectedSection == section
                     Button {
                         if appState.selectedSection != section {

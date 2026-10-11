@@ -96,13 +96,16 @@ public struct CameraInstructionStep: Identifiable, Sendable, Codable {
 public enum NikonCameraModel: String, Sendable, Codable, CaseIterable, Identifiable {
     case z9 = "Z 9"
     case z8 = "Z 8"
-    case z6iii = "Z 6III"
-    case zf = "Z f"
     case z7ii = "Z 7II"
-    case z6ii = "Z 6II"
     case z7 = "Z 7"
+    case z6iii = "Z 6III"
+    case z6ii = "Z 6II"
     case z6 = "Z 6"
+    case zf = "Z f"
+    case z5ii = "Z 5II"
+    case z5iic = "Z 5IIC"
     case z5 = "Z 5"
+    case z50ii = "Z 50II"
     case z50 = "Z 50"
     case z30 = "Z 30"
     case zfc = "Z fc"
@@ -113,7 +116,7 @@ public enum NikonCameraModel: String, Sendable, Codable, CaseIterable, Identifia
     
     public var processor: NikonProcessorGeneration {
         switch self {
-        case .z9, .z8, .z6iii, .zf:
+        case .z9, .z8, .z6iii, .zf, .z5ii, .z5iic, .z50ii:
             return .expeed7
         case .z7ii, .z6ii:
             return .dualExpeed6
@@ -124,7 +127,7 @@ public enum NikonCameraModel: String, Sendable, Codable, CaseIterable, Identifia
     
     public var isFullFrame: Bool {
         switch self {
-        case .z50, .z30, .zfc:
+        case .z50, .z50ii, .z30, .zfc:
             return false
         default:
             return true
@@ -160,7 +163,7 @@ public enum NikonCameraModel: String, Sendable, Codable, CaseIterable, Identifia
     /// Поддерживаемые диапазоны Wi-Fi
     public var wifiBands: [String] {
         switch self {
-        case .z9, .z8, .z6iii, .zf, .z7ii, .z6ii, .z7, .z6:
+        case .z9, .z8, .z6iii, .zf, .z5ii, .z5iic, .z7ii, .z6ii, .z7, .z6, .z50ii:
             return ["2.4 ГГц", "5 ГГц (IEEE 802.11ac/ax)"]
         case .z5, .z50, .z30, .zfc:
             return ["2.4 ГГц (IEEE 802.11b/g/n)"]
@@ -172,15 +175,15 @@ public enum NikonCameraModel: String, Sendable, Codable, CaseIterable, Identifia
         switch self {
         case .z9:
             return [.directUSB, .builtInEthernet, .builtInWiFiFTP]
-        case .z8, .z6iii:
-            return [.directUSB, .usbToEthernet, .builtInWiFiFTP]
-        case .zf:
+        case .z8, .z6iii, .zf, .z5ii, .z5iic:
             return [.directUSB, .usbToEthernet, .builtInWiFiFTP]
         case .z7ii, .z6ii:
             return [.directUSB, .builtInWiFiFTP, .wt7Transmitter]
         case .z7, .z6:
             return [.directUSB, .builtInWiFiFTP, .wt7Transmitter]
         case .z5:
+            return [.directUSB, .builtInWiFiFTP]
+        case .z50ii:
             return [.directUSB, .builtInWiFiFTP]
         case .z50, .z30, .zfc:
             return [.directUSB, .builtInWiFiFTP]

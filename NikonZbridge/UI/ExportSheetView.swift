@@ -387,7 +387,7 @@ public struct ExportSheetView: View {
                 .padding(.horizontal, 4)
             }
             
-            if selectedDestinationType == .folder {
+            if AppFeatures.sessionManagementEnabled && selectedDestinationType == .folder {
                 Toggle(isOn: $includeSessionManifest) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Манифест и отчет сессии")
@@ -403,6 +403,7 @@ public struct ExportSheetView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             }
             
+            if AppFeatures.sessionManagementEnabled {
             // Метаданные автора и копирайта
             DisclosureGroup("Авторские метаданные (XMP)") {
                 VStack(spacing: 8) {
@@ -434,6 +435,7 @@ public struct ExportSheetView: View {
             .padding(12)
             .background(Color.white.opacity(0.03))
             .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
         }
     }
     
@@ -746,7 +748,7 @@ public struct ExportSheetView: View {
         appState.xmpNamingConvention = sidecarNamingConvention
         
         let sessionMeta = SessionMetadata(
-            sessionName: appState.currentSession?.name ?? "Сессия",
+            sessionName: appState.currentSession?.name ?? "Загрузки",
             author: sessionAuthor.isEmpty ? nil : sessionAuthor,
             copyright: sessionCopyright.isEmpty ? nil : sessionCopyright,
             comment: sessionComment.isEmpty ? nil : sessionComment
@@ -760,7 +762,7 @@ public struct ExportSheetView: View {
             conflictStrategy: conflictStrategy,
             includeXMPSidecars: includeXMPSidecars,
             sidecarNamingConvention: sidecarNamingConvention,
-            includeSessionManifest: (selectedDestinationType == .folder) && includeSessionManifest,
+            includeSessionManifest: AppFeatures.sessionManagementEnabled && (selectedDestinationType == .folder) && includeSessionManifest,
             sessionMetadata: sessionMeta
         )
         

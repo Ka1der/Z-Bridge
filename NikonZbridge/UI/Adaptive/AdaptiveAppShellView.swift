@@ -50,7 +50,7 @@ public struct AdaptiveAppShellView: View {
             ConnectionSheetView(appState: appState)
         }
         .sheet(isPresented: $appState.isShowingSessionSheet) {
-            SessionManagementSheetView(appState: appState)
+            if AppFeatures.sessionManagementEnabled { SessionManagementSheetView(appState: appState) }
         }
         .sheet(isPresented: $appState.isShowingFilterSheet) {
             GalleryFilterSheetView(appState: appState)

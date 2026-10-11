@@ -64,8 +64,8 @@ final class AdaptiveAppShellVerificationTests {
         verify(sections.contains(.camera))
         verify(sections.contains(.sessions))
         
-        verify(AppSection.photos.rawValue == "Снимки")
-        verify(AppSection.camera.rawValue == "Камера")
+        verify(AppSection.photos.rawValue == "Фото")
+        verify(AppSection.camera.rawValue == "Подключение")
         verify(AppSection.sessions.rawValue == "Сессии")
         
         verify(!AppSection.photos.iconName.isEmpty)

@@ -241,10 +241,10 @@ public struct CameraSectionView: View {
                             Image(systemName: "folder.fill")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.Colors.accent)
-                            Text("Целевая сессия:")
+                            Text(AppFeatures.sessionManagementEnabled ? "Целевая сессия:" : "Сохранение:")
                                 .font(AppTheme.Typography.caption)
                                 .foregroundStyle(AppTheme.Colors.textSecondary)
-                            Text(appState.currentSession?.name ?? "Основная сессия")
+                            Text(AppFeatures.sessionManagementEnabled ? (appState.currentSession?.name ?? "Основная сессия") : "На это устройство")
                                 .font(AppTheme.Typography.captionBold)
                                 .foregroundStyle(AppTheme.Colors.textPrimary)
                         }
@@ -274,7 +274,7 @@ public struct CameraSectionView: View {
                                         .font(AppTheme.Typography.caption)
                                         .foregroundStyle(AppTheme.Colors.accent)
                                 } else {
-                                    Text("Все файлы на карте уже импортированы в сессию")
+                                    Text("Все файлы на карте уже загружены на устройство")
                                         .font(AppTheme.Typography.caption)
                                         .foregroundStyle(AppTheme.Colors.statusGreen)
                                 }

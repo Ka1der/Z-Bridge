@@ -114,7 +114,7 @@ public struct MainScreenCompactBanner: Equatable, Sendable {
 
 /// Результирующее состояние главного экрана
 public struct MainScreenState: Equatable, Sendable {
-    /// Есть ли в текущей сессии сохраненные фотографии
+    /// Есть ли на устройстве сохраненные фотографии
     public let hasPhotos: Bool
     
     /// Скрыли ли активные фильтры все кадры сессии
@@ -170,7 +170,7 @@ public struct MainScreenPresentationModel: Sendable {
                 let empty = MainScreenEmptyState(
                     kind: .allFilteredOut,
                     title: "Снимки скрыты фильтрами",
-                    description: "В текущей сессии сохранено \(totalGalleryCount) кадр(ов), но активные фильтры скрыли все результаты.",
+                    description: "На устройстве сохранено \(totalGalleryCount) кадр(ов), но активные фильтры скрыли все результаты.",
                     systemImage: "line.3.horizontal.decrease.circle",
                     showsProgress: false,
                     primaryAction: MainScreenAction(
@@ -325,8 +325,8 @@ public struct MainScreenPresentationModel: Sendable {
         case .openingSession(let name):
             return MainScreenEmptyState(
                 kind: .connecting,
-                title: "Открытие сессии",
-                description: "\(name): установка PTP-сессии передачи...",
+                title: "Подключение камеры",
+                description: "\(name): установка соединения...",
                 systemImage: "cable.connector",
                 showsProgress: true,
                 primaryAction: nil
@@ -334,7 +334,7 @@ public struct MainScreenPresentationModel: Sendable {
         case .sessionOpened(let name):
             return MainScreenEmptyState(
                 kind: .connecting,
-                title: "Сессия открыта",
+                title: "Камера подключена",
                 description: "\(name): подготовка к чтению оглавления карты памяти...",
                 systemImage: "cable.connector",
                 showsProgress: true,
@@ -373,7 +373,7 @@ public struct MainScreenPresentationModel: Sendable {
                 return MainScreenEmptyState(
                     kind: .cardReady,
                     title: "Карта памяти готова к импорту",
-                    description: "На карте найдено \(catalogTotalCount) файлов, из них \(catalogUnimportedCount) доступно для импорта в текущую сессию.",
+                    description: "На карте найдено \(catalogTotalCount) файлов, из них \(catalogUnimportedCount) доступно для импорта на устройство.",
                     systemImage: "tray.and.arrow.down.fill",
                     showsProgress: false,
                     primaryAction: MainScreenAction(
@@ -393,7 +393,7 @@ public struct MainScreenPresentationModel: Sendable {
                 // На карте нет подходящих файлов или все уже импортированы
                 let desc = catalogTotalCount == 0
                     ? "На карте памяти камеры нет файлов. Сделайте снимок на камеру (live tethering)."
-                    : "Все файлы с карты памяти (\(catalogTotalCount)) уже импортированы в эту сессию. Сделайте новый снимок."
+                    : "Все файлы с карты памяти (\(catalogTotalCount)) уже импортированы на устройство. Сделайте новый снимок."
                 return MainScreenEmptyState(
                     kind: .cardEmptyOrNoMatchingFiles,
                     title: "На карте нет подходящих файлов",
@@ -537,7 +537,7 @@ public struct MainScreenPresentationModel: Sendable {
             return MainScreenCompactBanner(
                 style: .info,
                 systemImage: "cable.connector",
-                title: "\(name): открытие сессии...",
+                title: "\(name): подключение...",
                 message: nil,
                 showsProgress: true,
                 action: nil
@@ -546,7 +546,7 @@ public struct MainScreenPresentationModel: Sendable {
             return MainScreenCompactBanner(
                 style: .info,
                 systemImage: "cable.connector",
-                title: "\(name): сессия открыта",
+                title: "\(name): камера подключена",
                 message: nil,
                 showsProgress: true,
                 action: nil

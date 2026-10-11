@@ -792,6 +792,7 @@ public actor CatalogDatabase {
             attempts, error_message, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+            destination_path = excluded.destination_path,
             state = excluded.state,
             progress = excluded.progress,
             transferred_bytes = excluded.transferred_bytes,
@@ -1002,5 +1003,80 @@ public actor CatalogDatabase {
             databasePath: databaseURL.path
         )
     }
+    // MARK: - Unified library (legacy session identifiers are retained only as provenance)
+
+    public func prepareUnifiedLibrarySchema() throws {
+        guard Self.getUserVersion(db: db) < 4 else { return }
+        func strings(_ sql: String) throws -> [String] {
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw libraryError() }
+            defer { sqlite3_finalize(stmt) }
+            var result: [String] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let value = sqlite3_column_text(stmt, 0) { result.append(String(cString: value)) }
+            }
+            return result
+        }
+        guard let originalSQL = try strings("SELECT sql FROM sqlite_master WHERE type='table' AND name='assets'").first else { throw libraryError() }
+        let indexes = try strings("SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='assets' AND sql IS NOT NULL")
+        let sql = originalSQL
+            .replacingOccurrences(of: "CREATE TABLE assets", with: "CREATE TABLE assets_library_v4")
+            .replacingOccurrences(of: "REFERENCES sessions(id) ON DELETE CASCADE", with: "")
+        try libraryExecute("BEGIN IMMEDIATE")
+        do {
+            try libraryExecute(sql)
+            try libraryExecute("INSERT INTO assets_library_v4 SELECT * FROM assets")
+            try libraryExecute("DROP TABLE assets")
+            try libraryExecute("ALTER TABLE assets_library_v4 RENAME TO assets")
+            for index in indexes { try libraryExecute(index) }
+            try libraryExecute("PRAGMA user_version = 4")
+            try libraryExecute("COMMIT")
+        } catch {
+            try? libraryExecute("ROLLBACK")
+            throw error
+        }
+    }
+
+    private func libraryError() -> Error {
+        NSError(domain: "LibraryCatalog", code: Int(sqlite3_errcode(db)), userInfo: [NSLocalizedDescriptionKey: String(cString: sqlite3_errmsg(db))])
+    }
+
+    private func libraryExecute(_ sql: String) throws {
+        guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { throw libraryError() }
+    }
+
+    /// Atomic and repeatable path update after moving a legacy directory.
+    public func relocateLibraryPaths(from oldURL: URL, to newURL: URL) throws {
+        try libraryExecute("BEGIN IMMEDIATE")
+        do {
+            for (table, column) in [("assets", "file_path"), ("transfer_jobs", "destination_path"), ("sessions", "folder_path")] {
+                let sql = "UPDATE \(table) SET \(column) = ? || substr(\(column), length(?) + 1) WHERE \(column) = ? OR substr(\(column), 1, length(?) + 1) = ? || '/'"
+                var stmt: OpaquePointer?
+                guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw libraryError() }
+                let values = [newURL.path, oldURL.path, oldURL.path, oldURL.path, oldURL.path]
+                for (i, value) in values.enumerated() {
+                    sqlite3_bind_text(stmt, Int32(i + 1), (value as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+                }
+                let status = sqlite3_step(stmt)
+                sqlite3_finalize(stmt)
+                guard status == SQLITE_DONE else { throw libraryError() }
+            }
+            try libraryExecute("COMMIT")
+        } catch { try? libraryExecute("ROLLBACK"); throw error }
+    }
+
+    public func getAllJobs() -> [TransferJob] {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "SELECT * FROM transfer_jobs ORDER BY created_at DESC", -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        var result: [TransferJob] = []
+        while sqlite3_step(stmt) == SQLITE_ROW { if let job = parseJob(from: stmt) { result.append(job) } }
+        return result
+    }
+
+    public func getLibraryImportedSourceFileIDs() -> Set<String> {
+        Set(getAllJobs().filter { if case .completed = $0.state { return FileManager.default.fileExists(atPath: $0.destinationURL.path) }; return false }.map(\.sourceFileID))
+    }
+
 }
 

@@ -105,7 +105,7 @@ public final class DiskCatalogReconciler: Sendable {
             
             let ext = fileURL.pathExtension.lowercased()
             let format = MediaFormat(fileExtension: ext)
-            guard format.isRAW || format.isJPEG else { continue }
+            guard format.isRAW || format.isJPEG || format.isHEIF else { continue }
             
             guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
                   let size = attrs[.size] as? Int64, size > 0 else {

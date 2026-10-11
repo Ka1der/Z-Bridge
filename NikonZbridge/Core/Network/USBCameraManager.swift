@@ -102,7 +102,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     }
     
     public func updateTargetSessionName() async {
-        let name = await coordinator.activeSession.name
+        let name = await coordinator.usesUnifiedLibrary ? "Загрузки" : coordinator.activeSession.name
         self.targetSessionName = name
     }
     
@@ -541,7 +541,9 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     }
     
     /// Синхронизирует дедупликацию и статусы файлов оглавления с активной сессией
-    public func syncWithSession(_ session: CaptureSession) async {
+    public func syncWithSession(_ session: CaptureSession) async { await syncCatalogWithStorage() }
+
+    public func syncCatalogWithStorage() async {
         let imported = await coordinator.getImportedSourceFileIDs()
         await transferQueue.resetImportedIDs(Array(imported))
         
@@ -619,8 +621,7 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
             ingestDiscoveredCatalogFiles(mediaFiles, camera: camera)
         }
         
-        let currentActiveSession = await coordinator.activeSession
-        await syncWithSession(currentActiveSession)
+        await syncCatalogWithStorage()
         
         if isCatalogReady {
             let name = camera.name ?? "Nikon Z"
@@ -921,8 +922,7 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                         duration: duration
                     )
                     // Учитываем сессию: файл помечается импортированным в очереди и каталоге ТОЛЬКО для активной сессии
-                    let activeSessionID = await coord.activeSession.id
-                    let isForActiveSession = (asset.sessionID == activeSessionID)
+                    let isForActiveSession = await coord.isVisibleInLibrary(asset)
                     
                     let nextItem = await transferQueue.markCompleted(compositeID: targetCompositeID, markAsImported: isForActiveSession)
                     if isForActiveSession {

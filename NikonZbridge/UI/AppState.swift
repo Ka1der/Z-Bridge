@@ -30,7 +30,15 @@ public enum ImportFormatPreference: String, CaseIterable, Identifiable, Sendable
 }
 
 /// 5 профессиональных групп настроек приложения
+public enum AppFeatures {
+    // Управление съёмками сохранено в коде, но недоступно в режиме передачи файлов.
+    public static let sessionManagementEnabled = false
+    // Просмотр и галерея «На устройстве» сохранены в коде, но скрыты; активен только импорт с камеры.
+    public static let onDeviceGalleryEnabled = false
+}
+
 public enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
+    public static var visibleCases: [Self] { allCases.filter { AppFeatures.sessionManagementEnabled || $0 != .sessions } }
     case connection = "Подключение"
     case importTab = "Импорт"
     case sessions = "Сессии и хранение"
@@ -149,14 +157,18 @@ public enum PickFilterOption: String, CaseIterable, Identifiable, Sendable {
 
 /// 3 основных раздела адаптивного каркаса приложения (Liquid Glass)
 public enum PhotoSource: String, CaseIterable, Identifiable {
-    case session = "В сессии"
+    public static var visibleCases: [Self] {
+        allCases.filter { AppFeatures.onDeviceGalleryEnabled || $0 != .session }
+    }
+    case session = "На устройстве"
     case camera = "На камере"
     public var id: String { rawValue }
 }
 
 public enum AppSection: String, CaseIterable, Identifiable, Sendable {
-    case photos = "Снимки"
-    case camera = "Камера"
+    public static var visibleCases: [Self] { allCases.filter { AppFeatures.sessionManagementEnabled || $0 != .sessions } }
+    case photos = "Фото"
+    case camera = "Подключение"
     case sessions = "Сессии"
     
     public var id: String { rawValue }
@@ -182,11 +194,15 @@ public enum AppSection: String, CaseIterable, Identifiable, Sendable {
 @MainActor
 public final class AppState: ObservableObject {
     // Навигация каркаса и централизованные модальные окна
-    @Published public var selectedSection: AppSection = .photos
+    @Published public var selectedSection: AppSection = .photos {
+        didSet { if !AppFeatures.sessionManagementEnabled && selectedSection == .sessions { selectedSection = .photos } }
+    }
     @Published public var isSidebarCollapsed: Bool = false
     @Published public var isSettingsPresented: Bool = false
     @Published public var isShowingConnectionSheet: Bool = false
-    @Published public var isShowingSessionSheet: Bool = false
+    @Published public var isShowingSessionSheet: Bool = false {
+        didSet { if !AppFeatures.sessionManagementEnabled && isShowingSessionSheet { isShowingSessionSheet = false } }
+    }
     @Published public var isShowingFilterSheet: Bool = false
     
     public func toggleSidebar() {
@@ -204,20 +220,26 @@ public final class AppState: ObservableObject {
     @Published public var usbConnected: Bool = false
     @Published public var usbCameraName: String?
     @Published public var usbConnectionState: USBCameraConnectionState = .disconnected
-    @Published public var photoSource: PhotoSource = .session
+    @Published public var photoSource: PhotoSource = AppFeatures.onDeviceGalleryEnabled ? .session : .camera {
+        didSet {
+            if !AppFeatures.onDeviceGalleryEnabled && photoSource != .camera {
+                photoSource = .camera
+            }
+        }
+    }
     @Published public var selectedCameraFileIDs: Set<String> = []
     @Published public var cameraFormatFilter: CameraFileFormatFilter = .all
 
     // Совместимость существующих действий: открываем карту в основном разделе.
     public var isUSBBrowserPresented: Bool {
-        get { selectedSection == .photos && photoSource == .camera }
+        get { selectedSection == .photos && (photoSource == .camera || !AppFeatures.onDeviceGalleryEnabled) }
         set {
             if newValue {
                 exitViewer()
                 photoSource = .camera
                 selectedSection = .photos
             } else {
-                photoSource = .session
+                photoSource = AppFeatures.onDeviceGalleryEnabled ? .session : .camera
             }
         }
     }
@@ -248,7 +270,7 @@ public final class AppState: ObservableObject {
     @Published public var wizardSelectedTransport: NikonConnectionTransport = .directUSB
     
     public var currentSessionDirectory: URL {
-        currentSession?.folderURL ?? StorageManager.shared.baseStorageURL
+        AppFeatures.sessionManagementEnabled ? (currentSession?.folderURL ?? StorageManager.shared.baseStorageURL) : coordinator.libraryDirectory
     }
     
     // Разделение прогресса: сохранённые оригиналы vs текущая попытка
@@ -974,18 +996,22 @@ public final class AppState: ObservableObject {
         
         // Регистрация транспортов в координаторе
         Task {
-            await coordinator.registerTransport(usbManager)
-            let ftpAdapter = FTPCameraTransportAdapter(server: server)
-            await coordinator.registerTransport(ftpAdapter)
             
             // Не показываем предыдущую съёмку, пока выбирается стартовая сессия.
             do {
-                try await coordinator.bootstrapForLaunch(resumeLastSession: resumeLastSessionOnLaunch)
+                if AppFeatures.sessionManagementEnabled {
+                    try await coordinator.bootstrapForLaunch(resumeLastSession: resumeLastSessionOnLaunch)
+                } else {
+                    try await coordinator.bootstrapLibrary()
+                }
             } catch {
                 diagnosticLogger.log(level: .error, subsystem: "Sessions", message: error.localizedDescription)
-                serverState = .failed("Не удалось подготовить сессию: \(error.localizedDescription)")
+                serverState = .failed("Не удалось подготовить хранилище: \(error.localizedDescription)")
                 return
             }
+            await coordinator.registerTransport(usbManager)
+            let ftpAdapter = FTPCameraTransportAdapter(server: server)
+            await coordinator.registerTransport(ftpAdapter)
             await configureCoordinatorCallbacks()
             await configureServerCallbacks()
             
@@ -1027,14 +1053,14 @@ public final class AppState: ObservableObject {
         let all = await coordinator.allSessions
         let assets = await coordinator.assets
         let groups = await coordinator.captureGroups
-        let relevantJobs = await coordinator.jobs.values.filter { !$0.state.isTerminal || $0.sessionID == active.id }
+        let relevantJobs = await coordinator.jobs.values.filter { !AppFeatures.sessionManagementEnabled || !$0.state.isTerminal || $0.sessionID == active.id }
         let totalBytes = assets.reduce(0, { $0 + $1.fileSize })
         
-        self.currentSession = active
-        self.availableSessions = all
-        self.sessionAuthor = active.author ?? ""
-        self.sessionCopyright = active.copyright ?? ""
-        self.sessionComment = active.comment ?? ""
+        self.currentSession = AppFeatures.sessionManagementEnabled ? active : nil
+        self.availableSessions = AppFeatures.sessionManagementEnabled ? all : []
+        self.sessionAuthor = AppFeatures.sessionManagementEnabled ? (active.author ?? "") : ""
+        self.sessionCopyright = AppFeatures.sessionManagementEnabled ? (active.copyright ?? "") : ""
+        self.sessionComment = AppFeatures.sessionManagementEnabled ? (active.comment ?? "") : ""
         self.receivedFiles = assets.map { IngestedFile(from: $0) }
         self.captureGroups = groups
         self.activeJobs = Array(relevantJobs)
@@ -1137,14 +1163,15 @@ public final class AppState: ObservableObject {
     // MARK: - Действия с сессиями
     
     public func reloadSessions() async {
+        if !AppFeatures.sessionManagementEnabled { await syncStateFromCoordinator(); return }
         let all = await coordinator.allSessions
         let active = await coordinator.activeSession
         await MainActor.run {
             self.availableSessions = all
             self.currentSession = active
-            self.sessionAuthor = active.author ?? ""
-            self.sessionCopyright = active.copyright ?? ""
-            self.sessionComment = active.comment ?? ""
+            self.sessionAuthor = AppFeatures.sessionManagementEnabled ? (active.author ?? "") : ""
+            self.sessionCopyright = AppFeatures.sessionManagementEnabled ? (active.copyright ?? "") : ""
+            self.sessionComment = AppFeatures.sessionManagementEnabled ? (active.comment ?? "") : ""
         }
     }
     
@@ -1153,6 +1180,7 @@ public final class AppState: ObservableObject {
     }
     
     public func startNewSession(named name: String? = nil) {
+        guard AppFeatures.sessionManagementEnabled else { return }
         Task {
             do {
                 let session = try await coordinator.startNewSession(named: name)
@@ -1178,6 +1206,7 @@ public final class AppState: ObservableObject {
     }
     
     public func switchSession(to sessionID: UUID) {
+        guard AppFeatures.sessionManagementEnabled else { return }
         Task {
             if let switched = await coordinator.switchActiveSession(to: sessionID) {
                 let all = await coordinator.allSessions
@@ -1202,11 +1231,13 @@ public final class AppState: ObservableObject {
     }
     
     public func saveSessionMetadata(author: String?, copyright: String?, comment: String?) {
+        guard AppFeatures.sessionManagementEnabled else { return }
         guard let sessionID = currentSession?.id else { return }
         saveSessionMetadata(for: sessionID, author: author, copyright: copyright, comment: comment)
     }
     
     public func saveSessionMetadata(for sessionID: UUID, author: String?, copyright: String?, comment: String?) {
+        guard AppFeatures.sessionManagementEnabled else { return }
         if currentSession?.id == sessionID {
             self.sessionAuthor = author ?? ""
             self.sessionCopyright = copyright ?? ""
@@ -1230,6 +1261,7 @@ public final class AppState: ObservableObject {
     }
     
     public func switchAndExportSession(_ session: CaptureSession) {
+        guard AppFeatures.sessionManagementEnabled else { return }
         if currentSession?.id == session.id {
             presentExportForSession()
         } else {
@@ -1259,6 +1291,7 @@ public final class AppState: ObservableObject {
     }
     
     public func renameSession(id: UUID, newName: String) {
+        guard AppFeatures.sessionManagementEnabled else { return }
         Task {
             do {
                 let renamed = try await coordinator.renameSession(id: id, newName: newName)
@@ -1298,6 +1331,7 @@ public final class AppState: ObservableObject {
     }
     
     public func closeSession(id: UUID) {
+        guard AppFeatures.sessionManagementEnabled else { return }
         Task {
             await coordinator.closeSession(id: id)
             let all = await coordinator.allSessions
@@ -1311,6 +1345,7 @@ public final class AppState: ObservableObject {
     }
     
     public func deleteSession(id: UUID, completion: @escaping (String?) -> Void) {
+        guard AppFeatures.sessionManagementEnabled else { completion("Управление съёмками отключено"); return }
         Task {
             do {
                 try await coordinator.deleteSession(id: id)

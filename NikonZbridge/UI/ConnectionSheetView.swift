@@ -44,7 +44,7 @@ public struct ConnectionSheetView: View {
     
     public init(appState: AppState, initialTab: SettingsTab = .connection) {
         self.appState = appState
-        self._selectedTab = State(initialValue: initialTab)
+        self._selectedTab = State(initialValue: SettingsTab.visibleCases.contains(initialTab) ? initialTab : .connection)
     }
     
     private func copyToClipboard(_ text: String, notice: String) {
@@ -102,7 +102,7 @@ public struct ConnectionSheetView: View {
                     
                     // Вертикальный список 5 групп настроек (без горизонтальной обрезки)
                     VStack(spacing: AppTheme.Spacing.sm) {
-                        ForEach(SettingsTab.allCases) { tab in
+                        ForEach(SettingsTab.visibleCases) { tab in
                             Button {
                                 navigationPath.append(tab)
                             } label: {
@@ -146,7 +146,7 @@ public struct ConnectionSheetView: View {
             HStack(spacing: 0) {
                 // Левая боковая панель со списком разделов
                 VStack(spacing: AppTheme.Spacing.xs) {
-                    ForEach(SettingsTab.allCases) { tab in
+                    ForEach(SettingsTab.visibleCases) { tab in
                         let isSelected = selectedTab == tab
                         Button {
                             selectedTab = tab
@@ -302,7 +302,7 @@ public struct ConnectionSheetView: View {
             case .importTab:
                 importGroupContent
             case .sessions:
-                sessionsGroupContent
+                if AppFeatures.sessionManagementEnabled { sessionsGroupContent }
             case .clientScreen:
                 clientScreenGroupContent
             case .diagnostics:
@@ -667,7 +667,7 @@ public struct ConnectionSheetView: View {
                     .font(AppTheme.Typography.subheadlineBold)
                     .tint(AppTheme.Colors.statusGreen)
                     
-                    Text("Автоматически загружать новые снимки в активную сессию сразу при спуске затвора камеры.")
+                    Text("Автоматически загружать новые снимки на устройство сразу при спуске затвора камеры.")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(AppTheme.Colors.textSecondary)
                     
@@ -714,12 +714,12 @@ public struct ConnectionSheetView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "shield.lefthalf.filled")
                             .foregroundStyle(AppTheme.Colors.statusGreen)
-                        Text("Защита от дубликатов с изоляцией по сессиям")
+                        Text("Защита от повторной загрузки")
                             .font(AppTheme.Typography.subheadlineBold)
                             .foregroundStyle(AppTheme.Colors.textPrimary)
                     }
                     
-                    Text("Файлы отслеживаются по уникальному идентификатору камеры в пределах текущей сессии. Повторный импорт исключает дублирование, а открытие новой сессии позволяет скачивать кадры заново.")
+                    Text("Уже загруженные файлы исключаются из повторного импорта.")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(AppTheme.Colors.textSecondary)
                 }
@@ -1086,12 +1086,12 @@ public struct ConnectionSheetView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Базовый каталог сессий на диске:")
+                        Text("Каталог файлов приложения:")
                             .font(AppTheme.Typography.caption)
                             .foregroundStyle(AppTheme.Colors.textSecondary)
                         
                         HStack {
-                            Text(StorageManager.shared.baseStorageURL.path)
+                            Text(appState.currentSessionDirectory.path)
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(AppTheme.Colors.textPrimary)
                                 .lineLimit(2)
@@ -1099,7 +1099,7 @@ public struct ConnectionSheetView: View {
                             Spacer()
                             
                             Button {
-                                copyToClipboard(StorageManager.shared.baseStorageURL.path, notice: "Путь скопирован!")
+                                copyToClipboard(appState.currentSessionDirectory.path, notice: "Путь скопирован!")
                             } label: {
                                 Image(systemName: "doc.on.doc")
                                     .font(.caption)
@@ -1116,7 +1116,7 @@ public struct ConnectionSheetView: View {
                     
                     if let current = appState.currentSession {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Каталог активной сессии:")
+                            Text("Папка загрузки:")
                                 .font(AppTheme.Typography.caption)
                                 .foregroundStyle(AppTheme.Colors.textSecondary)
                             
@@ -1129,7 +1129,7 @@ public struct ConnectionSheetView: View {
                                 Spacer()
                                 
                                 Button {
-                                    copyToClipboard(current.folderURL.path, notice: "Путь сессии скопирован!")
+                                    copyToClipboard(current.folderURL.path, notice: "Путь скопирован!")
                                 } label: {
                                     Image(systemName: "doc.on.doc")
                                         .font(.caption)
@@ -1145,7 +1145,7 @@ public struct ConnectionSheetView: View {
                         }
                     }
                     
-                    Text("Оригиналы никогда не перезаписываются и сохраняются в неизменном виде в каталогах сессий.")
+                    Text("Оригиналы никогда не перезаписываются и сохраняются в неизменном виде в хранилище приложения.")
                         .font(AppTheme.Typography.caption2)
                         .foregroundStyle(AppTheme.Colors.textTertiary)
                 }
@@ -1231,7 +1231,7 @@ public struct ConnectionSheetView: View {
                         }
                         
                         HStack {
-                            Text("Всего съемок в базе данных:")
+                            Text("Папок в хранилище:")
                                 .font(AppTheme.Typography.caption)
                                 .foregroundStyle(AppTheme.Colors.textSecondary)
                             Spacer()
@@ -1278,7 +1278,7 @@ public struct ConnectionSheetView: View {
                             .foregroundStyle(AppTheme.Colors.statusOrange)
                     }
                     
-                    Text("Проверяет соответствие файлов в папке активной сессии записям в базе данных SQLite. Восстанавливает неотслеженные кадры и отмечает удаленные.")
+                    Text("Проверяет соответствие файлов в папке загрузки записям в базе данных SQLite. Восстанавливает неотслеженные кадры и отмечает удаленные.")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(AppTheme.Colors.textSecondary)
                     

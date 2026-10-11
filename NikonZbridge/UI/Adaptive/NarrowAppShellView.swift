@@ -22,7 +22,7 @@ public struct NarrowAppShellView: View {
                 case .camera:
                     CameraSectionView(appState: appState)
                 case .sessions:
-                    SessionsSectionView(appState: appState)
+                    if AppFeatures.sessionManagementEnabled { SessionsSectionView(appState: appState) } else { NikonTetherRootView(appState: appState) }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -71,7 +71,7 @@ public struct NarrowAppShellView: View {
     
     private var bottomFloatingDock: some View {
         HStack(spacing: AppTheme.Spacing.xs) {
-            ForEach(AppSection.allCases) { section in
+            ForEach(AppSection.visibleCases) { section in
                 tabButton(for: section)
             }
         }

@@ -62,6 +62,100 @@ public actor TransferCoordinator: CameraTransportDelegate {
         self.allSessions = [initialSession]
     }
     
+    // MARK: - Unified Downloads library
+
+    public private(set) var usesUnifiedLibrary = false
+    public nonisolated var libraryDirectory: URL {
+        storageManager.baseStorageURL.deletingLastPathComponent().appendingPathComponent("Downloads", isDirectory: true)
+    }
+    // Compatibility value for existing asset/job structs; no session row or lifecycle is created.
+    public static let libraryProvenanceID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    private var libraryLocation: CaptureSession {
+        CaptureSession(id: Self.libraryProvenanceID, name: "Загрузки", folderURL: libraryDirectory)
+    }
+
+    public var downloadDirectory: URL { usesUnifiedLibrary ? libraryDirectory : activeSession.folderURL }
+
+    public func isVisibleInLibrary(_ asset: MediaAsset) -> Bool {
+        usesUnifiedLibrary || asset.sessionID == activeSession.id
+    }
+
+    /// Bootstraps files and jobs globally without restoring/creating an active session.
+    public func bootstrapLibrary() async throws {
+        usesUnifiedLibrary = true
+        let fm = FileManager.default
+        try fm.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
+        try await database.prepareUnifiedLibrarySchema()
+        _ = await database.markIncompleteJobsInterrupted(reason: "Передача прервана перезапуском приложения")
+        try await migrateLegacyDirectories()
+        _ = reconciler.cleanAllStagingFiles(in: libraryDirectory)
+        await reloadLibraryCatalog()
+        jobs = Dictionary(uniqueKeysWithValues: await database.getAllJobs().map { ($0.id, $0) })
+        allSessions = []
+    }
+
+    /// Durable per-directory journal allows recovery between an atomic move and the SQLite update.
+    private func migrateLegacyDirectories() async throws {
+        let fm = FileManager.default
+        let legacyRoot = storageManager.baseStorageURL
+        let archive = libraryDirectory.appendingPathComponent("Imported", isDirectory: true)
+        let journalURL = libraryDirectory.appendingPathComponent(".legacy-migration.json")
+        var journal: [String: String] = [:]
+        if fm.fileExists(atPath: journalURL.path) {
+            journal = try JSONDecoder().decode([String: String].self, from: Data(contentsOf: journalURL))
+        }
+        let folders = try fm.contentsOfDirectory(at: legacyRoot, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: [.skipsHiddenFiles])
+        for folder in folders {
+            let values = try folder.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
+            if journal[folder.lastPathComponent] == nil { journal[folder.lastPathComponent] = UUID().uuidString }
+        }
+        try JSONEncoder().encode(journal).write(to: journalURL, options: .atomic)
+        if !journal.isEmpty { try fm.createDirectory(at: archive, withIntermediateDirectories: true) }
+        for (name, identifier) in journal {
+            guard name == (name as NSString).lastPathComponent, name != ".", name != "..", UUID(uuidString: identifier) != nil else {
+                throw TransferError.generic("Некорректный журнал переноса файлов")
+            }
+            let source = legacyRoot.appendingPathComponent(name, isDirectory: true)
+            let target = archive.appendingPathComponent(identifier, isDirectory: true)
+            if fm.fileExists(atPath: source.path) {
+                guard !fm.fileExists(atPath: target.path) else { throw TransferError.generic("Конфликт каталогов при переносе: \(name)") }
+                try fm.moveItem(at: source, to: target)
+            }
+            if fm.fileExists(atPath: target.path) { try await database.relocateLibraryPaths(from: source, to: target) }
+        }
+    }
+
+    private func libraryFolders() -> Set<URL> {
+        var folders: Set<URL> = [libraryDirectory]
+        if let enumerator = FileManager.default.enumerator(at: libraryDirectory, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: [.skipsHiddenFiles]) {
+            for case let url as URL in enumerator {
+                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                if values?.isSymbolicLink == true { enumerator.skipDescendants(); continue }
+                if values?.isDirectory == true { folders.insert(url) }
+            }
+        }
+        return folders
+    }
+
+    private func reloadLibraryCatalog() async {
+        let known = await database.getAllAssets()
+        let knownPaths = Set(known.map { $0.fileURL.standardizedFileURL.path })
+        let folders = libraryFolders()
+        for folder in folders {
+            // Preserve legacy grouping provenance where possible; imported subdirectories never merge names.
+            let provenance = known.first(where: { $0.fileURL.deletingLastPathComponent() == folder })?.sessionID
+                ?? UUID(uuidString: folder.lastPathComponent) ?? Self.libraryProvenanceID
+            let location = CaptureSession(id: provenance, name: "Загрузки", folderURL: folder)
+            for asset in reconciler.discoverAssetsInSessionFolder(session: location, knownFilePaths: knownPaths) {
+                await database.upsertAsset(asset)
+            }
+        }
+        for asset in known { await database.markAssetMissing(id: asset.id, isMissing: !FileManager.default.fileExists(atPath: asset.fileURL.path)) }
+        assets = await database.getAllAssets()
+        rebuildCaptureGroups()
+    }
+
     // MARK: - Инициализация, восстановление и сверка с диском (Этапы 2 и 3)
     
     /// Восстановление состояния каталога, сессий и устранение остаточных staging-файлов
@@ -167,6 +261,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
     public func registerTransport(_ transport: CameraTransport) {
         self.transports[transport.transportType] = transport
         transport.delegate = self
+        guard !usesUnifiedLibrary else { return }
         let currentSession = self.activeSession
         Task {
             await transport.didChangeActiveSession(currentSession)
@@ -177,6 +272,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
     
     @discardableResult
     public func startNewSession(named sessionName: String? = nil) async throws -> CaptureSession {
+        guard !usesUnifiedLibrary else { throw TransferError.generic("Сессии отключены") }
         // Синхронизируем известные сессии в storageManager перед разрешением имени
         let currentDBSessions = await database.getAllSessions()
         await storageManager.syncSessions(from: currentDBSessions, activeSessionID: activeSession.id)
@@ -202,6 +298,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
     
     @discardableResult
     public func switchActiveSession(to sessionID: UUID) async -> CaptureSession? {
+        guard !usesUnifiedLibrary else { return nil }
         if let sessionInDb = await database.getSession(by: sessionID) {
             await storageManager.registerSession(sessionInDb)
         }
@@ -232,6 +329,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
     }
     
     public func renameSession(id: UUID, newName: String) async throws -> CaptureSession {
+        guard !usesUnifiedLibrary else { throw TransferError.generic("Сессии отключены") }
         // 1. Проверяем, что нет активных (нетерминальных) заданий переноса для этой сессии
         let activeJobCount = jobs.values.filter { $0.sessionID == id && !$0.state.isTerminal }.count
         guard activeJobCount == 0 else {
@@ -298,6 +396,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
     }
     
     public func closeSession(id: UUID) async {
+        guard !usesUnifiedLibrary else { return }
         await database.setSessionClosed(id: id, isClosed: true)
         self.allSessions = await database.getAllSessions()
         if activeSession.id == id {
@@ -312,6 +411,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
         copyright: String?,
         comment: String?
     ) async {
+        guard !usesUnifiedLibrary else { return }
         await database.updateSessionMetadata(id: id, author: author, copyright: copyright, comment: comment)
         self.allSessions = await database.getAllSessions()
         if activeSession.id == id {
@@ -331,6 +431,11 @@ public actor TransferCoordinator: CameraTransportDelegate {
     }
     
     public func reconcileDiskCatalog() async -> (missingCount: Int, recoveredCount: Int) {
+        if usesUnifiedLibrary {
+            let previousCount = assets.count
+            await reloadLibraryCatalog()
+            return (assets.filter(\.isMissing).count, max(0, assets.count - previousCount))
+        }
         let sessionAssets = await database.getAssets(for: activeSession.id)
         let missingIDs = reconciler.reconcileAssetsWithDisk(knownAssets: sessionAssets)
         for missingID in missingIDs {
@@ -348,6 +453,11 @@ public actor TransferCoordinator: CameraTransportDelegate {
     
     /// Очистить файлы активной сессии (с защитой активных заданий)
     public func clearActiveSession() async throws {
+        if usesUnifiedLibrary {
+            guard !jobs.values.contains(where: { !$0.state.isTerminal }) else { throw TransferError.generic("Дождитесь завершения передачи") }
+            try await batchDeleteGroups(groupIDs: captureGroups.map(\.id))
+            return
+        }
         let activeJobCount = jobs.values.filter { $0.sessionID == activeSession.id && !$0.state.isTerminal }.count
         guard activeJobCount == 0 else {
             throw TransferError.generic("Невозможно очистить файлы сессии: в данный момент выполняется \(activeJobCount) активных переносов")
@@ -369,6 +479,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
     
     /// Полное удаление сессии с диска и из базы данных (с защитой активных заданий)
     public func deleteSession(id: UUID) async throws {
+        guard !usesUnifiedLibrary else { throw TransferError.generic("Сессии отключены") }
         let activeJobCount = jobs.values.filter { $0.sessionID == id && !$0.state.isTerminal }.count
         guard activeJobCount == 0 else {
             throw TransferError.generic("Невозможно удалить сессию: в данный момент выполняется \(activeJobCount) активных переносов")
@@ -442,7 +553,13 @@ public actor TransferCoordinator: CameraTransportDelegate {
         
         for g in groupsToDelete {
             for a in g.allAssets {
-                try? FileManager.default.removeItem(at: a.fileURL)
+                if usesUnifiedLibrary {
+                    let path = a.fileURL.resolvingSymlinksInPath().path
+                    guard path.hasPrefix(libraryDirectory.resolvingSymlinksInPath().path + "/") else {
+                        throw TransferError.generic("Файл вне хранилища загрузок")
+                    }
+                }
+                if FileManager.default.fileExists(atPath: a.fileURL.path) { try FileManager.default.removeItem(at: a.fileURL) }
                 await database.deleteAsset(id: a.id)
                 assets.removeAll(where: { $0.id == a.id })
             }
@@ -454,6 +571,10 @@ public actor TransferCoordinator: CameraTransportDelegate {
     
     /// Проверка, был ли ассет уже импортирован в текущую сессию
     public func isAssetAlreadyImported(sourceFileID: String, filename: String, fileSize: Int64) async -> Bool {
+        if usesUnifiedLibrary {
+            let ids = await database.getLibraryImportedSourceFileIDs()
+            return ids.contains(sourceFileID)
+        }
         let importedIDs = await database.getImportedSourceFileIDs(for: activeSession.id)
         if importedIDs.contains(sourceFileID) {
             return true
@@ -463,7 +584,8 @@ public actor TransferCoordinator: CameraTransportDelegate {
     
     /// Получение множества идентификаторов уже импортированных файлов активной сессии
     public func getImportedSourceFileIDs() async -> Set<String> {
-        await database.getImportedSourceFileIDs(for: activeSession.id)
+        if usesUnifiedLibrary { return await database.getLibraryImportedSourceFileIDs() }
+        return await database.getImportedSourceFileIDs(for: activeSession.id)
     }
     
     /// Получение задания переноса из оперативной памяти или из базы данных SQLite
@@ -505,7 +627,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
         sourceFileID: String? = nil,
         expectedSize: Int64? = nil
     ) async throws -> TransferJob {
-        let session = self.activeSession
+        let session = usesUnifiedLibrary ? libraryLocation : self.activeSession
         
         // 1. Контроль свободного места на диске перед началом
         try diskGuard.validateSpaceBeforeTransfer(at: session.folderURL, expectedBytes: expectedSize ?? 0)
@@ -604,7 +726,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
         }
         
         // 3. Разрешение бесконфликтного целевого имени перед атомарным перемещением
-        var targetSessionOpt = allSessions.first(where: { $0.id == job.sessionID })
+        var targetSessionOpt = usesUnifiedLibrary ? libraryLocation : allSessions.first(where: { $0.id == job.sessionID })
         if targetSessionOpt == nil {
             targetSessionOpt = await database.getSession(by: job.sessionID)
         }
@@ -668,7 +790,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
         // 6. Добавление в CaptureGroup с поддержкой запаздывающего прихода второй части пары
         // (Оперативные коллекции обновляются только если завершенный файл принадлежит текущей активной сессии)
         let group: CaptureGroup
-        if job.sessionID == activeSession.id {
+        if usesUnifiedLibrary || job.sessionID == activeSession.id {
             self.assets.insert(asset, at: 0)
             if let existingIndex = captureGroups.firstIndex(where: { $0.canAccept(asset: asset) }) {
                 var updatedGroup = captureGroups[existingIndex]
@@ -691,7 +813,7 @@ public actor TransferCoordinator: CameraTransportDelegate {
         await database.upsertJob(completedJob)
         
         onJobUpdated?(completedJob)
-        if job.sessionID == activeSession.id {
+        if usesUnifiedLibrary || job.sessionID == activeSession.id {
             onCaptureGroupUpdated?(group)
             onAssetIngested?(asset, group)
         }
@@ -768,6 +890,10 @@ public actor TransferCoordinator: CameraTransportDelegate {
         }
         
         var updatedJob = job
+        if usesUnifiedLibrary {
+            updatedJob.stagingURL = try await storageManager.createStagingURL(for: job.filename, in: libraryLocation, jobID: job.id)
+            updatedJob.destinationURL = try await storageManager.resolveUniqueDestinationURL(for: job.filename, in: libraryLocation)
+        }
         updatedJob.attempts += 1
         updatedJob.state = .pending
         updatedJob.error = nil
@@ -814,8 +940,8 @@ public actor TransferCoordinator: CameraTransportDelegate {
         return (try? await createTransferJob(source: source, filename: filename, expectedSize: expectedSize)) ?? TransferJob(
             source: source,
             sourceFileID: filename,
-            destinationURL: activeSession.folderURL.appendingPathComponent(filename),
-            sessionID: activeSession.id
+            destinationURL: downloadDirectory.appendingPathComponent(filename),
+            sessionID: usesUnifiedLibrary ? Self.libraryProvenanceID : activeSession.id
         )
     }
     
