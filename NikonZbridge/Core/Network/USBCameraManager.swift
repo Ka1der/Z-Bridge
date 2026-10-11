@@ -619,9 +619,23 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         let mediaFiles = (camera.mediaFiles as? [ICCameraFile]) ?? (camera.contents as? [ICCameraFile]) ?? []
         if !mediaFiles.isEmpty {
             ingestDiscoveredCatalogFiles(mediaFiles, camera: camera)
+            
+            // Удаляем файлы, которых больше нет на носителе (например, удалены фотографом на камере)
+            let currentMediaSet = Set(mediaFiles)
+            catalogFiles.removeAll { item in
+                if let camFile = item.cameraFile {
+                    return !currentMediaSet.contains(camFile)
+                }
+                return false
+            }
         }
         
         await syncCatalogWithStorage()
+        
+        // Дозапрашиваем миниатюры для файлов, у которых они еще не получены
+        for file in catalogFiles where file.thumbnail == nil {
+            requestThumbnail(for: file)
+        }
         
         if isCatalogReady {
             let name = camera.name ?? "Nikon Z"

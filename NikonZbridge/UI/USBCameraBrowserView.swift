@@ -33,6 +33,7 @@ public struct USBCameraBrowserView: View {
     }
     @State private var isSettingsExpanded: Bool = false
     @State private var isImportActionInProgress: Bool = false
+    @State private var isRefreshing: Bool = false
     
     public init(
         usbManager: USBCameraManager,
@@ -173,11 +174,6 @@ public struct USBCameraBrowserView: View {
                         galleryFilmstripView
                     }
                 }
-                
-                // Закрепленная нижняя панель при наличии выделенных файлов
-                if selectedStats.count > 0 {
-                    pinnedSelectionBar
-                }
             }
             .task {
                 await usbManager.updateTargetSessionName()
@@ -193,11 +189,26 @@ public struct USBCameraBrowserView: View {
                 Text("Импорт с камеры").font(.headline)
                 Spacer()
                 Button {
-                    Task { await usbManager.refreshCatalog() }
+                    guard !isRefreshing else { return }
+                    isRefreshing = true
+                    Task {
+                        await usbManager.refreshCatalog()
+                        await usbManager.updateTargetSessionName()
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        isRefreshing = false
+                    }
                 } label: {
-                    Label("Обновить", systemImage: "arrow.clockwise")
+                    if isRefreshing {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.mini)
+                            Text("Обновление...")
+                        }
+                    } else {
+                        Label("Обновить", systemImage: "arrow.clockwise")
+                    }
                 }
-                .disabled(!usbManager.isConnected || !usbManager.isCatalogReady)
+                .disabled(!usbManager.isConnected || !usbManager.isCatalogReady || isRefreshing)
             }
             // Камера и статус подключения
             HStack {
@@ -248,7 +259,7 @@ public struct USBCameraBrowserView: View {
                     HStack(spacing: 6) {
                         ProgressView()
                             .controlSize(.mini)
-                        Text("Вычитывание оглавления карты памяти...")
+                        Text("Чтение карты памяти...")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -301,85 +312,8 @@ public struct USBCameraBrowserView: View {
                 }
             }
             
-            // Основная кнопка импорта
-            Button {
-                guard !isImportActionInProgress else { return }
-                isImportActionInProgress = true
-                Task {
-                    defer { isImportActionInProgress = false }
-                    if stats.failedCount > 0 && stats.unimportedCount == 0 && stats.inProgressCount == 0 {
-                        await usbManager.retryAllFailed()
-                    } else if formatFilter != .all {
-                        await usbManager.importFilteredUnimported(matching: formatFilter)
-                    } else {
-                        await usbManager.importAllUnimported()
-                    }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    let s = stats
-                    let candidateCount = filteredCandidateFiles.count
-                    let candidateSize = formattedFilteredCandidateSize
-                    
-                    if !usbManager.isConnected {
-                        Image(systemName: "tray.and.arrow.down.fill")
-                        Text("Камера не подключена")
-                            .fontWeight(.medium)
-                    } else if !usbManager.isCatalogReady {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Чтение оглавления карты...")
-                            .fontWeight(.medium)
-                    } else if s.inProgressCount > 0 {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Идёт импорт (\(s.inProgressCount) активных)...")
-                            .fontWeight(.medium)
-                    } else if s.failedCount > 0 && s.unimportedCount == 0 {
-                        Image(systemName: "arrow.clockwise")
-                        Text("Повторить ошибочные (\(s.failedCount))")
-                            .fontWeight(.bold)
-                    } else if candidateCount > 0 {
-                        Image(systemName: "tray.and.arrow.down.fill")
-                        switch formatFilter {
-                        case .all:
-                            Text("Загрузить все доступные (\(candidateCount) файлов, \(candidateSize))")
-                                .fontWeight(.bold)
-                        case .rawOnly:
-                            Text("Загрузить RAW (\(candidateCount) файлов, \(candidateSize))")
-                                .fontWeight(.bold)
-                        case .companionOnly:
-                            Text("Загрузить JPEG (\(candidateCount) файлов, \(candidateSize))")
-                                .fontWeight(.bold)
-                        }
-                    } else {
-                        Image(systemName: "checkmark")
-                        switch formatFilter {
-                        case .all:
-                            Text("Все файлы загружены")
-                                .fontWeight(.medium)
-                        case .rawOnly:
-                            Text("Все RAW файлы уже загружены")
-                                .fontWeight(.medium)
-                        case .companionOnly:
-                            Text("Все JPEG файлы уже загружены")
-                                .fontWeight(.medium)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(
-                !usbManager.isConnected ||
-                !usbManager.isCatalogReady ||
-                stats.inProgressCount > 0 ||
-                isImportActionInProgress ||
-                usbManager.isBatchSchedulingInProgress ||
-                (filteredCandidateFiles.isEmpty && stats.failedCount == 0)
-            )
+            // Секция действий импорта в верхней части окна
+            importActionsSection
             
             // Раскрывающиеся независимые настройки автозагрузки
             DisclosureGroup(
@@ -595,10 +529,10 @@ public struct USBCameraBrowserView: View {
                     .padding(.bottom, 6)
                 
                 VStack(spacing: 6) {
-                    Text("Чтение оглавления карты памяти...")
+                    Text("Чтение карты памяти...")
                         .font(.headline)
                         .foregroundColor(.primary)
-                    Text("\(usbManager.cameraName ?? "Nikon Z"): идет вычитывание списка файлов с карты памяти...")
+                    Text("\(usbManager.cameraName ?? "Nikon Z"): идет чтение файлов с карты памяти...")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -927,51 +861,177 @@ public struct USBCameraBrowserView: View {
         }
     }
     
-    private var pinnedSelectionBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 12) {
-                let (count, bytes) = selectedStats
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Выбрано: \(count)")
-                        .font(.subheadline)
-                        .fontWeight(.bold)
-                    Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                Button("Снять") {
-                    selectedFileIDs.removeAll()
-                }
-                .buttonStyle(.bordered)
-                .font(.subheadline)
-                
-                Button {
-                    guard !isImportActionInProgress else { return }
-                    isImportActionInProgress = true
-                    let toImport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
-                    Task {
-                        defer { isImportActionInProgress = false }
-                        await usbManager.importSelectedFiles(toImport)
-                        selectedFileIDs.removeAll()
+    // MARK: - Секция действий импорта (перенесена в верхнюю часть окна)
+    
+    @ViewBuilder
+    private var importActionsSection: some View {
+        if usbManager.isCatalogReady {
+            if selectedStats.count > 0 {
+                // Панель выбранных фотографий
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        selectedInfoLabel
+                        
+                        deselectButton
+                        
+                        Spacer()
+                        
+                        importSelectedButton
+                        
+                        downloadAllButton(isProminent: false)
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.down.circle.fill")
-                        Text("Загрузить выбранные (\(count))")
-                            .fontWeight(.bold)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) {
+                            selectedInfoLabel
+                            deselectButton
+                            Spacer()
+                        }
+                        
+                        HStack(spacing: 8) {
+                            importSelectedButton
+                            downloadAllButton(isProminent: false)
+                        }
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .font(.subheadline)
-                .disabled(!usbManager.isConnected || !usbManager.isCatalogReady || count == 0 || isImportActionInProgress || usbManager.isBatchSchedulingInProgress)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(cardBackgroundColor)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                // Когда ничего не выбрано — аккуратная уменьшенная кнопка «Загрузить все доступные»
+                HStack {
+                    downloadAllButton(isProminent: true)
+                    Spacer()
+                }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(sheetBackgroundColor)
+        }
+    }
+    
+    private var selectedInfoLabel: some View {
+        let (count, bytes) = selectedStats
+        return HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.accentColor)
+                .font(.subheadline)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Выбрано: \(count)")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+    
+    private var deselectButton: some View {
+        Button("Снять") {
+            selectedFileIDs.removeAll()
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+    }
+    
+    private var importSelectedButton: some View {
+        let count = selectedStats.count
+        return Button {
+            guard !isImportActionInProgress else { return }
+            isImportActionInProgress = true
+            let toImport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
+            Task {
+                defer { isImportActionInProgress = false }
+                await usbManager.importSelectedFiles(toImport)
+                selectedFileIDs.removeAll()
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "arrow.down.circle.fill")
+                Text("Загрузить выбранные (\(count))")
+                    .fontWeight(.semibold)
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.regular)
+        .disabled(!usbManager.isConnected || !usbManager.isCatalogReady || count == 0 || isImportActionInProgress || usbManager.isBatchSchedulingInProgress)
+    }
+    
+    @ViewBuilder
+    private func downloadAllButton(isProminent: Bool) -> some View {
+        let btn = Button {
+            guard !isImportActionInProgress else { return }
+            isImportActionInProgress = true
+            Task {
+                defer { isImportActionInProgress = false }
+                if stats.failedCount > 0 && stats.unimportedCount == 0 && stats.inProgressCount == 0 {
+                    await usbManager.retryAllFailed()
+                } else if formatFilter != .all {
+                    await usbManager.importFilteredUnimported(matching: formatFilter)
+                } else {
+                    await usbManager.importAllUnimported()
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                let s = stats
+                let candidateCount = filteredCandidateFiles.count
+                let candidateSize = formattedFilteredCandidateSize
+                
+                if !usbManager.isConnected {
+                    Image(systemName: "tray.and.arrow.down.fill")
+                    Text("Камера не подключена")
+                        .fontWeight(.medium)
+                } else if !usbManager.isCatalogReady {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text("Чтение оглавления...")
+                        .fontWeight(.medium)
+                } else if s.inProgressCount > 0 {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text("Импорт (\(s.inProgressCount))...")
+                        .fontWeight(.medium)
+                } else if s.failedCount > 0 && s.unimportedCount == 0 {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Повторить ошибочные (\(s.failedCount))")
+                        .fontWeight(.semibold)
+                } else if candidateCount > 0 {
+                    Image(systemName: "tray.and.arrow.down.fill")
+                    switch formatFilter {
+                    case .all:
+                        Text("Загрузить все доступные (\(candidateCount) ф., \(candidateSize))")
+                            .fontWeight(.medium)
+                    case .rawOnly:
+                        Text("Загрузить RAW (\(candidateCount) ф., \(candidateSize))")
+                            .fontWeight(.medium)
+                    case .companionOnly:
+                        Text("Загрузить JPEG (\(candidateCount) ф., \(candidateSize))")
+                            .fontWeight(.medium)
+                    }
+                } else {
+                    Image(systemName: "checkmark")
+                    Text("Все файлы загружены")
+                        .fontWeight(.medium)
+                }
+            }
+        }
+        .disabled(
+            !usbManager.isConnected ||
+            !usbManager.isCatalogReady ||
+            stats.inProgressCount > 0 ||
+            isImportActionInProgress ||
+            usbManager.isBatchSchedulingInProgress ||
+            (filteredCandidateFiles.isEmpty && stats.failedCount == 0)
+        )
+        
+        if isProminent {
+            btn
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
+        } else {
+            btn
+                .buttonStyle(.bordered)
+                .controlSize(.small)
         }
     }
 }
