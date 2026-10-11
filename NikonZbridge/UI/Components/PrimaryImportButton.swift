@@ -47,7 +47,7 @@ public struct PrimaryImportButton: View {
                 if isReadingCatalog {
                     ProgressView()
                         .controlSize(.mini)
-                        .tint(.white)
+                        .tint(AppTheme.Colors.onAccent)
                     
                     Text(loadingTitle)
                         .font(AppTheme.Typography.subheadlineBold)
@@ -72,7 +72,8 @@ public struct PrimaryImportButton: View {
                             .font(AppTheme.Typography.caption2Bold)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.white.opacity(0.32))
+                            .background(AppTheme.Colors.onAccent.opacity(0.18))
+                            .foregroundStyle(AppTheme.Colors.onAccent)
                             .clipShape(Capsule())
                     }
                 }
@@ -80,9 +81,9 @@ public struct PrimaryImportButton: View {
             .padding(.horizontal, AppTheme.Spacing.md)
             .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
             .background(AppTheme.Colors.accent)
-            .foregroundStyle(Color.white)
+            .foregroundStyle(AppTheme.Colors.onAccent)
             .clipShape(Capsule())
-            .shadow(color: AppTheme.Colors.accent.opacity(0.3), radius: 6, x: 0, y: 2)
+            .shadow(color: AppTheme.Colors.accent.opacity(0.25), radius: 6, x: 0, y: 2)
         }
         .disabled(isReadingCatalog)
         .accessibilityLabel(accessibilityText)

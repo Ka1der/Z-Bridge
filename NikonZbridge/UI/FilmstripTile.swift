@@ -51,7 +51,7 @@ public struct FilmstripTile: View {
                 #endif
             } else {
                 Rectangle()
-                    .fill(Color(uiColor: .secondarySystemFill))
+                    .fill(AppTheme.Colors.surfaceSecondary)
                     .frame(width: 64, height: 64)
                     .overlay(ProgressView().scaleEffect(0.6))
             }
@@ -95,10 +95,10 @@ public struct FilmstripTile: View {
                         HStack(spacing: 1) {
                             Image(systemName: "star.fill")
                                 .font(.system(size: 6))
-                                .foregroundStyle(.yellow)
+                                .foregroundStyle(AppTheme.Colors.ratingActive)
                             Text("\(group.rating)")
                                 .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(.yellow)
+                                .foregroundStyle(AppTheme.Colors.ratingActive)
                         }
                         .padding(.horizontal, 3)
                         .padding(.vertical, 1)
@@ -123,7 +123,7 @@ public struct FilmstripTile: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                .stroke(isSelected ? AppTheme.Colors.accent : AppTheme.Colors.borderSubtle, lineWidth: isSelected ? 2 : 1)
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(group.baseName), \(group.formatBadge), рейтинг \(group.rating) звезд")

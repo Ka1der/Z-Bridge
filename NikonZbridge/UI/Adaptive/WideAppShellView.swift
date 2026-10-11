@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// Широкая компоновка адаптивного каркаса Liquid Glass (iPad, широкий Split View, горизонтальный iPhone).
-/// Использует боковую панель навигации (Sidebar) с разделами («Снимки», «Камера», «Сессии»),
-/// кнопкой «Настройки» внизу боковой панели и полноразмерной полосой прогресса внизу рабочей зоны.
+/// Широкая компоновка адаптивного каркаса (iPad, ландшафтный режим, macOS).
+/// Реализована в точности по референсу дизайна Liquid Glass:
+/// - Узкая компактная боковая панель (~88 pt) с логотипом Nikon Z Bridge, кнопкой меню и 4 ключевыми разделами
+///   («Tether» с желтой рамкой и индикатором, «Storage», «Sessions», «Settings»);
+/// - Полноэкранная рабочая зона без лишних статических полос.
 public struct WideAppShellView: View {
     @ObservedObject var appState: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -13,14 +15,17 @@ public struct WideAppShellView: View {
     
     public var body: some View {
         HStack(spacing: 0) {
-            // 1. Боковая панель навигации (Sidebar с поддержкой сворачивания)
+            // 1. Боковая панель навигации (Pro Slim Rail)
             if !appState.isSidebarCollapsed {
-                sidebar
-                    .frame(width: 230)
-                    .background(AppTheme.Colors.surfacePrimary.opacity(0.85))
+                proSidebarRail
+                    .frame(width: 88)
+                    .background(
+                        Color(red: 20/255.0, green: 22/255.0, blue: 27/255.0).opacity(0.85)
+                            .background(.ultraThinMaterial)
+                    )
                     .overlay(
                         Rectangle()
-                            .fill(AppTheme.Colors.borderSubtle)
+                            .fill(Color.white.opacity(0.08))
                             .frame(width: 1),
                         alignment: .trailing
                     )
@@ -37,62 +42,31 @@ public struct WideAppShellView: View {
                 case .camera:
                     CameraSectionView(appState: appState)
                 case .sessions:
-                    if AppFeatures.sessionManagementEnabled { SessionsSectionView(appState: appState) } else { NikonTetherRootView(appState: appState) }
-                }
-                
-                // 3. Полноразмерная полоса прогресса передачи внизу экрана (референс iPad)
-                if let activeJob = appState.activeTransferJob {
-                    TransferProgressStrip(
-                        filename: activeJob.filename,
-                        transferredBytes: activeJob.transferredBytes,
-                        totalBytes: activeJob.totalBytes,
-                        speedMBs: appState.currentTransferSpeedMBs,
-                        isUSB: activeJob.source.transportType == .usb,
-                        onTap: {
-                            appState.isQueuePresented = true
-                        },
-                        onCancel: {
-                            appState.cancelJob(id: activeJob.id)
-                        }
-                    )
-                    .padding(.horizontal, AppTheme.Spacing.lg)
-                    .padding(.vertical, AppTheme.Spacing.xs)
-                } else if appState.activeQueueCount > 0 {
-                    TransferProgressStrip(
-                        completedCount: appState.completedJobs.count,
-                        totalCount: appState.completedJobs.count + appState.activeQueueCount,
-                        label: "Загружено \(appState.completedJobs.count) из \(appState.completedJobs.count + appState.activeQueueCount)",
-                        actionTitle: "Очередь",
-                        onTap: {
-                            appState.isQueuePresented = true
-                        }
-                    )
-                    .padding(.horizontal, AppTheme.Spacing.lg)
-                    .padding(.vertical, AppTheme.Spacing.xs)
+                    if AppFeatures.sessionManagementEnabled {
+                        SessionsSectionView(appState: appState)
+                    } else {
+                        NikonTetherRootView(appState: appState)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
     
-    // MARK: - Боковая панель
+    // MARK: - Pro Slim Sidebar (согласно референсу iPad)
     
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            // Заголовок приложения в точности как на референсе iPad
-            HStack(spacing: AppTheme.Spacing.xs + 2) {
-                Image(systemName: "camera.badge.ellipsis")
-                    .font(.title3.bold())
-                    .foregroundStyle(AppTheme.Colors.accent)
-                
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Nikon Z Bridge")
-                        .font(AppTheme.Typography.headline.weight(.heavy))
-                        .foregroundStyle(AppTheme.Colors.textPrimary)
+    private var proSidebarRail: some View {
+        VStack(spacing: 0) {
+            // Заголовок приложения: Nikon Z Bridge + иконка меню
+            HStack(alignment: .top, spacing: 4) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Nikon")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.white)
                     
-                    Text("Liquid Glass")
-                        .font(AppTheme.Typography.caption2)
-                        .foregroundStyle(AppTheme.Colors.textTertiary)
+                    Text("Z Bridge")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.60))
                 }
                 
                 Spacer()
@@ -102,99 +76,122 @@ public struct WideAppShellView: View {
                         appState.toggleSidebar()
                     }
                 } label: {
-                    Image(systemName: "sidebar.leading")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
-                        .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.85))
+                        .frame(width: 24, height: 24)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Свернуть боковую панель")
             }
-            .padding(.horizontal, AppTheme.Spacing.md)
-            .padding(.top, AppTheme.Spacing.lg)
+            .padding(.horizontal, 10)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
             
-            Divider()
-                .padding(.horizontal, AppTheme.Spacing.md)
-            
-            // Список разделов
-            VStack(spacing: AppTheme.Spacing.xs) {
-                ForEach(AppSection.visibleCases) { section in
-                    sidebarItem(for: section)
+            // 4 вертикальных раздела
+            VStack(spacing: 14) {
+                // 1. Tether (Съемка)
+                proRailItem(
+                    title: "Tether",
+                    iconName: "display",
+                    isSelected: appState.selectedSection == .photos
+                ) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                        appState.selectedSection = .photos
+                    }
+                }
+                
+                // 2. Storage (Карта памяти)
+                proRailItem(
+                    title: "Storage",
+                    iconName: "creditcard",
+                    isSelected: appState.selectedSection == .camera
+                ) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                        appState.selectedSection = .camera
+                    }
+                }
+                
+                // 3. Sessions (Сессии)
+                if AppFeatures.sessionManagementEnabled {
+                    proRailItem(
+                        title: "Sessions",
+                        iconName: "list.bullet.rectangle",
+                        isSelected: appState.selectedSection == .sessions
+                    ) {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                            appState.selectedSection = .sessions
+                        }
+                    }
+                }
+                
+                // 4. Settings (Настройки)
+                proRailItem(
+                    title: "Settings",
+                    iconName: "gearshape",
+                    isSelected: appState.isSettingsPresented
+                ) {
+                    appState.isSettingsPresented = true
                 }
             }
-            .padding(.horizontal, AppTheme.Spacing.sm)
+            .padding(.horizontal, 8)
             
             Spacer()
-            
-            Divider()
-                .padding(.horizontal, AppTheme.Spacing.md)
-            
-            // Кнопка «Настройки» внизу боковой панели (min 44 pt)
-            Button {
-                appState.isSettingsPresented = true
-            } label: {
-                HStack(spacing: AppTheme.Spacing.sm) {
-                    Image(systemName: "gearshape")
-                        .font(.body)
-                    
-                    Text("Настройки")
-                        .font(AppTheme.Typography.subheadlineBold)
-                    
-                    Spacer()
-                }
-                .foregroundStyle(AppTheme.Colors.textPrimary)
-                .padding(.horizontal, AppTheme.Spacing.md)
-                .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, AppTheme.Spacing.sm)
-            .padding(.bottom, AppTheme.Spacing.md)
         }
     }
     
-    private func sidebarItem(for section: AppSection) -> some View {
-        let isSelected = appState.selectedSection == section
-        
-        return Button {
-            if appState.selectedSection != section {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
-                    appState.selectedSection = section
+    // MARK: - Кнопка раздела сайдбара
+    
+    private func proRailItem(
+        title: String,
+        iconName: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ZStack(alignment: .leading) {
+                // Желтая вертикальная черта-индикатор на левом крае
+                if isSelected {
+                    Capsule()
+                        .fill(AppTheme.Colors.accent)
+                        .frame(width: 3, height: 24)
+                        .offset(x: -6)
                 }
-            }
-        } label: {
-            HStack(spacing: AppTheme.Spacing.sm) {
-                Image(systemName: isSelected ? section.selectedIconName : section.iconName)
-                    .font(.system(size: 16, weight: isSelected ? .bold : .medium))
-                    .frame(width: 24, height: 24)
                 
-                Text(section.rawValue)
-                    .font(AppTheme.Typography.subheadlineBold)
-                
-                Spacer()
-            }
-            .foregroundStyle(isSelected ? Color.white : AppTheme.Colors.textPrimary)
-            .padding(.horizontal, AppTheme.Spacing.md)
-            .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
-            .background(
-                Group {
-                    if isSelected {
-                        AppTheme.Colors.accent
-                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous))
-                            .shadow(color: AppTheme.Colors.accent.opacity(0.35), radius: 6, x: 0, y: 2)
-                    } else {
-                        Color.clear
+                VStack(spacing: 4) {
+                    Image(systemName: iconName)
+                        .font(.system(size: 18, weight: isSelected ? .bold : .medium))
+                        .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.65))
+                    
+                    Text(title)
+                        .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                        .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.65))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(
+                    Group {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(AppTheme.Colors.accent.opacity(0.85), lineWidth: 1.5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(AppTheme.Colors.accent.opacity(0.08))
+                                )
+                        } else {
+                            Color.clear
+                        }
                     }
-                }
-            )
+                )
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(section.rawValue)
+        .accessibilityLabel(title)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
     
-    // MARK: - Свернутая панель навигации (быстрый доступ и раскрытие)
+    // MARK: - Свернутый минималистичный вид
     
     private var collapsedSidebarRail: some View {
         VStack(spacing: AppTheme.Spacing.md) {
@@ -203,74 +200,74 @@ public struct WideAppShellView: View {
                     appState.toggleSidebar()
                 }
             } label: {
-                Image(systemName: "sidebar.leading")
-                    .font(.system(size: 16, weight: .semibold))
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(AppTheme.Colors.accent)
-                    .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                    .frame(width: 40, height: 40)
                     .glassSurface(shape: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Развернуть боковую панель")
-            .padding(.top, AppTheme.Spacing.lg)
+            .padding(.top, 16)
             
             Divider()
                 .padding(.horizontal, AppTheme.Spacing.xs)
             
-            // Быстрые иконки разделов
-            VStack(spacing: AppTheme.Spacing.sm) {
-                ForEach(AppSection.visibleCases) { section in
-                    let isSelected = appState.selectedSection == section
-                    Button {
-                        if appState.selectedSection != section {
-                            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
-                                appState.selectedSection = section
-                            }
-                        }
-                    } label: {
-                        Image(systemName: isSelected ? section.selectedIconName : section.iconName)
-                            .font(.system(size: 16, weight: isSelected ? .bold : .medium))
-                            .foregroundStyle(isSelected ? Color.white : AppTheme.Colors.textSecondary)
-                            .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
-                            .background(
-                                Group {
-                                    if isSelected {
-                                        AppTheme.Colors.accent
-                                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous))
-                                    } else {
-                                        Color.clear
-                                    }
-                                }
-                            )
+            // Иконки разделов
+            VStack(spacing: 12) {
+                collapsedItem(iconName: "display", isSelected: appState.selectedSection == .photos) {
+                    appState.selectedSection = .photos
+                }
+                
+                collapsedItem(iconName: "creditcard", isSelected: appState.selectedSection == .camera) {
+                    appState.selectedSection = .camera
+                }
+                
+                if AppFeatures.sessionManagementEnabled {
+                    collapsedItem(iconName: "list.bullet.rectangle", isSelected: appState.selectedSection == .sessions) {
+                        appState.selectedSection = .sessions
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(section.rawValue)
-                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+                }
+                
+                collapsedItem(iconName: "gearshape", isSelected: appState.isSettingsPresented) {
+                    appState.isSettingsPresented = true
                 }
             }
             
             Spacer()
-            
-            // Кнопка «Настройки»
-            Button {
-                appState.isSettingsPresented = true
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.body)
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-                    .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Настройки")
-            .padding(.bottom, AppTheme.Spacing.md)
         }
-        .frame(width: 56)
-        .background(AppTheme.Colors.surfacePrimary.opacity(0.85))
+        .frame(width: 52)
+        .background(
+            Color(red: 20/255.0, green: 22/255.0, blue: 27/255.0).opacity(0.85)
+                .background(.ultraThinMaterial)
+        )
         .overlay(
             Rectangle()
-                .fill(AppTheme.Colors.borderSubtle)
+                .fill(Color.white.opacity(0.08))
                 .frame(width: 1),
             alignment: .trailing
         )
         .transition(reduceMotion ? .identity : .move(edge: .leading).combined(with: .opacity))
+    }
+    
+    private func collapsedItem(iconName: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: iconName)
+                .font(.system(size: 16, weight: isSelected ? .bold : .medium))
+                .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.65))
+                .frame(width: 36, height: 36)
+                .background(
+                    Group {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(AppTheme.Colors.accent, lineWidth: 1.5)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.Colors.accent.opacity(0.12)))
+                        } else {
+                            Color.clear
+                        }
+                    }
+                )
+        }
+        .buttonStyle(.plain)
     }
 }

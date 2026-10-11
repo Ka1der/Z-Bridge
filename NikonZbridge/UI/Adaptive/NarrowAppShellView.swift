@@ -27,42 +27,44 @@ public struct NarrowAppShellView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            // 2. Плавающий нижний блок (плашка передачи + нижний док навигации)
-            VStack(spacing: AppTheme.Spacing.xs) {
-                // Плашка активной передачи файла или суммарной очереди
-                if let activeJob = appState.activeTransferJob {
-                    TransferProgressStrip(
-                        filename: activeJob.filename,
-                        transferredBytes: activeJob.transferredBytes,
-                        totalBytes: activeJob.totalBytes,
-                        speedMBs: appState.currentTransferSpeedMBs,
-                        isUSB: activeJob.source.transportType == .usb,
-                        onTap: {
-                            appState.isQueuePresented = true
-                        },
-                        onCancel: {
-                            appState.cancelJob(id: activeJob.id)
-                        }
-                    )
-                    .padding(.horizontal, AppTheme.Spacing.md)
-                    .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
-                } else if appState.activeQueueCount > 0 {
-                    TransferProgressStrip(
-                        completedCount: appState.completedJobs.count,
-                        totalCount: appState.completedJobs.count + appState.activeQueueCount,
-                        label: "\(appState.completedJobs.count) из \(appState.completedJobs.count + appState.activeQueueCount)",
-                        onTap: {
-                            appState.isQueuePresented = true
-                        }
-                    )
-                    .padding(.horizontal, AppTheme.Spacing.md)
-                    .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
+            // 2. Плавающий нижний блок (скрывается в режиме студии кадра, где активно управление FloatingThumbZoneView)
+            if !(appState.selectedSection == .photos && appState.cameraBrowserViewMode == .gallery) {
+                VStack(spacing: AppTheme.Spacing.xs) {
+                    // Плашка активной передачи файла или суммарной очереди
+                    if let activeJob = appState.activeTransferJob {
+                        TransferProgressStrip(
+                            filename: activeJob.filename,
+                            transferredBytes: activeJob.transferredBytes,
+                            totalBytes: activeJob.totalBytes,
+                            speedMBs: appState.currentTransferSpeedMBs,
+                            isUSB: activeJob.source.transportType == .usb,
+                            onTap: {
+                                appState.isQueuePresented = true
+                            },
+                            onCancel: {
+                                appState.cancelJob(id: activeJob.id)
+                            }
+                        )
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                        .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
+                    } else if appState.activeQueueCount > 0 {
+                        TransferProgressStrip(
+                            completedCount: appState.completedJobs.count,
+                            totalCount: appState.completedJobs.count + appState.activeQueueCount,
+                            label: "\(appState.completedJobs.count) из \(appState.completedJobs.count + appState.activeQueueCount)",
+                            onTap: {
+                                appState.isQueuePresented = true
+                            }
+                        )
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                        .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
+                    }
+                    
+                    // Нижняя плавающая панель навигации Liquid Glass
+                    bottomFloatingDock
+                        .padding(.horizontal, AppTheme.Spacing.lg)
+                        .padding(.bottom, AppTheme.Spacing.sm)
                 }
-                
-                // Нижняя плавающая панель навигации Liquid Glass
-                bottomFloatingDock
-                    .padding(.horizontal, AppTheme.Spacing.lg)
-                    .padding(.bottom, AppTheme.Spacing.sm)
             }
         }
     }
@@ -100,7 +102,7 @@ public struct NarrowAppShellView: View {
                         .minimumScaleFactor(0.7)
                 }
             }
-            .foregroundStyle(isSelected ? Color.white : AppTheme.Colors.textSecondary)
+            .foregroundStyle(isSelected ? AppTheme.Colors.onAccent : AppTheme.Colors.textSecondary)
             .padding(.horizontal, AppTheme.Spacing.md)
             .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
             .frame(maxWidth: .infinity)

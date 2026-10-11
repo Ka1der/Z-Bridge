@@ -135,6 +135,8 @@ public struct CameraFileItem: Identifiable, @unchecked Sendable {
     public let isInitialCatalog: Bool
     public var status: CameraFileImportStatus
     public var thumbnail: CGImage?
+    public var rating: Int = 0
+    public var colorTag: Int? = nil
     
     public init(
         cameraID: String,
@@ -144,7 +146,9 @@ public struct CameraFileItem: Identifiable, @unchecked Sendable {
         cameraFile: ICCameraFile? = nil,
         isInitialCatalog: Bool = false,
         status: CameraFileImportStatus = .notImported,
-        thumbnail: CGImage? = nil
+        thumbnail: CGImage? = nil,
+        rating: Int = 0,
+        colorTag: Int? = nil
     ) {
         self.cameraID = cameraID
         self.filename = filename
@@ -154,6 +158,8 @@ public struct CameraFileItem: Identifiable, @unchecked Sendable {
         self.isInitialCatalog = isInitialCatalog
         self.status = status
         self.thumbnail = thumbnail
+        self.rating = rating
+        self.colorTag = colorTag
         
         let ext = (filename as NSString).pathExtension.lowercased()
         self.isRAW = (ext == "nef" || ext == "nrw")

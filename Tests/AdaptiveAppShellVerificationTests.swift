@@ -109,9 +109,15 @@ final class AdaptiveAppShellVerificationTests {
         verify(appState.selectedGroupIDs.contains(mockID), "Выделенные кадры должны сохраниться")
         
         // 3. Переключаемся в раздел «Сессии»
-        appState.selectedSection = .sessions
-        verify(appState.selectedSection == .sessions)
-        verify(appState.viewMode == .table)
+        if AppFeatures.sessionManagementEnabled {
+            appState.selectedSection = .sessions
+            verify(appState.selectedSection == .sessions)
+            verify(appState.viewMode == .table)
+        } else {
+            appState.selectedSection = .sessions
+            verify(appState.selectedSection == .photos, "При отключенном управлении съемками переход в .sessions перенаправляется на .photos")
+            verify(appState.viewMode == .table)
+        }
         
         // 4. Возвращаемся в раздел «Снимки»
         appState.selectedSection = .photos

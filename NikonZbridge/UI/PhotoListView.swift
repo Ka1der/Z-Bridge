@@ -130,7 +130,7 @@ public struct PhotoListRow: View {
             // Превью
             ZStack(alignment: .bottomTrailing) {
                 ZStack {
-                    Color(uiColor: .secondarySystemFill)
+                    AppTheme.Colors.surfaceSecondary
                     switch previewState {
                     case .success(let img):
                         #if canImport(UIKit)
@@ -221,11 +221,11 @@ public struct PhotoListRow: View {
         }
         .padding(10)
         .frame(minHeight: 64)
-        .background(Color(uiColor: isSelected ? .secondarySystemFill : .secondarySystemGroupedBackground))
+        .background(isSelected ? AppTheme.Colors.surfaceSecondary : AppTheme.Colors.surfacePrimary)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(isSelected ? Color.accentColor : Color(uiColor: .separator), lineWidth: isSelected ? 1.5 : 0.5)
+                .stroke(isSelected ? AppTheme.Colors.accent : AppTheme.Colors.borderSubtle, lineWidth: isSelected ? 1.5 : 0.5)
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(group.baseName), \(group.formatBadge), размер \(group.formattedTotalSize), рейтинг \(group.rating) звезд")

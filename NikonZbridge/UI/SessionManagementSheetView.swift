@@ -49,8 +49,11 @@ public struct SessionManagementSheetView: View {
                 }
             }
             .navigationTitle("Управление съемками")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         newSessionName = ""
@@ -59,6 +62,16 @@ public struct SessionManagementSheetView: View {
                         Label("Новая съемка", systemImage: "plus.circle.fill")
                     }
                 }
+                #else
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        newSessionName = ""
+                        isShowingNewSessionAlert = true
+                    } label: {
+                        Label("Новая съемка", systemImage: "plus.circle.fill")
+                    }
+                }
+                #endif
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") {

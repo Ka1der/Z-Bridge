@@ -369,7 +369,7 @@ public struct PhotoDetailView: View {
                             } label: {
                                 Image(systemName: star <= group.rating ? "star.fill" : "star")
                                     .font(.system(size: 17))
-                                    .foregroundStyle(star <= group.rating ? Color.yellow : AppTheme.Colors.textTertiary)
+                                    .foregroundStyle(star <= group.rating ? AppTheme.Colors.ratingActive : AppTheme.Colors.ratingInactive)
                                     .frame(width: 32, height: AppTheme.Dimensions.minTouchTarget)
                                     .contentShape(Rectangle())
                             }

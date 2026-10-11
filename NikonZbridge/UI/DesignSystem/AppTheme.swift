@@ -1,101 +1,149 @@
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
-/// Переиспользуемая дизайн-система приложения NikonZbridge в концепции «Liquid Glass».
+/// Переиспользуемая дизайн-система приложения NikonZbridge в концепции современного минимализма («Liquid Glass»).
 /// Содержит семантические токены цветов, типографики, интервалов,
-/// скруглений, геометрии и базовых стилей кнопок.
+/// скруглений, геометрии и базовых стилей кнопок, оптимизированных для iPadOS и iOS.
 public enum AppTheme {
     
     // MARK: - 1. Цвета (Semantic Colors)
     
     public enum Colors {
-        /// Спокойный графитовый фон в тёмной теме (#121316) и нейтральный светло-серый в светлой теме (#F2F3F7)
-        public static let background = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x12 / 255.0, green: 0x13 / 255.0, blue: 0x16 / 255.0, alpha: 1.0)
-                : UIColor(red: 0xF2 / 255.0, green: 0xF3 / 255.0, blue: 0xF7 / 255.0, alpha: 1.0)
-        })
         
-        /// Основная поверхность карточек (#1A1B20 в тёмной / #FFFFFF в светлой)
-        public static let surfacePrimary = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x1A / 255.0, green: 0x1B / 255.0, blue: 0x20 / 255.0, alpha: 1.0)
-                : UIColor.systemBackground
-        })
+        // Вспомогательные методы создания кроссплатформенных адаптивных цветов
+        private static func platformDynamicColor(
+            darkRed: CGFloat, darkGreen: CGFloat, darkBlue: CGFloat, darkAlpha: CGFloat = 1.0,
+            lightRed: CGFloat, lightGreen: CGFloat, lightBlue: CGFloat, lightAlpha: CGFloat = 1.0
+        ) -> Color {
+            #if canImport(UIKit)
+            return Color(uiColor: UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor(red: darkRed, green: darkGreen, blue: darkBlue, alpha: darkAlpha)
+                    : UIColor(red: lightRed, green: lightGreen, blue: lightBlue, alpha: lightAlpha)
+            })
+            #elseif canImport(AppKit)
+            return Color(nsColor: NSColor(name: nil, dynamicProvider: { appearance in
+                appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                    ? NSColor(red: darkRed, green: darkGreen, blue: darkBlue, alpha: darkAlpha)
+                    : NSColor(red: lightRed, green: lightGreen, blue: lightBlue, alpha: lightAlpha)
+            }))
+            #else
+            return Color(red: darkRed, green: darkGreen, blue: darkBlue, opacity: darkAlpha)
+            #endif
+        }
         
-        /// Вторичная поверхность (#22242B в тёмной / #E8E9EE в светлой)
-        public static let surfaceSecondary = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x22 / 255.0, green: 0x24 / 255.0, blue: 0x2B / 255.0, alpha: 1.0)
-                : UIColor.secondarySystemBackground
-        })
+        private static func platformAlphaColor(
+            darkWhite: CGFloat, darkAlpha: CGFloat,
+            lightWhite: CGFloat, lightAlpha: CGFloat
+        ) -> Color {
+            #if canImport(UIKit)
+            return Color(uiColor: UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor(white: darkWhite, alpha: darkAlpha)
+                    : UIColor(white: lightWhite, alpha: lightAlpha)
+            })
+            #elseif canImport(AppKit)
+            return Color(nsColor: NSColor(name: nil, dynamicProvider: { appearance in
+                appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                    ? NSColor(white: darkWhite, alpha: darkAlpha)
+                    : NSColor(white: lightWhite, alpha: lightAlpha)
+            }))
+            #else
+            return Color(white: darkWhite, opacity: darkAlpha)
+            #endif
+        }
         
-        /// Приподнятая поверхность HUD / плавающих плашек (#282A32 в тёмной / #FFFFFF в светлой)
-        public static let surfaceElevated = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x28 / 255.0, green: 0x2A / 255.0, blue: 0x32 / 255.0, alpha: 1.0)
-                : UIColor.tertiarySystemBackground
-        })
+        /// Глубокий обсидиановый фон студии в тёмной теме (#0E0F12) и нейтральный светло-серый в светлой теме (#F2F3F7)
+        public static let background = platformDynamicColor(
+            darkRed: 0x0E / 255.0, darkGreen: 0x0F / 255.0, darkBlue: 0x12 / 255.0,
+            lightRed: 0xF2 / 255.0, lightGreen: 0xF3 / 255.0, lightBlue: 0xF7 / 255.0
+        )
         
-        /// Единый синий акцент (#0A84FF в тёмной теме, #007AFF в светлой)
-        public static let accent = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x0A / 255.0, green: 0x84 / 255.0, blue: 0xFF / 255.0, alpha: 1.0)
-                : UIColor(red: 0x00 / 255.0, green: 0x7A / 255.0, blue: 0xFF / 255.0, alpha: 1.0)
-        })
+        /// Основная поверхность карточек (#15161B в тёмной / #FFFFFF в светлой)
+        public static let surfacePrimary = platformDynamicColor(
+            darkRed: 0x15 / 255.0, darkGreen: 0x16 / 255.0, darkBlue: 0x1B / 255.0,
+            lightRed: 1.0, lightGreen: 1.0, lightBlue: 1.0
+        )
+        
+        /// Вторичная поверхность (#1B1D24 в тёмной / #E8E9EE в светлой)
+        public static let surfaceSecondary = platformDynamicColor(
+            darkRed: 0x1B / 255.0, darkGreen: 0x1D / 255.0, darkBlue: 0x24 / 255.0,
+            lightRed: 0xE8 / 255.0, lightGreen: 0xE9 / 255.0, lightBlue: 0xEE / 255.0
+        )
+        
+        /// Приподнятая поверхность HUD / плавающих плашек (#22242D в тёмной / #FFFFFF в светлой)
+        public static let surfaceElevated = platformDynamicColor(
+            darkRed: 0x22 / 255.0, darkGreen: 0x24 / 255.0, darkBlue: 0x2D / 255.0,
+            lightRed: 1.0, lightGreen: 1.0, lightBlue: 1.0
+        )
+        
+        /// Фирменный желтый акцент Nikon (#FFE600 в тёмной теме, контрастный янтарный #D49B00 в светлой)
+        public static let accent = platformDynamicColor(
+            darkRed: 1.0, darkGreen: 0xE6 / 255.0, darkBlue: 0.0,
+            lightRed: 0xD4 / 255.0, lightGreen: 0x9B / 255.0, lightBlue: 0.0
+        )
         
         /// Акцентный цвет при нажатии
-        public static let accentPressed = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x00 / 255.0, green: 0x66 / 255.0, blue: 0xCC / 255.0, alpha: 1.0)
-                : UIColor(red: 0x00 / 255.0, green: 0x55 / 255.0, blue: 0xB3 / 255.0, alpha: 1.0)
-        })
+        public static let accentPressed = platformDynamicColor(
+            darkRed: 0xE6 / 255.0, darkGreen: 0xCF / 255.0, darkBlue: 0.0,
+            lightRed: 0xB3 / 255.0, lightGreen: 0x83 / 255.0, lightBlue: 0.0
+        )
         
-        /// Полупрозрачный синий оттенок для подложек активных элементов
+        /// Цвет контрастного текста и пиктограмм поверх акцентной подложки
+        /// (Глубокий чёрный на желтом фоне в тёмной теме, белый на янтарном фоне в светлой)
+        public static let onAccent = platformDynamicColor(
+            darkRed: 0x0E / 255.0, darkGreen: 0x0F / 255.0, darkBlue: 0x12 / 255.0,
+            lightRed: 1.0, lightGreen: 1.0, lightBlue: 1.0
+        )
+        
+        /// Полупрозрачный желтый оттенок для подложек активных элементов
         public static let accentMuted = accent.opacity(0.18)
         
-        /// Синий цвет для активного рейтинга звезд (согласно референсу Liquid Glass)
+        /// Фирменный желтый цвет для активного рейтинга звезд
         public static let ratingActive = accent
         
         /// Неактивные звезды рейтинга
-        public static let ratingInactive = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(white: 1.0, alpha: 0.22)
-                : UIColor(white: 0.0, alpha: 0.18)
-        })
+        public static let ratingInactive = platformAlphaColor(
+            darkWhite: 1.0, darkAlpha: 0.22,
+            lightWhite: 0.0, lightAlpha: 0.18
+        )
         
-        /// Тонкий контур стеклянных панелей (12% белый в тёмной теме, 8% чёрный в светлой)
-        public static let borderSubtle = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(white: 1.0, alpha: 0.12)
-                : UIColor(white: 0.0, alpha: 0.08)
-        })
+        /// Тонкий микро-контур стеклянных панелей (8% белый в тёмной теме, 6% чёрный в светлой)
+        public static let borderSubtle = platformAlphaColor(
+            darkWhite: 1.0, darkAlpha: 0.08,
+            lightWhite: 0.0, lightAlpha: 0.06
+        )
         
         /// Усиленный контур для активных/выделенных элементов и режима высокой контрастности
-        public static let borderStrong = Color(uiColor: UIColor { traits in
-            if traits.accessibilityContrast == .high {
-                return traits.userInterfaceStyle == .dark
-                    ? UIColor(white: 1.0, alpha: 0.40)
-                    : UIColor(white: 0.0, alpha: 0.35)
-            }
-            return traits.userInterfaceStyle == .dark
-                ? UIColor(white: 1.0, alpha: 0.24)
-                : UIColor(white: 0.0, alpha: 0.16)
-        })
+        public static let borderStrong = platformAlphaColor(
+            darkWhite: 1.0, darkAlpha: 0.22,
+            lightWhite: 0.0, lightAlpha: 0.16
+        )
         
         /// Мягкая тень панелей
-        public static let shadow = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(white: 0.0, alpha: 0.28)
-                : UIColor(white: 0.0, alpha: 0.08)
-        })
+        public static let shadow = platformAlphaColor(
+            darkWhite: 0.0, darkAlpha: 0.24,
+            lightWhite: 0.0, lightAlpha: 0.06
+        )
         
         // Текстовые цвета
+        #if canImport(UIKit)
         public static let textPrimary = Color(uiColor: .label)
         public static let textSecondary = Color(uiColor: .secondaryLabel)
         public static let textTertiary = Color(uiColor: .tertiaryLabel)
+        #elseif canImport(AppKit)
+        public static let textPrimary = Color(nsColor: .labelColor)
+        public static let textSecondary = Color(nsColor: .secondaryLabelColor)
+        public static let textTertiary = Color(nsColor: .tertiaryLabelColor)
+        #else
+        public static let textPrimary = Color.primary
+        public static let textSecondary = Color.secondary
+        public static let textTertiary = Color.secondary.opacity(0.6)
+        #endif
         
         // Статусные индикаторы (сопровождаются текстовыми и иконочными маркерами для доступности)
         public static let statusGreen = Color(red: 48 / 255.0, green: 209 / 255.0, blue: 88 / 255.0)
@@ -104,11 +152,10 @@ public enum AppTheme {
         public static let statusNeutral = Color(red: 142 / 255.0, green: 142 / 255.0, blue: 147 / 255.0)
         
         // Нейтральный фон для области просмотра фото без лишних свечений
-        public static let photoReviewBackground = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x0A / 255.0, green: 0x0A / 255.0, blue: 0x0C / 255.0, alpha: 1.0)
-                : UIColor(red: 0xEE / 255.0, green: 0xEF / 255.0, blue: 0xF2 / 255.0, alpha: 1.0)
-        })
+        public static let photoReviewBackground = platformDynamicColor(
+            darkRed: 0x08 / 255.0, darkGreen: 0x09 / 255.0, darkBlue: 0x0B / 255.0,
+            lightRed: 0xEE / 255.0, lightGreen: 0xEF / 255.0, lightBlue: 0xF2 / 255.0
+        )
         
         /// Синоним для нейтрального фона области просмотра фото
         public static let photoBackground = photoReviewBackground
@@ -197,7 +244,7 @@ public enum AppTheme {
         public func makeBody(configuration: Configuration) -> some View {
             configuration.label
                 .font(AppTheme.Typography.subheadlineBold)
-                .foregroundStyle(Color.white)
+                .foregroundStyle(AppTheme.Colors.onAccent)
                 .padding(.horizontal, AppTheme.Spacing.lg)
                 .frame(minHeight: AppTheme.Dimensions.buttonHeight)
                 .background(
@@ -232,7 +279,11 @@ public enum AppTheme {
                         if reduceTransparency {
                             AppTheme.Colors.surfaceSecondary
                         } else {
-                            Color(uiColor: .secondarySystemFill)
+                        #if canImport(UIKit)
+                        Color(uiColor: .secondarySystemFill)
+                        #else
+                        AppTheme.Colors.surfaceSecondary
+                        #endif
                         }
                     }
                 )
@@ -269,7 +320,11 @@ public enum AppTheme {
                         if reduceTransparency {
                             AppTheme.Colors.surfaceSecondary
                         } else {
-                            Color(uiColor: .secondarySystemFill)
+                        #if canImport(UIKit)
+                        Color(uiColor: .secondarySystemFill)
+                        #else
+                        AppTheme.Colors.surfaceSecondary
+                        #endif
                         }
                     }
                 )
@@ -307,3 +362,29 @@ public extension ButtonStyle where Self == AppTheme.IconGlassButtonStyle {
         AppTheme.IconGlassButtonStyle()
     }
 }
+
+#if !os(iOS)
+public enum NavigationBarItem {
+    public enum TitleDisplayMode {
+        case inline
+        case large
+        case automatic
+    }
+}
+
+public extension View {
+    func navigationBarTitleDisplayMode(_ mode: NavigationBarItem.TitleDisplayMode) -> some View {
+        self
+    }
+    
+    @ViewBuilder
+    func fullScreenCover<Content: View>(
+        isPresented: Binding<Bool>,
+        onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        self.sheet(isPresented: isPresented, onDismiss: onDismiss, content: content)
+    }
+}
+#endif
+
