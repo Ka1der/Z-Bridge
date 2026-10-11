@@ -207,7 +207,7 @@ public enum CameraBrowserViewMode: String, CaseIterable, Identifiable, Sendable 
     public var iconName: String {
         switch self {
         case .list: return "list.bullet"
-        case .gallery: return "square.grid.2x2"
+        case .gallery: return "rectangle.bottomhalf.filled"
         }
     }
 }

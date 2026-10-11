@@ -66,6 +66,45 @@ public struct USBCameraBrowserView: View {
         usbManager.catalogFiles.filter { formatFilter.matches(isRAW: $0.isRAW) }
     }
     
+    @State private var activeFileID: String? = nil
+    
+    private var activeFile: CameraFileItem? {
+        if let id = activeFileID, let item = filteredFiles.first(where: { $0.id == id }) {
+            return item
+        }
+        return filteredFiles.first
+    }
+    
+    private var activeFileIndex: Int {
+        guard let active = activeFile,
+              let idx = filteredFiles.firstIndex(where: { $0.id == active.id }) else {
+            return 0
+        }
+        return idx
+    }
+    
+    private func selectNextFile() {
+        guard let current = activeFile,
+              let idx = filteredFiles.firstIndex(where: { $0.id == current.id }),
+              idx + 1 < filteredFiles.count else { return }
+        activeFileID = filteredFiles[idx + 1].id
+    }
+    
+    private func selectPreviousFile() {
+        guard let current = activeFile,
+              let idx = filteredFiles.firstIndex(where: { $0.id == current.id }),
+              idx > 0 else { return }
+        activeFileID = filteredFiles[idx - 1].id
+    }
+    
+    private func toggleSelect(_ item: CameraFileItem) {
+        if selectedFileIDs.contains(item.id) {
+            selectedFileIDs.remove(item.id)
+        } else {
+            selectedFileIDs.insert(item.id)
+        }
+    }
+    
     /// Доступные для импорта файлы, удовлетворяющие текущему фильтру
     private var filteredCandidateFiles: [CameraFileItem] {
         filteredFiles.filter { $0.status == .notImported }
@@ -131,7 +170,7 @@ public struct USBCameraBrowserView: View {
                     case .list:
                         fileListView
                     case .gallery:
-                        fileGridView
+                        galleryFilmstripView
                     }
                 }
                 
@@ -401,7 +440,7 @@ public struct USBCameraBrowserView: View {
                     Circle()
                         .fill(Color.green)
                         .frame(width: 8, height: 8)
-                    Text("Карта готова")
+                    Text("Готово")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundColor(.green)
@@ -478,7 +517,7 @@ public struct USBCameraBrowserView: View {
         Picker("Вид", selection: viewModeBinding) {
             Label("Список", systemImage: "list.bullet")
                 .tag(CameraBrowserViewMode.list)
-            Label("Галерея", systemImage: "square.grid.2x2")
+            Label("Галерея", systemImage: "rectangle.bottomhalf.filled")
                 .tag(CameraBrowserViewMode.gallery)
         }
         .pickerStyle(.segmented)
@@ -640,38 +679,251 @@ public struct USBCameraBrowserView: View {
         .listStyle(.plain)
     }
     
-    private var fileGridView: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 155, maximum: 230), spacing: 12)],
-                spacing: 12
-            ) {
-                ForEach(filteredFiles) { item in
-                    CameraFileGridCard(
-                        item: item,
-                        isSelected: selectedFileIDs.contains(item.id),
-                        onToggleSelect: {
-                            if selectedFileIDs.contains(item.id) {
-                                selectedFileIDs.remove(item.id)
-                            } else {
-                                selectedFileIDs.insert(item.id)
+    private var galleryFilmstripView: some View {
+        VStack(spacing: 0) {
+            // Центральная большая область просмотра выбранного кадра
+            mainViewerArea
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            Divider()
+                .background(Color.white.opacity(0.12))
+            
+            // Нижняя горизонтальная лента миниатюр
+            filmstripBar
+        }
+    }
+    
+    @ViewBuilder
+    private var mainViewerArea: some View {
+        if let item = activeFile {
+            GeometryReader { geo in
+                ZStack {
+                    // Темный матовый фон (как в Finder / Apple Photos Gallery)
+                    Color(white: 0.10)
+                        .ignoresSafeArea()
+                    
+                    // Крупное изображение
+                    Group {
+                        if let thumb = item.thumbnail {
+                            #if canImport(UIKit)
+                            Image(uiImage: UIImage(cgImage: thumb))
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: max(geo.size.width - 24, 100), maxHeight: max(geo.size.height - 24, 100))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 3)
+                            #elseif canImport(AppKit)
+                            Image(nsImage: NSImage(cgImage: thumb, size: NSSize(width: geo.size.width, height: geo.size.height)))
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: max(geo.size.width - 24, 100), maxHeight: max(geo.size.height - 24, 100))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 3)
+                            #else
+                            Image(decorative: thumb, scale: 1.0)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: max(geo.size.width - 24, 100), maxHeight: max(geo.size.height - 24, 100))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            #endif
+                        } else {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .controlSize(.regular)
+                                Text("Чтение снимка с карты...")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
-                        },
-                        onRetry: {
-                            Task {
-                                await usbManager.retryTransfer(for: item)
+                            .onAppear {
+                                usbManager.requestThumbnail(for: item)
                             }
-                        },
-                        onRequestThumbnail: {
-                            usbManager.requestThumbnail(for: item)
                         }
-                    )
-                    .equatable()
+                    }
+                    
+                    // Стрелки навигации Влево / Вправо
+                    HStack {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                selectPreviousFile()
+                            }
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(Color.black.opacity(0.55)))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(activeFileIndex <= 0)
+                        .opacity(activeFileIndex <= 0 ? 0.25 : 1.0)
+                        .padding(.leading, 12)
+                        
+                        Spacer()
+                        
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                selectNextFile()
+                            }
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(Color.black.opacity(0.55)))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(activeFileIndex >= filteredFiles.count - 1)
+                        .opacity(activeFileIndex >= filteredFiles.count - 1 ? 0.25 : 1.0)
+                        .padding(.trailing, 12)
+                    }
+                    
+                    // Верхняя панель с кнопкой выбора и метаданными кадра
+                    VStack {
+                        HStack(spacing: 8) {
+                            if item.status == .notImported {
+                                Button {
+                                    toggleSelect(item)
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: selectedFileIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                                            .font(.system(size: 18, weight: .semibold))
+                                            .foregroundColor(selectedFileIDs.contains(item.id) ? .accentColor : .white)
+                                        Text(selectedFileIDs.contains(item.id) ? "Выбран для импорта" : "Выбрать кадр")
+                                            .font(.caption.bold())
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Capsule().fill(Color.black.opacity(0.6)))
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                galleryStatusBadge(for: item.status)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Capsule().fill(Color.black.opacity(0.6)))
+                            }
+                            
+                            Spacer()
+                            
+                            // Счетчик кадров (например, 1 из 915)
+                            Text("\(activeFileIndex + 1) из \(filteredFiles.count)")
+                                .font(.caption2.bold())
+                                .foregroundColor(.white.opacity(0.85))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(Color.black.opacity(0.5)))
+                            
+                            // Имя файла, формат и размер
+                            HStack(spacing: 6) {
+                                Text(item.filename)
+                                    .font(.caption.bold())
+                                    .foregroundColor(.white)
+                                
+                                Text(item.isRAW ? "RAW" : "JPEG")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background((item.isRAW ? Color.purple : Color.blue).opacity(0.85))
+                                    .foregroundColor(.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                                
+                                Text(item.formattedSize)
+                                    .font(.caption2)
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Color.black.opacity(0.6)))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.top, 10)
+                        
+                        Spacer()
+                    }
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 30)
+                        .onEnded { value in
+                            if value.translation.width < -40 {
+                                withAnimation(.easeInOut(duration: 0.15)) { selectNextFile() }
+                            } else if value.translation.width > 40 {
+                                withAnimation(.easeInOut(duration: 0.15)) { selectPreviousFile() }
+                            }
+                        }
+                )
+            }
+        }
+    }
+    
+    private var filmstripBar: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 6) {
+                    ForEach(filteredFiles) { file in
+                        CameraFilmstripTile(
+                            item: file,
+                            isActive: activeFile?.id == file.id,
+                            isSelected: selectedFileIDs.contains(file.id),
+                            onTap: {
+                                activeFileID = file.id
+                            },
+                            onToggleSelect: {
+                                toggleSelect(file)
+                            },
+                            onRequestThumbnail: {
+                                usbManager.requestThumbnail(for: file)
+                            }
+                        )
+                        .id(file.id)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+            .frame(height: 82)
+            .background(Color(white: 0.13))
+            .onChange(of: activeFileID) { _, newID in
+                if let id = newID {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, selectedStats.count > 0 ? 80 : 30)
+            .onAppear {
+                if let id = activeFile?.id {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func galleryStatusBadge(for status: CameraFileImportStatus) -> some View {
+        switch status {
+        case .imported:
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                Text("Загружен").font(.caption2.bold()).foregroundColor(.green)
+            }
+        case .queued:
+            HStack(spacing: 4) {
+                Image(systemName: "clock.fill").foregroundColor(.blue)
+                Text("В очереди").font(.caption2.bold()).foregroundColor(.blue)
+            }
+        case .importing(let progress):
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.mini)
+                Text("\(Int(progress * 100))%").font(.caption2.bold()).foregroundColor(.orange)
+            }
+        case .failed:
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.circle.fill").foregroundColor(.red)
+                Text("Ошибка").font(.caption2.bold()).foregroundColor(.red)
+            }
+        case .notImported:
+            EmptyView()
         }
     }
     
@@ -962,222 +1214,134 @@ public struct CameraFileRowView: View, Equatable {
     }
 }
 
-// MARK: - Элемент карточки галереи каталога с поддержкой Equatable
+// MARK: - Элемент миниатюры горизонтальной ленты галереи (Filmstrip)
 
-public struct CameraFileGridCard: View, Equatable {
+public struct CameraFilmstripTile: View, Equatable {
     public let item: CameraFileItem
+    public let isActive: Bool
     public let isSelected: Bool
+    public let onTap: () -> Void
     public let onToggleSelect: () -> Void
-    public let onRetry: () -> Void
     public let onRequestThumbnail: () -> Void
     
     public init(
         item: CameraFileItem,
+        isActive: Bool,
         isSelected: Bool,
+        onTap: @escaping () -> Void,
         onToggleSelect: @escaping () -> Void,
-        onRetry: @escaping () -> Void,
         onRequestThumbnail: @escaping () -> Void
     ) {
         self.item = item
+        self.isActive = isActive
         self.isSelected = isSelected
+        self.onTap = onTap
         self.onToggleSelect = onToggleSelect
-        self.onRetry = onRetry
         self.onRequestThumbnail = onRequestThumbnail
     }
     
-    public static func == (lhs: CameraFileGridCard, rhs: CameraFileGridCard) -> Bool {
+    public static func == (lhs: CameraFilmstripTile, rhs: CameraFilmstripTile) -> Bool {
         lhs.item.id == rhs.item.id &&
-        lhs.item.status == rhs.item.status &&
+        lhs.isActive == rhs.isActive &&
         lhs.isSelected == rhs.isSelected &&
+        lhs.item.status == rhs.item.status &&
         (lhs.item.thumbnail != nil) == (rhs.item.thumbnail != nil)
     }
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // 1. Превью фотографии (1:1 квадратная пропорция)
-            ZStack(alignment: .topLeading) {
+        Button(action: onTap) {
+            ZStack(alignment: .topTrailing) {
+                // Превью снимка с сохранением естественных пропорций (fit)
                 Group {
                     if let thumb = item.thumbnail {
                         #if canImport(UIKit)
                         Image(uiImage: UIImage(cgImage: thumb))
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .aspectRatio(contentMode: .fit)
                         #elseif canImport(AppKit)
-                        Image(nsImage: NSImage(cgImage: thumb, size: NSSize(width: 200, height: 200)))
+                        Image(nsImage: NSImage(cgImage: thumb, size: NSSize(width: 80, height: 56)))
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .aspectRatio(contentMode: .fit)
                         #else
                         Image(decorative: thumb, scale: 1.0)
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .aspectRatio(contentMode: .fit)
                         #endif
                     } else {
                         Rectangle()
-                            .fill(Color.secondary.opacity(0.12))
+                            .fill(Color(white: 0.22))
+                            .aspectRatio(3/2, contentMode: .fit)
                             .overlay(
-                                VStack(spacing: 8) {
-                                    Image(systemName: item.isRAW ? "camera.fill" : "photo")
-                                        .font(.title2)
-                                        .foregroundColor(.secondary.opacity(0.6))
-                                    ProgressView()
-                                        .controlSize(.mini)
-                                }
+                                Image(systemName: item.isRAW ? "camera" : "photo")
+                                    .font(.caption2)
+                                    .foregroundColor(.white.opacity(0.4))
                             )
                     }
                 }
-                .frame(minHeight: 140, maxHeight: 180)
-                .aspectRatio(1.0, contentMode: .fill)
-                .clipped()
+                .frame(maxHeight: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .padding(3)
                 
-                // Верхний оверлей: выбор слева, бэйдж формата справа
-                HStack(alignment: .top) {
-                    if item.status == .notImported {
-                        Button {
-                            onToggleSelect()
-                        } label: {
-                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundColor(isSelected ? .accentColor : .white.opacity(0.9))
-                                .background(Circle().fill(Color.black.opacity(0.5)))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(6)
-                    } else {
-                        statusLeadingBadge(for: item.status)
-                            .padding(6)
-                    }
-                    
-                    Spacer()
-                    
-                    Text(item.isRAW ? "RAW" : "JPEG")
-                        .font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background((item.isRAW ? Color.purple : Color.blue).opacity(0.85))
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                        .shadow(color: .black.opacity(0.3), radius: 2)
-                        .padding(6)
-                }
+                // Бейджи статуса загрузки и выбора
+                statusOrSelectionBadge
+                    .padding(3)
             }
+            .frame(height: 60)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isActive ? Color(white: 0.28) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(
+                        isActive ? Color.white.opacity(0.9) : (isSelected ? Color.accentColor : Color.clear),
+                        lineWidth: isActive ? 2 : (isSelected ? 1.5 : 0)
+                    )
+            )
             .contentShape(Rectangle())
-            .onAppear {
-                if item.thumbnail == nil {
-                    onRequestThumbnail()
-                }
-            }
-            
-            // 2. Информационная панель внизу карточки
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.filename)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .foregroundColor(.primary)
-                
-                HStack(spacing: 4) {
-                    Text(item.formattedSize)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    
-                    Spacer()
-                    
-                    statusTrailingBadge(for: item.status)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(Color(white: 0.14))
         }
-        .background(Color(white: 0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.08), lineWidth: isSelected ? 2.5 : 1)
-        )
-        .shadow(color: isSelected ? Color.accentColor.opacity(0.25) : Color.black.opacity(0.2), radius: isSelected ? 4 : 2, x: 0, y: 1)
-        .contentShape(RoundedRectangle(cornerRadius: 10))
-        .onTapGesture {
-            if item.status == .notImported {
-                onToggleSelect()
+        .buttonStyle(.plain)
+        .onAppear {
+            if item.thumbnail == nil {
+                onRequestThumbnail()
             }
         }
     }
     
     @ViewBuilder
-    private func statusLeadingBadge(for status: CameraFileImportStatus) -> some View {
-        switch status {
+    private var statusOrSelectionBadge: some View {
+        switch item.status {
         case .imported:
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 20))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundColor(.green)
-                .background(Circle().fill(Color.black.opacity(0.55)))
+                .background(Circle().fill(Color.black.opacity(0.6)))
         case .queued:
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 20))
+            Image(systemName: "clock.fill")
+                .font(.system(size: 13, weight: .bold))
                 .foregroundColor(.blue)
-                .background(Circle().fill(Color.black.opacity(0.55)))
+                .background(Circle().fill(Color.black.opacity(0.6)))
         case .importing:
             ProgressView()
-                .scaleEffect(0.8)
-                .padding(3)
-                .background(Circle().fill(Color.black.opacity(0.55)))
+                .controlSize(.mini)
+                .padding(2)
+                .background(Circle().fill(Color.black.opacity(0.6)))
         case .failed:
             Image(systemName: "exclamationmark.circle.fill")
-                .font(.system(size: 20))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundColor(.red)
-                .background(Circle().fill(Color.black.opacity(0.55)))
+                .background(Circle().fill(Color.black.opacity(0.6)))
         case .notImported:
-            EmptyView()
-        }
-    }
-    
-    @ViewBuilder
-    private func statusTrailingBadge(for status: CameraFileImportStatus) -> some View {
-        switch status {
-        case .imported:
-            Text("Загружен")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.green)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(Color.green.opacity(0.15))
-                .clipShape(Capsule())
-        case .queued:
-            Text("В очереди")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.blue)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(Color.blue.opacity(0.15))
-                .clipShape(Capsule())
-        case .importing(let progress):
-            Text("\(Int(progress * 100))%")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.orange)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(Color.orange.opacity(0.15))
-                .clipShape(Capsule())
-        case .failed:
-            Button {
-                onRetry()
-            } label: {
-                Text("Повторить")
-                    .font(.system(size: 10, weight: .bold))
+            if isSelected {
+                Button(action: onToggleSelect) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.accentColor)
+                        .background(Circle().fill(Color.white))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.bordered)
-            .tint(.red)
-            .controlSize(.mini)
-        case .notImported:
-            Text("Доступен")
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(Color.secondary.opacity(0.12))
-                .clipShape(Capsule())
         }
     }
 }
+
