@@ -582,6 +582,50 @@ public actor TransferCoordinator: CameraTransportDelegate {
         return await database.hasAsset(sessionID: activeSession.id, filename: filename, fileSize: fileSize)
     }
     
+    /// Поиск локального URL для файла по его идентификатору, имени или размеру
+    public func findLocalFileURL(sourceFileID: String, filename: String, fileSize: Int64) async -> URL? {
+        let fileManager = FileManager.default
+        
+        // 1. Поиск в активных заданиях координатора
+        if let job = jobs.values.first(where: {
+            ($0.sourceFileID == sourceFileID || $0.filename == filename) &&
+            $0.state.isCompleted &&
+            fileManager.fileExists(atPath: $0.destinationURL.path)
+        }) {
+            return job.destinationURL
+        }
+        
+        // 2. Поиск в ассетах координатора
+        if let asset = assets.first(where: {
+            $0.filename == filename &&
+            ($0.fileSize == fileSize || fileSize <= 0) &&
+            fileManager.fileExists(atPath: $0.fileURL.path)
+        }) {
+            return asset.fileURL
+        }
+        
+        // 3. Поиск в базе данных
+        let allJobs = await database.getAllJobs()
+        if let dbJob = allJobs.first(where: {
+            ($0.sourceFileID == sourceFileID || $0.filename == filename) &&
+            $0.state.isCompleted &&
+            fileManager.fileExists(atPath: $0.destinationURL.path)
+        }) {
+            return dbJob.destinationURL
+        }
+        
+        // 4. Поиск в папке активной сессии
+        let sessionFolder = activeSession.folderURL
+        let candidateRAW = sessionFolder.appendingPathComponent("raw").appendingPathComponent(filename)
+        if fileManager.fileExists(atPath: candidateRAW.path) { return candidateRAW }
+        let candidateJPG = sessionFolder.appendingPathComponent("jpeg").appendingPathComponent(filename)
+        if fileManager.fileExists(atPath: candidateJPG.path) { return candidateJPG }
+        let candidateRoot = sessionFolder.appendingPathComponent(filename)
+        if fileManager.fileExists(atPath: candidateRoot.path) { return candidateRoot }
+        
+        return nil
+    }
+    
     /// Получение множества идентификаторов уже импортированных файлов активной сессии
     public func getImportedSourceFileIDs() async -> Set<String> {
         if usesUnifiedLibrary { return await database.getLibraryImportedSourceFileIDs() }

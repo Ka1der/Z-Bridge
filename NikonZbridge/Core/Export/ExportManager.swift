@@ -463,13 +463,81 @@ public actor ExportManager {
     
     /// Извлечение высококачественного JPEG-превью для прикрепления к RAW-ассету в Photos
     private func extractPreviewJPEGData(from url: URL) -> Data? {
-        guard let previewImage = RAWPreviewExtractor.extractThumbnail(from: url, maxPixelSize: 4096) else {
-            return nil
+        // 1. Попытка через RAWPreviewExtractor (максимальный размер 4096)
+        if let previewImage = RAWPreviewExtractor.extractThumbnail(from: url, maxPixelSize: 4096) {
+            #if canImport(UIKit)
+            if let data = previewImage.jpegData(compressionQuality: 0.95) { return data }
+            #elseif canImport(AppKit)
+            if let tiff = previewImage.tiffRepresentation,
+               let rep = NSBitmapImageRep(data: tiff),
+               let data = rep.representation(using: .jpeg, properties: [:]) { return data }
+            #endif
         }
+        
+        // 2. Попытка через меньший размер (1920)
+        if let previewImage = RAWPreviewExtractor.extractThumbnail(from: url, maxPixelSize: 1920) {
+            #if canImport(UIKit)
+            if let data = previewImage.jpegData(compressionQuality: 0.90) { return data }
+            #elseif canImport(AppKit)
+            if let tiff = previewImage.tiffRepresentation,
+               let rep = NSBitmapImageRep(data: tiff),
+               let data = rep.representation(using: .jpeg, properties: [:]) { return data }
+            #endif
+        }
+        
+        // 3. Прямое чтение первого кадра через CGImageSource
+        let options: [CFString: Any] = [
+            kCGImageSourceShouldCache: false,
+            kCGImageSourceShouldAllowFloat: false
+        ]
+        if let source = CGImageSourceCreateWithURL(url as CFURL, options as CFDictionary),
+           let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+            #if canImport(UIKit)
+            let img = UIImage(cgImage: cgImage)
+            if let data = img.jpegData(compressionQuality: 0.90) { return data }
+            #elseif canImport(AppKit)
+            let img = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+            if let tiff = img.tiffRepresentation,
+               let rep = NSBitmapImageRep(data: tiff),
+               let data = rep.representation(using: .jpeg, properties: [:]) { return data }
+            #endif
+        }
+        
+        // 4. Гарантированный синтетический preview для предотвращения ошибки PhotoKit 3300
+        return generateFallbackPreviewJPEG(for: url)
+    }
+    
+    private func generateFallbackPreviewJPEG(for url: URL) -> Data? {
         #if canImport(UIKit)
-        return previewImage.jpegData(compressionQuality: 0.95)
+        let size = CGSize(width: 1920, height: 1280)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { ctx in
+            UIColor(red: 18/255.0, green: 20/255.0, blue: 26/255.0, alpha: 1.0).setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+            
+            let title = "NIKON RAW (NEF)"
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 52, weight: .bold),
+                .foregroundColor: UIColor.white
+            ]
+            let filename = url.lastPathComponent
+            let subAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.monospacedSystemFont(ofSize: 34, weight: .medium),
+                .foregroundColor: UIColor(white: 0.8, alpha: 1.0)
+            ]
+            
+            title.draw(at: CGPoint(x: 120, y: size.height / 2 - 70), withAttributes: attrs)
+            filename.draw(at: CGPoint(x: 120, y: size.height / 2 + 10), withAttributes: subAttrs)
+        }
+        return image.jpegData(compressionQuality: 0.85)
         #elseif canImport(AppKit)
-        guard let tiff = previewImage.tiffRepresentation,
+        let size = NSSize(width: 1920, height: 1280)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSColor(red: 18/255.0, green: 20/255.0, blue: 26/255.0, alpha: 1.0).setFill()
+        NSRect(origin: .zero, size: size).fill()
+        image.unlockFocus()
+        guard let tiff = image.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff) else { return nil }
         return rep.representation(using: .jpeg, properties: [:])
         #else
@@ -477,54 +545,82 @@ public actor ExportManager {
         #endif
     }
     
-    private func saveToPhotoLibrary(
+    public func saveToPhotoLibrary(
         sourceURL: URL,
         isRAW: Bool,
         albumName: String? = nil
     ) async throws -> URL {
+        guard fileManager.fileExists(atPath: sourceURL.path) else {
+            throw ExportError.sourceFileNotFound(sourceURL.lastPathComponent)
+        }
+        
         #if canImport(Photos)
-        try await withCheckedThrowingContinuation { continuation in
+        // 1. Поиск альбома СТРОГО СНАРУЖИ performChanges (PhotoKit запрещает fetch внутри блока)
+        var targetAlbum: PHAssetCollection? = nil
+        var needCreateAlbum = false
+        if let album = albumName, !album.isEmpty,
+           PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized {
+            let fetchOptions = PHFetchOptions()
+            fetchOptions.predicate = NSPredicate(format: "title = %@", album)
+            let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
+            targetAlbum = collections.firstObject
+            if targetAlbum == nil {
+                needCreateAlbum = true
+            }
+        }
+        
+        // 2. Для RAW-файлов подготавливаем временный JPEG-файл превью
+        var tempJPEGURL: URL? = nil
+        if isRAW {
+            if let jpegData = self.extractPreviewJPEGData(from: sourceURL) {
+                let tempDir = fileManager.temporaryDirectory.appendingPathComponent("PhotoKitExport_\(UUID().uuidString)")
+                try? fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                let tempFile = tempDir.appendingPathComponent("\(sourceURL.deletingPathExtension().lastPathComponent)_preview.jpg")
+                if (try? jpegData.write(to: tempFile, options: .atomic)) != nil {
+                    tempJPEGURL = tempFile
+                }
+            }
+        }
+        
+        defer {
+            if let temp = tempJPEGURL {
+                try? fileManager.removeItem(at: temp.deletingLastPathComponent())
+            }
+        }
+        
+        return try await withCheckedThrowingContinuation { continuation in
             var placeholder: PHObjectPlaceholder?
             
             PHPhotoLibrary.shared().performChanges({
                 let request = PHAssetCreationRequest.forAsset()
                 placeholder = request.placeholderForCreatedAsset
                 
-                let resourceOptions = PHAssetResourceCreationOptions()
-                resourceOptions.shouldMoveFile = false
+                let rawOptions = PHAssetResourceCreationOptions()
+                rawOptions.shouldMoveFile = false
                 
                 if isRAW {
-                    // КРИТИЧЕСКИ ВАЖНО: PhotoKit требует, чтобы ассет содержал базовый ресурс типа .photo.
-                    // Если вызвать только .alternatePhoto без .photo, PhotoKit возвращает ошибку 3300:
-                    // "Invalid resource: an asset must have a primary image resource".
-                    // Извлекаем полноразмерный JPEG-превью кадра:
-                    if let jpegData = self.extractPreviewJPEGData(from: sourceURL) {
-                        // 1. Основной отображаемый ресурс (.photo) для моментального рендеринга в Фотогалерее iOS:
-                        request.addResource(with: .photo, data: jpegData, options: nil)
-                        // 2. Альтернативный оригинальный RAW-файл (.alternatePhoto) с сохранением полного динамического диапазона:
-                        request.addResource(with: .alternatePhoto, fileURL: sourceURL, options: resourceOptions)
+                    if let tempJPEG = tempJPEGURL {
+                        // 1. Основной ресурс (.photo) — JPEG превью для быстрого рендеринга в галерее iOS
+                        let photoOptions = PHAssetResourceCreationOptions()
+                        photoOptions.shouldMoveFile = false
+                        request.addResource(with: .photo, fileURL: tempJPEG, options: photoOptions)
+                        
+                        // 2. Альтернативный оригинальный RAW (.alternatePhoto) с сохранением полного динамического диапазона
+                        request.addResource(with: .alternatePhoto, fileURL: sourceURL, options: rawOptions)
                     } else {
-                        // Фолбэк: если превью извлечь не удалось, передаем сам RAW-файл как основной .photo
-                        request.addResource(with: .photo, fileURL: sourceURL, options: resourceOptions)
+                        request.addResource(with: .photo, fileURL: sourceURL, options: rawOptions)
                     }
                 } else {
-                    // Стандартный JPEG / HEIF кадр
-                    request.addResource(with: .photo, fileURL: sourceURL, options: resourceOptions)
+                    request.addResource(with: .photo, fileURL: sourceURL, options: rawOptions)
                 }
                 
-                // Добавление в альбом (если указан и есть права чтения альбомов)
-                if let album = albumName, !album.isEmpty, let placeholder = placeholder,
-                   PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized {
-                    let fetchOptions = PHFetchOptions()
-                    fetchOptions.predicate = NSPredicate(format: "title = %@", album)
-                    let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
-                    if let collection = collections.firstObject {
-                        let albumChangeRequest = PHAssetCollectionChangeRequest(for: collection)
-                        albumChangeRequest?.addAssets([placeholder] as NSArray)
-                    } else {
-                        let createAlbumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: album)
-                        createAlbumRequest.addAssets([placeholder] as NSArray)
-                    }
+                // Добавление в альбом (без вызова fetch внутри блока!)
+                if let target = targetAlbum, let ph = placeholder {
+                    let albumChangeRequest = PHAssetCollectionChangeRequest(for: target)
+                    albumChangeRequest?.addAssets([ph] as NSArray)
+                } else if needCreateAlbum, let album = albumName, let ph = placeholder {
+                    let createAlbumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: album)
+                    createAlbumRequest.addAssets([ph] as NSArray)
                 }
             }) { success, error in
                 if success {
@@ -556,12 +652,27 @@ public actor ExportManager {
             throw ExportError.photoLibraryPermissionDenied
         }
         
-        // Если это парный снимок (RAW + JPEG/HEIF)
-        if let raw = group.rawAsset, let companion = group.jpegAsset ?? group.heifAsset {
+        // Если это парный снимок (RAW + JPEG/HEIF) и оба файла существуют на накопителе
+        if let raw = group.rawAsset, let companion = group.jpegAsset ?? group.heifAsset,
+           fileManager.fileExists(atPath: raw.fileURL.path),
+           fileManager.fileExists(atPath: companion.fileURL.path) {
             #if canImport(Photos)
+            var targetAlbum: PHAssetCollection? = nil
+            var needCreateAlbum = false
+            if let album = albumName, !album.isEmpty,
+               PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized {
+                let fetchOptions = PHFetchOptions()
+                fetchOptions.predicate = NSPredicate(format: "title = %@", album)
+                let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
+                targetAlbum = collections.firstObject
+                if targetAlbum == nil { needCreateAlbum = true }
+            }
+            
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                var placeholder: PHObjectPlaceholder?
                 PHPhotoLibrary.shared().performChanges({
                     let request = PHAssetCreationRequest.forAsset()
+                    placeholder = request.placeholderForCreatedAsset
                     let rawOptions = PHAssetResourceCreationOptions()
                     rawOptions.shouldMoveFile = false
                     let photoOptions = PHAssetResourceCreationOptions()
@@ -571,6 +682,14 @@ public actor ExportManager {
                     request.addResource(with: .photo, fileURL: companion.fileURL, options: photoOptions)
                     // 2. Оригинал RAW как .alternatePhoto
                     request.addResource(with: .alternatePhoto, fileURL: raw.fileURL, options: rawOptions)
+                    
+                    if let target = targetAlbum, let ph = placeholder {
+                        let albumChangeRequest = PHAssetCollectionChangeRequest(for: target)
+                        albumChangeRequest?.addAssets([ph] as NSArray)
+                    } else if needCreateAlbum, let album = albumName, let ph = placeholder {
+                        let createAlbumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: album)
+                        createAlbumRequest.addAssets([ph] as NSArray)
+                    }
                 }) { success, error in
                     if success {
                         continuation.resume()
@@ -584,10 +703,35 @@ public actor ExportManager {
             #endif
         } else if let primary = group.primaryAsset {
             _ = try await saveToPhotoLibrary(sourceURL: primary.fileURL, isRAW: primary.isRAW, albumName: albumName)
+        } else {
+            throw ExportError.sourceFileNotFound(group.baseName)
         }
     }
     
     // MARK: - Проверка прав доступа к Photos
+    
+    #if canImport(Photos)
+    nonisolated public func photosAuthorizationStatus() -> PHAuthorizationStatus {
+        let addStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        if addStatus != .notDetermined {
+            return addStatus
+        }
+        return PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    }
+    
+    nonisolated public func requestPhotosAuthorization() async -> PHAuthorizationStatus {
+        let addStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        if addStatus != .notDetermined {
+            return addStatus
+        }
+        
+        return await withCheckedContinuation { continuation in
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { newStatus in
+                continuation.resume(returning: newStatus)
+            }
+        }
+    }
+    #endif
     
     public func checkAndRequestPhotosPermission() async -> Bool {
         #if canImport(Photos)

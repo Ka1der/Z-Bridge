@@ -35,6 +35,11 @@ public struct USBCameraBrowserView: View {
     @State private var isImportActionInProgress: Bool = false
     @State private var isRefreshing: Bool = false
     
+    // Экспорт в Apple Photos и обратная связь
+    @State private var isExportingToPhotos: Bool = false
+    @State private var photosSaveToast: String? = nil
+    @State private var isPhotosPermissionAlertPresented: Bool = false
+    
     // Интерактивная 100% Zoom лупа
     @State private var isZoomLoupeEnabled: Bool = false
     @State private var loupeOffset: CGSize = .zero
@@ -122,6 +127,143 @@ public struct USBCameraBrowserView: View {
         }
     }
     
+    // MARK: - Экспорт в Apple Photos
+    
+    private func exportActiveFileToPhotos(_ item: CameraFileItem) {
+        guard !isExportingToPhotos else { return }
+        
+        #if canImport(Photos)
+        let status = ExportManager.shared.photosAuthorizationStatus()
+        if status == .denied || status == .restricted {
+            isPhotosPermissionAlertPresented = true
+            return
+        }
+        #endif
+        
+        isExportingToPhotos = true
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+            photosSaveToast = "Сохранение в «Фото»..."
+        }
+        
+        Task {
+            do {
+                #if canImport(Photos)
+                let auth = await ExportManager.shared.requestPhotosAuthorization()
+                if auth == .denied || auth == .restricted {
+                    await MainActor.run {
+                        isExportingToPhotos = false
+                        photosSaveToast = nil
+                        isPhotosPermissionAlertPresented = true
+                    }
+                    return
+                }
+                #endif
+                
+                try await usbManager.exportItemToPhotos(item)
+                
+                await MainActor.run {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                        photosSaveToast = "Сохранено в «Фото» ✓"
+                    }
+                    isExportingToPhotos = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                        withAnimation {
+                            if photosSaveToast == "Сохранено в «Фото» ✓" {
+                                photosSaveToast = nil
+                            }
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                        photosSaveToast = "Ошибка: \(error.localizedDescription)"
+                    }
+                    isExportingToPhotos = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                        withAnimation {
+                            if photosSaveToast?.hasPrefix("Ошибка:") == true {
+                                photosSaveToast = nil
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func exportSelectedFilesToPhotos(_ items: [CameraFileItem]) {
+        guard !isExportingToPhotos, !items.isEmpty else { return }
+        
+        #if canImport(Photos)
+        let status = ExportManager.shared.photosAuthorizationStatus()
+        if status == .denied || status == .restricted {
+            isPhotosPermissionAlertPresented = true
+            return
+        }
+        #endif
+        
+        isExportingToPhotos = true
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+            photosSaveToast = "Сохранение в «Фото» (0/\(items.count))..."
+        }
+        
+        Task {
+            do {
+                #if canImport(Photos)
+                let auth = await ExportManager.shared.requestPhotosAuthorization()
+                if auth == .denied || auth == .restricted {
+                    await MainActor.run {
+                        isExportingToPhotos = false
+                        photosSaveToast = nil
+                        isPhotosPermissionAlertPresented = true
+                    }
+                    return
+                }
+                #endif
+                
+                let result = try await usbManager.exportItemsToPhotos(items) { current, total in
+                    Task { @MainActor in
+                        photosSaveToast = "Сохранение в «Фото» (\(current)/\(total))..."
+                    }
+                }
+                
+                await MainActor.run {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                        if result.failed == 0 {
+                            photosSaveToast = "Сохранено в «Фото» (\(result.success)) ✓"
+                        } else {
+                            photosSaveToast = "Сохранено: \(result.success), ошибок: \(result.failed)"
+                        }
+                    }
+                    isExportingToPhotos = false
+                    selectedFileIDs.removeAll()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                        withAnimation {
+                            if photosSaveToast?.contains("Сохранено") == true {
+                                photosSaveToast = nil
+                            }
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                        photosSaveToast = "Ошибка: \(error.localizedDescription)"
+                    }
+                    isExportingToPhotos = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                        withAnimation {
+                            if photosSaveToast?.hasPrefix("Ошибка:") == true {
+                                photosSaveToast = nil
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     /// Доступные для импорта файлы, удовлетворяющие текущему фильтру
     private var filteredCandidateFiles: [CameraFileItem] {
         filteredFiles.filter { $0.status == .notImported }
@@ -177,6 +319,47 @@ public struct USBCameraBrowserView: View {
                     }
                 }
             }
+            .overlay(alignment: .top) {
+                if let toast = photosSaveToast {
+                    HStack(spacing: 8) {
+                        if isExportingToPhotos {
+                            ProgressView()
+                                .controlSize(.mini)
+                                .tint(AppTheme.Colors.accent)
+                        } else if toast.contains("✓") {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(AppTheme.Colors.statusGreen)
+                        } else {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(AppTheme.Colors.statusRed)
+                        }
+                        
+                        Text(toast)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color.white)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .glassPill(tint: toast.contains("✓") ? AppTheme.Colors.statusGreen : (isExportingToPhotos ? AppTheme.Colors.accent : AppTheme.Colors.statusRed))
+                    .padding(.top, 14)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(100)
+                }
+            }
+        }
+        .alert("Доступ к медиатеке «Фото»", isPresented: $isPhotosPermissionAlertPresented) {
+            Button("Открыть Настройки") {
+                #if canImport(UIKit)
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+                #endif
+            }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Приложению необходимо разрешение для сохранения снимков в фотогалерею iPhone. Пожалуйста, откройте Настройки и включите доступ к «Фото».")
         }
         .task {
             await usbManager.updateTargetSessionName()
@@ -734,6 +917,31 @@ public struct USBCameraBrowserView: View {
                 
                 Spacer()
                 
+                // Кнопка быстрого экспорта в медиатеку «Фото» iOS
+                Button {
+                    guard !isExportingToPhotos else { return }
+                    let toExport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
+                    exportSelectedFilesToPhotos(toExport)
+                } label: {
+                    HStack(spacing: 5) {
+                        if isExportingToPhotos {
+                            ProgressView().controlSize(.mini).tint(Color.white)
+                        } else {
+                            Image(systemName: "photo.on.rectangle.angled")
+                        }
+                        Text("В «Фото»")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 14)
+                    .frame(height: 38)
+                    .background(Color.white.opacity(0.16))
+                    .clipShape(Capsule())
+                    .glassSurface(shape: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(isExportingToPhotos || isImportActionInProgress)
+                
                 Button {
                     guard !isImportActionInProgress else { return }
                     isImportActionInProgress = true
@@ -761,7 +969,7 @@ public struct USBCameraBrowserView: View {
                     .shadow(color: AppTheme.Colors.accent.opacity(0.4), radius: 8, y: 3)
                 }
                 .buttonStyle(.plain)
-                .disabled(isImportActionInProgress)
+                .disabled(isImportActionInProgress || isExportingToPhotos)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Кадров на карте: \(stats.totalCount)")
@@ -1069,7 +1277,7 @@ public struct USBCameraBrowserView: View {
                         VStack {
                             Spacer()
                             CameraStatusHUDView(
-                                cameraName: usbManager.cameraName ?? "Z 9",
+                                cameraName: usbManager.cameraName ?? "Nikon Z",
                                 batteryLevel: 87,
                                 shutterSpeed: "1/250s",
                                 aperture: "f/2.8",
@@ -1153,19 +1361,6 @@ public struct USBCameraBrowserView: View {
             VStack(spacing: 0) {
                 // 1. Верхний минималистичный заголовок Liquid Glass
                 HStack(spacing: 8) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 13))
-                        Text(usbManager.cameraName?.replacingOccurrences(of: "Nikon ", with: "") ?? "Z 8")
-                            .font(.system(size: 13, weight: .bold))
-                    }
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 10)
-                    .frame(height: 32)
-                    .glassPill()
-                    
-                    Spacer()
-                    
                     // Переключатель вида: Студия / Список
                     cameraViewModeSelector
                     
@@ -1309,14 +1504,8 @@ public struct USBCameraBrowserView: View {
                         }
                     },
                     onExport: {
-                        guard !isImportActionInProgress else { return }
-                        isImportActionInProgress = true
-                        Task {
-                            defer { isImportActionInProgress = false }
-                            if let active = activeFile {
-                                await usbManager.importSelectedFiles([active])
-                            }
-                        }
+                        guard let active = activeFile else { return }
+                        exportActiveFileToPhotos(active)
                     },
                     onTransferTap: {
                         guard !isImportActionInProgress else { return }

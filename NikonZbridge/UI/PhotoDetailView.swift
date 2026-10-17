@@ -26,6 +26,7 @@ public struct PhotoDetailView: View {
     // Сохранение в Apple Photos
     @State private var isSavingToPhotos: Bool = false
     @State private var saveNotice: String? = nil
+    @State private var isPhotosPermissionAlertPresented: Bool = false
     
     public init(
         group: CaptureGroup,
@@ -192,6 +193,18 @@ public struct PhotoDetailView: View {
             Button("Понятно", role: .cancel) {}
         } message: {
             Text("Для мгновенного отклика при беспроводной и проводной съемке отображается встроенное JPEG-превью камеры. Полное разрешение RAW-сенсора доступно для экспорта и детальной обработки.")
+        }
+        .alert("Доступ к медиатеке «Фото»", isPresented: $isPhotosPermissionAlertPresented) {
+            Button("Открыть Настройки") {
+                #if canImport(UIKit)
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+                #endif
+            }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Приложению необходимо разрешение для сохранения снимков в фотогалерею iPhone. Пожалуйста, откройте Настройки и включите доступ к «Фото».")
         }
         .task(id: "\(group.id)_\(currentAsset?.id.uuidString ?? "")") {
             loadCurrentPreview()
@@ -782,6 +795,9 @@ public struct PhotoDetailView: View {
                 }
             } catch {
                 await MainActor.run {
+                    if let expErr = error as? ExportError, case .photoLibraryPermissionDenied = expErr {
+                        isPhotosPermissionAlertPresented = true
+                    }
                     withAnimation {
                         saveNotice = "Ошибка: \(error.localizedDescription)"
                     }

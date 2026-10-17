@@ -1039,3 +1039,84 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
         }
     }
 }
+
+// MARK: - Прямой экспорт в медиатеку «Фото» iOS
+
+extension USBCameraManager {
+    /// Поиск локального URL уже импортированного файла в сессионном хранилище
+    public func getLocalFileURL(for item: CameraFileItem) async -> URL? {
+        await coordinator.findLocalFileURL(
+            sourceFileID: item.id,
+            filename: item.filename,
+            fileSize: item.fileSize
+        )
+    }
+    
+    /// Гарантирует, что файл с камеры скачан на устройство перед сохранением
+    public func ensureFileDownloaded(_ item: CameraFileItem) async throws -> URL {
+        if let existing = await getLocalFileURL(for: item) {
+            return existing
+        }
+        
+        // Запускаем импорт файла
+        await importSelectedFiles([item])
+        
+        // Ожидаем завершения загрузки с таймаутом (до 45 секунд)
+        let start = Date()
+        while Date().timeIntervalSince(start) < 45.0 {
+            if let existing = await getLocalFileURL(for: item) {
+                return existing
+            }
+            if let current = catalogFiles.first(where: { $0.id == item.id }),
+               case .failed(let err) = current.status {
+                throw ExportError.destinationUnreachable(err)
+            }
+            try await Task.sleep(nanoseconds: 200_000_000)
+        }
+        
+        throw ExportError.sourceFileNotFound("Превышено время ожидания загрузки кадра с камеры")
+    }
+    
+    /// Сохранение отдельного кадра с камеры напрямую в медиатеку «Фото» iOS
+    public func exportItemToPhotos(_ item: CameraFileItem) async throws {
+        let authorized = await ExportManager.shared.checkAndRequestPhotosPermission()
+        guard authorized else {
+            throw ExportError.photoLibraryPermissionDenied
+        }
+        
+        let localURL = try await ensureFileDownloaded(item)
+        let album = targetSessionName.isEmpty ? "Nikon Z Bridge" : targetSessionName
+        _ = try await ExportManager.shared.saveToPhotoLibrary(
+            sourceURL: localURL,
+            isRAW: item.isRAW,
+            albumName: album
+        )
+    }
+    
+    /// Пакетный экспорт выбранных кадров в медиатеку «Фото» с отслеживанием прогресса
+    public func exportItemsToPhotos(
+        _ items: [CameraFileItem],
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async throws -> (success: Int, failed: Int) {
+        let authorized = await ExportManager.shared.checkAndRequestPhotosPermission()
+        guard authorized else {
+            throw ExportError.photoLibraryPermissionDenied
+        }
+        
+        var success = 0
+        var failed = 0
+        let total = items.count
+        
+        for (idx, item) in items.enumerated() {
+            onProgress?(idx + 1, total)
+            do {
+                try await exportItemToPhotos(item)
+                success += 1
+            } catch {
+                failed += 1
+            }
+        }
+        
+        return (success, failed)
+    }
+}

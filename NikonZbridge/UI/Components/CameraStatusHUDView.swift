@@ -14,7 +14,7 @@ public struct CameraStatusHUDView: View {
     @State private var isCollapsed: Bool = false
     
     public init(
-        cameraName: String = "Z 9",
+        cameraName: String = "Nikon Z",
         batteryLevel: Int = 87,
         shutterSpeed: String = "1/250s",
         aperture: String = "f/2.8",
