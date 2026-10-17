@@ -16,19 +16,23 @@ public struct NarrowAppShellView: View {
         VStack(spacing: 0) {
             // 1. Основная область активного раздела
             VStack(spacing: 0) {
-                switch appState.selectedSection {
-                case .photos:
-                    NikonTetherRootView(appState: appState)
-                case .camera:
-                    CameraSectionView(appState: appState)
-                case .sessions:
-                    if AppFeatures.sessionManagementEnabled { SessionsSectionView(appState: appState) } else { NikonTetherRootView(appState: appState) }
+                if appState.isSettingsPresented {
+                    ConnectionSheetView(appState: appState)
+                } else {
+                    switch appState.selectedSection {
+                    case .photos:
+                        NikonTetherRootView(appState: appState)
+                    case .camera:
+                        CameraSectionView(appState: appState)
+                    case .sessions:
+                        if AppFeatures.sessionManagementEnabled { SessionsSectionView(appState: appState) } else { NikonTetherRootView(appState: appState) }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            // 2. Плавающий нижний блок (скрывается в режиме студии кадра, где активно управление FloatingThumbZoneView)
-            if !(appState.selectedSection == .photos && appState.cameraBrowserViewMode == .gallery) {
+            // 2. Плавающий нижний блок (скрывается в режиме студии кадра или когда открыты настройки)
+            if !appState.isSettingsPresented && !(appState.selectedSection == .photos && appState.cameraBrowserViewMode == .gallery) {
                 VStack(spacing: AppTheme.Spacing.xs) {
                     // Плашка активной передачи файла или суммарной очереди
                     if let activeJob = appState.activeTransferJob {
@@ -82,13 +86,12 @@ public struct NarrowAppShellView: View {
     }
     
     private func tabButton(for section: AppSection) -> some View {
-        let isSelected = appState.selectedSection == section
+        let isSelected = !appState.isSettingsPresented && appState.selectedSection == section
         
         return Button {
-            if appState.selectedSection != section {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
-                    appState.selectedSection = section
-                }
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                appState.isSettingsPresented = false
+                appState.selectedSection = section
             }
         } label: {
             HStack(spacing: AppTheme.Spacing.xs) {

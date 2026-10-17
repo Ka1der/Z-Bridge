@@ -64,6 +64,14 @@ public struct ConnectionSheetView: View {
         }
     }
     
+    private func closeSettings() {
+        withAnimation {
+            appState.isSettingsPresented = false
+            appState.isShowingConnectionSheet = false
+        }
+        dismiss()
+    }
+    
     public var body: some View {
         GeometryReader { geometry in
             let isWide = geometry.size.width >= 620
@@ -118,7 +126,7 @@ public struct ConnectionSheetView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Готово") { dismiss() }
+                    Button("Готово") { closeSettings() }
                         .foregroundStyle(AppTheme.Colors.textPrimary)
                 }
             }
@@ -209,7 +217,7 @@ public struct ConnectionSheetView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Готово") { dismiss() }
+                    Button("Готово") { closeSettings() }
                         .foregroundStyle(AppTheme.Colors.textPrimary)
                 }
             }
@@ -702,7 +710,7 @@ public struct ConnectionSheetView: View {
             }
             
             Button {
-                dismiss()
+                closeSettings()
                 appState.isUSBBrowserPresented = true
             } label: {
                 HStack {
@@ -1028,7 +1036,7 @@ public struct ConnectionSheetView: View {
             }
             
             Button {
-                dismiss()
+                closeSettings()
                 appState.presentClientMonitor()
             } label: {
                 HStack {

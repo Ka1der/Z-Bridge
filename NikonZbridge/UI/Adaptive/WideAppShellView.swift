@@ -36,16 +36,20 @@ public struct WideAppShellView: View {
             
             // 2. Основная рабочая область активного раздела
             VStack(spacing: 0) {
-                switch appState.selectedSection {
-                case .photos:
-                    NikonTetherRootView(appState: appState)
-                case .camera:
-                    CameraSectionView(appState: appState)
-                case .sessions:
-                    if AppFeatures.sessionManagementEnabled {
-                        SessionsSectionView(appState: appState)
-                    } else {
+                if appState.isSettingsPresented {
+                    ConnectionSheetView(appState: appState)
+                } else {
+                    switch appState.selectedSection {
+                    case .photos:
                         NikonTetherRootView(appState: appState)
+                    case .camera:
+                        CameraSectionView(appState: appState)
+                    case .sessions:
+                        if AppFeatures.sessionManagementEnabled {
+                            SessionsSectionView(appState: appState)
+                        } else {
+                            NikonTetherRootView(appState: appState)
+                        }
                     }
                 }
             }
@@ -94,9 +98,10 @@ public struct WideAppShellView: View {
                 proRailItem(
                     title: "Tether",
                     iconName: "display",
-                    isSelected: appState.selectedSection == .photos
+                    isSelected: !appState.isSettingsPresented && appState.selectedSection == .photos
                 ) {
                     withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                        appState.isSettingsPresented = false
                         appState.selectedSection = .photos
                     }
                 }
@@ -105,9 +110,10 @@ public struct WideAppShellView: View {
                 proRailItem(
                     title: "Storage",
                     iconName: "creditcard",
-                    isSelected: appState.selectedSection == .camera
+                    isSelected: !appState.isSettingsPresented && appState.selectedSection == .camera
                 ) {
                     withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                        appState.isSettingsPresented = false
                         appState.selectedSection = .camera
                     }
                 }
@@ -117,9 +123,10 @@ public struct WideAppShellView: View {
                     proRailItem(
                         title: "Sessions",
                         iconName: "list.bullet.rectangle",
-                        isSelected: appState.selectedSection == .sessions
+                        isSelected: !appState.isSettingsPresented && appState.selectedSection == .sessions
                     ) {
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                            appState.isSettingsPresented = false
                             appState.selectedSection = .sessions
                         }
                     }
@@ -131,7 +138,9 @@ public struct WideAppShellView: View {
                     iconName: "gearshape",
                     isSelected: appState.isSettingsPresented
                 ) {
-                    appState.isSettingsPresented = true
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                        appState.isSettingsPresented = true
+                    }
                 }
             }
             .padding(.horizontal, 8)
@@ -215,22 +224,33 @@ public struct WideAppShellView: View {
             
             // Иконки разделов
             VStack(spacing: 12) {
-                collapsedItem(iconName: "display", isSelected: appState.selectedSection == .photos) {
-                    appState.selectedSection = .photos
+                collapsedItem(iconName: "display", isSelected: !appState.isSettingsPresented && appState.selectedSection == .photos) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                        appState.isSettingsPresented = false
+                        appState.selectedSection = .photos
+                    }
                 }
                 
-                collapsedItem(iconName: "creditcard", isSelected: appState.selectedSection == .camera) {
-                    appState.selectedSection = .camera
+                collapsedItem(iconName: "creditcard", isSelected: !appState.isSettingsPresented && appState.selectedSection == .camera) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                        appState.isSettingsPresented = false
+                        appState.selectedSection = .camera
+                    }
                 }
                 
                 if AppFeatures.sessionManagementEnabled {
-                    collapsedItem(iconName: "list.bullet.rectangle", isSelected: appState.selectedSection == .sessions) {
-                        appState.selectedSection = .sessions
+                    collapsedItem(iconName: "list.bullet.rectangle", isSelected: !appState.isSettingsPresented && appState.selectedSection == .sessions) {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                            appState.isSettingsPresented = false
+                            appState.selectedSection = .sessions
+                        }
                     }
                 }
                 
                 collapsedItem(iconName: "gearshape", isSelected: appState.isSettingsPresented) {
-                    appState.isSettingsPresented = true
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                        appState.isSettingsPresented = true
+                    }
                 }
             }
             

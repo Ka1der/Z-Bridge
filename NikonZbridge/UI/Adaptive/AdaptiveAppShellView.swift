@@ -46,9 +46,6 @@ public struct AdaptiveAppShellView: View {
         .sheet(isPresented: $appState.isShowingConnectionSheet) {
             ConnectionSheetView(appState: appState)
         }
-        .sheet(isPresented: $appState.isSettingsPresented) {
-            ConnectionSheetView(appState: appState)
-        }
         .sheet(isPresented: $appState.isShowingSessionSheet) {
             if AppFeatures.sessionManagementEnabled { SessionManagementSheetView(appState: appState) }
         }
