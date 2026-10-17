@@ -50,6 +50,28 @@ public struct USBCameraBrowserView: View {
         abs(loupeMagnification - 3.0) < 0.1 ? "100% Zoom" : "200% Zoom"
     }
     
+    // Анимация перелистывания фотографий в режиме Студия
+    private enum PhotoSlideDirection {
+        case forward
+        case backward
+    }
+    @State private var slideDirection: PhotoSlideDirection = .forward
+    
+    private var photoSlideTransition: AnyTransition {
+        switch slideDirection {
+        case .forward:
+            return .asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            )
+        case .backward:
+            return .asymmetric(
+                insertion: .move(edge: .leading).combined(with: .opacity),
+                removal: .move(edge: .trailing).combined(with: .opacity)
+            )
+        }
+    }
+    
     // Превью высокой четкости (Retina / 4K) для активного кадра в Студии и Лупе
     @State private var activeHighResImage: CGImage? = nil
     @State private var activeHighResFileID: String? = nil
@@ -185,14 +207,20 @@ public struct USBCameraBrowserView: View {
         guard let current = activeFile,
               let idx = filteredFiles.firstIndex(where: { $0.id == current.id }),
               idx + 1 < filteredFiles.count else { return }
-        activeFileID = filteredFiles[idx + 1].id
+        slideDirection = .forward
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+            activeFileID = filteredFiles[idx + 1].id
+        }
     }
     
     private func selectPreviousFile() {
         guard let current = activeFile,
               let idx = filteredFiles.firstIndex(where: { $0.id == current.id }),
               idx > 0 else { return }
-        activeFileID = filteredFiles[idx - 1].id
+        slideDirection = .backward
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+            activeFileID = filteredFiles[idx - 1].id
+        }
     }
     
     private func toggleSelect(_ item: CameraFileItem) {
@@ -862,23 +890,8 @@ public struct USBCameraBrowserView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // 1. Верхний минималистичный бар Liquid Glass
-                HStack(spacing: 12) {
-                    // Камера и статус
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(usbManager.isConnected ? AppTheme.Colors.accent : AppTheme.Colors.statusNeutral)
-                            .frame(width: 8, height: 8)
-                        Text(usbManager.cameraName ?? "Nikon Z")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(Color.white)
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 32)
-                    .glassPill()
-                    
-                    Spacer()
-                    
+                // 1. Верхний минималистичный бар Liquid Glass (переключатель Студия / Список всегда в левом верхнем углу)
+                HStack(spacing: 8) {
                     // Переключатель Студия / Список
                     cameraViewModeSelector
                     
@@ -903,9 +916,10 @@ public struct USBCameraBrowserView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isRefreshing)
+                    .accessibilityLabel("Обновить каталог")
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 10)
+                .padding(.top, 8)
                 .padding(.bottom, 6)
                 
                 // 2. Индикатор фонового чтения оглавления
@@ -1271,6 +1285,8 @@ public struct USBCameraBrowserView: View {
                         
                         mainImageView(for: item, size: geometry.size)
                             .frame(width: imageSize.width, height: imageSize.height)
+                            .id(item.id)
+                            .transition(photoSlideTransition)
                             .contentShape(Rectangle())
                             .onTapGesture { location in
                                 let targetX = location.x - imageSize.width / 2.0
@@ -1372,7 +1388,7 @@ public struct USBCameraBrowserView: View {
                         // Стрелки навигации
                         HStack {
                             Button {
-                                withAnimation(.easeInOut(duration: 0.15)) { selectPreviousFile() }
+                                selectPreviousFile()
                             } label: {
                                 Image(systemName: "chevron.left")
                                     .font(.system(size: 18, weight: .bold))
@@ -1388,7 +1404,7 @@ public struct USBCameraBrowserView: View {
                             Spacer()
                             
                             Button {
-                                withAnimation(.easeInOut(duration: 0.15)) { selectNextFile() }
+                                selectNextFile()
                             } label: {
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 18, weight: .bold))
@@ -1404,6 +1420,21 @@ public struct USBCameraBrowserView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 25)
+                        .onEnded { val in
+                            guard !isZoomLoupeEnabled else { return }
+                            if abs(val.translation.width) > abs(val.translation.height) * 1.2 {
+                                if val.translation.width < -35 {
+                                    selectNextFile()
+                                } else if val.translation.width > 35 {
+                                    selectPreviousFile()
+                                }
+                            }
+                        }
+                )
                 
                 // Плавающая капсула прогресса переноса файлов над лентой кадров
                 ZStack(alignment: .bottom) {
@@ -1520,6 +1551,8 @@ public struct USBCameraBrowserView: View {
                         
                         mainImageView(for: item, size: geometry.size)
                             .frame(width: imageSize.width, height: imageSize.height)
+                            .id(item.id)
+                            .transition(photoSlideTransition)
                             .contentShape(Rectangle())
                             .onTapGesture { location in
                                 let targetX = location.x - imageSize.width / 2.0
@@ -1581,16 +1614,17 @@ public struct USBCameraBrowserView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
                 .contentShape(Rectangle())
                 .gesture(
-                    DragGesture(minimumDistance: 45)
+                    DragGesture(minimumDistance: 25)
                         .onEnded { val in
                             guard !isZoomLoupeEnabled else { return }
-                            if abs(val.translation.width) > abs(val.translation.height) * 1.5 {
-                                if val.translation.width < -50 {
-                                    withAnimation(.easeInOut(duration: 0.15)) { selectNextFile() }
-                                } else if val.translation.width > 50 {
-                                    withAnimation(.easeInOut(duration: 0.15)) { selectPreviousFile() }
+                            if abs(val.translation.width) > abs(val.translation.height) * 1.2 {
+                                if val.translation.width < -35 {
+                                    selectNextFile()
+                                } else if val.translation.width > 35 {
+                                    selectPreviousFile()
                                 }
                             }
                         }
@@ -1722,7 +1756,12 @@ public struct USBCameraBrowserView: View {
                             isActive: activeFile?.id == file.id,
                             isSelected: selectedFileIDs.contains(file.id),
                             onTap: {
-                                activeFileID = file.id
+                                let currentIdx = filteredFiles.firstIndex(where: { $0.id == activeFileID }) ?? 0
+                                let targetIdx = filteredFiles.firstIndex(where: { $0.id == file.id }) ?? 0
+                                slideDirection = targetIdx >= currentIdx ? .forward : .backward
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                    activeFileID = file.id
+                                }
                             },
                             onToggleSelect: {
                                 toggleSelect(file)
