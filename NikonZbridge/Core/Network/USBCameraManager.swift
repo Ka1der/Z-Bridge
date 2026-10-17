@@ -73,6 +73,25 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     private var cameraFileMap: [String: ICCameraFile] = [:] // compositeID -> ICCameraFile
     private var cancellingCompositeIDs: Set<String> = []
     
+    // Высокоскоростная индексация для устранения O(N^2) сканирования и фризов UI при чтении карты
+    private var knownCatalogIDs: Set<String> = []
+    private var catalogIndexByID: [String: Int] = [:]
+    private var pendingCatalogBuffer: [CameraFileItem] = []
+    private var catalogFlushTask: Task<Void, Never>? = nil
+    
+    /// Сброс накопленного буфера файлов оглавления в основное опубликованное свойство
+    private func flushPendingCatalogBuffer() {
+        guard !pendingCatalogBuffer.isEmpty else { return }
+        let itemsToAdd = pendingCatalogBuffer
+        pendingCatalogBuffer.removeAll()
+        
+        let startIndex = catalogFiles.count
+        catalogFiles.append(contentsOf: itemsToAdd)
+        for (offset, item) in itemsToAdd.enumerated() {
+            catalogIndexByID[item.id] = startIndex + offset
+        }
+    }
+    
     public init(
         coordinator: TransferCoordinator = .shared,
         maxConcurrentDownloads: Int = 1
@@ -511,12 +530,20 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     }
     
     private func updateItemStatus(compositeID: String, status: CameraFileImportStatus) {
-        if let idx = catalogFiles.firstIndex(where: { $0.id == compositeID }) {
+        if let idx = catalogIndexByID[compositeID], idx < catalogFiles.count, catalogFiles[idx].id == compositeID {
+            catalogFiles[idx].status = status
+        } else if let idx = catalogFiles.firstIndex(where: { $0.id == compositeID }) {
+            catalogIndexByID[compositeID] = idx
             catalogFiles[idx].status = status
         }
     }
     
     public func resetState() async {
+        catalogFlushTask?.cancel()
+        catalogFlushTask = nil
+        pendingCatalogBuffer.removeAll()
+        knownCatalogIDs.removeAll()
+        catalogIndexByID.removeAll()
         await transferQueue.clearAll()
         self.connectedCamera = nil
         self.cameraName = nil
@@ -573,16 +600,14 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
             }
         }
         
-        for updated in updatedFiles {
-            if let idx = self.catalogFiles.firstIndex(where: { $0.id == updated.id }) {
-                self.catalogFiles[idx].status = updated.status
-            }
-        }
+        self.catalogFiles = updatedFiles
     }
     
     /// Обновление оглавления носителя без триггера автозагрузки как для новых кадров
     public func ingestDiscoveredCatalogFiles(_ files: [ICCameraFile], camera: ICCameraDevice) {
         let camID = camera.name ?? "nikon"
+        var newItems: [CameraFileItem] = []
+        newItems.reserveCapacity(files.count)
         
         for file in files {
             let filename = file.name ?? "DSC_0001.NEF"
@@ -598,16 +623,25 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
             
             cameraFileMap[compositeID] = file
             
-            if !catalogFiles.contains(where: { $0.id == compositeID }) {
-                let fileItem = CameraFileItem(
-                    cameraID: camID,
-                    filename: filename,
-                    fileSize: fileSize,
-                    creationDate: creation,
-                    cameraFile: file,
-                    isInitialCatalog: true
-                )
-                catalogFiles.append(fileItem)
+            guard !knownCatalogIDs.contains(compositeID) else { continue }
+            knownCatalogIDs.insert(compositeID)
+            
+            let fileItem = CameraFileItem(
+                cameraID: camID,
+                filename: filename,
+                fileSize: fileSize,
+                creationDate: creation,
+                cameraFile: file,
+                isInitialCatalog: true
+            )
+            newItems.append(fileItem)
+        }
+        
+        if !newItems.isEmpty {
+            let startIndex = catalogFiles.count
+            catalogFiles.append(contentsOf: newItems)
+            for (offset, item) in newItems.enumerated() {
+                catalogIndexByID[item.id] = startIndex + offset
             }
         }
     }
@@ -628,17 +662,16 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
                 }
                 return false
             }
+            // Переиндексируем каталог после удаления
+            knownCatalogIDs = Set(catalogFiles.map(\.id))
+            catalogIndexByID = Dictionary(uniqueKeysWithValues: catalogFiles.enumerated().map { ($0.element.id, $0.offset) })
         }
         
         await syncCatalogWithStorage()
         
-        // Дозапрашиваем миниатюры для файлов, у которых они еще не получены
-        for file in catalogFiles where file.thumbnail == nil {
-            requestThumbnail(for: file)
-        }
-        
         if isCatalogReady {
             let name = camera.name ?? "Nikon Z"
+
             let total = catalogFiles.count
             self.connectionState = .ready(name: name, totalItems: total)
         }
@@ -729,10 +762,10 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
     
     /// Добавление файлов камерой:
     /// - До вызова deviceDidBecomeReady: первоначальное оглавление карты памяти.
-    /// - После вызова deviceDidBecomeReady: новые кадры, сделанные фотографом.
+    /// - После вызова deviceDidBecomeReady: новые кадры, сделанные фотографом (live tethering).
     public func cameraDevice(_ camera: ICCameraDevice, didAdd items: [ICCameraItem]) {
         let camID = camera.name ?? "nikon"
-        var newFilesAdded = 0
+        var newLiveFiles: [(ICCameraFile, String)] = []
         
         for item in items {
             guard let file = item as? ICCameraFile else { continue }
@@ -749,6 +782,9 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
             
             cameraFileMap[compositeID] = file
             
+            guard !knownCatalogIDs.contains(compositeID) else { continue }
+            knownCatalogIDs.insert(compositeID)
+            
             let fileItem = CameraFileItem(
                 cameraID: camID,
                 filename: filename,
@@ -758,14 +794,36 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                 isInitialCatalog: !isCatalogReady
             )
             
-            let isNewFile = !catalogFiles.contains(where: { $0.id == compositeID })
-            if isNewFile {
+            if isCatalogReady {
+                let idx = catalogFiles.count
                 catalogFiles.append(fileItem)
-                newFilesAdded += 1
+                catalogIndexByID[compositeID] = idx
+                newLiveFiles.append((file, compositeID))
+            } else {
+                pendingCatalogBuffer.append(fileItem)
             }
+        }
+        
+        if !isCatalogReady {
+            let totalFound = catalogFiles.count + pendingCatalogBuffer.count
+            connectionState = .enumeratingCatalog(name: camera.name ?? "Nikon Z", itemsFound: totalFound)
             
-            // Если каталог уже готов и обнаружен действительно новый снимок — это live tethering!
-            if isCatalogReady && isNewFile {
+            // Если буфер накопил достаточно файлов или таймер еще не запущен — сбрасываем плавно
+            if pendingCatalogBuffer.count >= 60 {
+                catalogFlushTask?.cancel()
+                catalogFlushTask = nil
+                flushPendingCatalogBuffer()
+            } else if catalogFlushTask == nil {
+                catalogFlushTask = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: 120_000_000)
+                    guard let self = self else { return }
+                    self.flushPendingCatalogBuffer()
+                    self.catalogFlushTask = nil
+                }
+            }
+        } else {
+            // Live tethering: постановка новых снимков в очередь
+            for (file, compositeID) in newLiveFiles {
                 if isAutoDownloadNewShotsEnabled {
                     Task {
                         await scheduleDownload(for: file, compositeID: compositeID, existingJob: nil, priority: true)
@@ -774,14 +832,14 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                 }
             }
         }
-        
-        if !isCatalogReady {
-            connectionState = .enumeratingCatalog(name: camera.name ?? "Nikon Z", itemsFound: catalogFiles.count)
-        }
     }
     
     /// Срабатывает, когда полное первоначальное оглавление карты памяти прочитано
     public func deviceDidBecomeReady(withCompleteContentCatalog device: ICCameraDevice) {
+        catalogFlushTask?.cancel()
+        catalogFlushTask = nil
+        flushPendingCatalogBuffer()
+        
         self.isCatalogReady = true
         let name = device.name ?? "Nikon Z"
         let total = catalogFiles.count
@@ -790,10 +848,16 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
         Task {
             // Проверяем статус для каждого файла в каталоге в рамках текущей сессии
             let importedIDs = await coordinator.getImportedSourceFileIDs()
-            for idx in catalogFiles.indices {
-                if importedIDs.contains(catalogFiles[idx].id) {
-                    catalogFiles[idx].status = .imported
+            var updated = catalogFiles
+            var hasChanges = false
+            for idx in updated.indices {
+                if importedIDs.contains(updated[idx].id) {
+                    updated[idx].status = .imported
+                    hasChanges = true
                 }
+            }
+            if hasChanges {
+                self.catalogFiles = updated
             }
             
             // Если включена автозагрузка флешки при подключении, запускаем импорт всех неимпортированных
@@ -812,7 +876,10 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
             fileSize: file.fileSize,
             creationDate: file.creationDate
         )
-        if let idx = catalogFiles.firstIndex(where: { $0.id == compositeID }) {
+        if let idx = catalogIndexByID[compositeID], idx < catalogFiles.count, catalogFiles[idx].id == compositeID {
+            catalogFiles[idx].thumbnail = thumb
+        } else if let idx = catalogFiles.firstIndex(where: { $0.id == compositeID }) {
+            catalogIndexByID[compositeID] = idx
             catalogFiles[idx].thumbnail = thumb
         }
     }
@@ -828,7 +895,10 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
             )
         })
         catalogFiles.removeAll(where: { removedIDs.contains($0.id) })
+        knownCatalogIDs = Set(catalogFiles.map(\.id))
+        catalogIndexByID = Dictionary(uniqueKeysWithValues: catalogFiles.enumerated().map { ($0.element.id, $0.offset) })
     }
+
     
     public func cameraDevice(_ camera: ICCameraDevice, didRenameItems items: [ICCameraItem]) {}
     public func cameraDeviceDidChangeCapability(_ camera: ICCameraDevice) {}

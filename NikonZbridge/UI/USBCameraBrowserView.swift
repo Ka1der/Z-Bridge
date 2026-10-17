@@ -35,6 +35,22 @@ public struct USBCameraBrowserView: View {
     @State private var isImportActionInProgress: Bool = false
     @State private var isRefreshing: Bool = false
     
+    // Интерактивная 100% Zoom лупа
+    @State private var isZoomLoupeEnabled: Bool = false
+    @State private var loupeOffset: CGSize = .zero
+    @State private var loupeDragBase: CGSize = .zero
+    
+    private var cameraViewModeSelector: some View {
+        Picker("Вид", selection: viewModeBinding) {
+            Label("Студия", systemImage: "rectangle.bottomhalf.filled")
+                .tag(CameraBrowserViewMode.gallery)
+            Label("Список", systemImage: "list.bullet")
+                .tag(CameraBrowserViewMode.list)
+        }
+        .pickerStyle(.segmented)
+        .frame(minWidth: 140, maxWidth: 170)
+    }
+    
     public init(
         usbManager: USBCameraManager,
         sessionName: String? = nil,
@@ -142,12 +158,16 @@ public struct USBCameraBrowserView: View {
             let isWide = geometry.size.width >= 600
             
             Group {
-                if filteredFiles.isEmpty {
+                if filteredFiles.isEmpty && !usbManager.isConnected {
+                    emptyStateView
+                } else if filteredFiles.isEmpty && !usbManager.isCatalogReady && usbManager.catalogFiles.isEmpty {
+                    emptyStateView
+                } else if filteredFiles.isEmpty {
                     emptyStateView
                 } else {
                     switch viewMode {
                     case .list:
-                        fileListViewWithHeader
+                        modernCameraListView(geometry: geometry)
                     case .gallery:
                         if isWide {
                             wideGalleryStudioView(geometry: geometry)
@@ -567,52 +587,232 @@ public struct USBCameraBrowserView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
-    private var fileListView: some View {
-        List {
-            ForEach(filteredFiles) { item in
-                CameraFileRowView(
-                    item: item,
-                    isSelected: selectedFileIDs.contains(item.id),
-                    onToggleSelect: {
-                        if selectedFileIDs.contains(item.id) {
-                            selectedFileIDs.remove(item.id)
-                        } else {
-                            selectedFileIDs.insert(item.id)
-                        }
-                    },
-                    onRetry: {
-                        Task {
-                            await usbManager.retryTransfer(for: item)
-                        }
-                    },
-                    onRequestThumbnail: {
-                        usbManager.requestThumbnail(for: item)
+    // MARK: - Современный режим «Список» для iOS / iPadOS
+    
+    private func modernCameraListView(geometry: GeometryProxy) -> some View {
+        ZStack {
+            AppTheme.Colors.photoBackground
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // 1. Верхний минималистичный бар Liquid Glass
+                HStack(spacing: 12) {
+                    // Камера и статус
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(usbManager.isConnected ? AppTheme.Colors.accent : AppTheme.Colors.statusNeutral)
+                            .frame(width: 8, height: 8)
+                        Text(usbManager.cameraName ?? "Nikon Z")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color.white)
                     }
-                )
-                .equatable()
+                    .padding(.horizontal, 10)
+                    .frame(height: 32)
+                    .glassPill()
+                    
+                    Spacer()
+                    
+                    // Переключатель Студия / Список
+                    cameraViewModeSelector
+                    
+                    Spacer()
+                    
+                    // Обновить каталог
+                    Button {
+                        guard !isRefreshing else { return }
+                        isRefreshing = true
+                        Task {
+                            await usbManager.refreshCatalog()
+                            await usbManager.updateTargetSessionName()
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            isRefreshing = false
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color.white)
+                            .frame(width: 32, height: 32)
+                            .glassSurface(shape: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isRefreshing)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+                
+                // 2. Индикатор фонового чтения оглавления
+                if !usbManager.isCatalogReady {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(AppTheme.Colors.accent)
+                        Text("Чтение оглавления карты... Найдено: \(stats.totalCount) файлов")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.9))
+                        Spacer()
+                        Text("В фоне")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.accent)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(AppTheme.Colors.accent.opacity(0.2))
+                            .clipShape(Capsule())
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .glassPill()
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 6)
+                }
+                
+                // 3. Панель фильтров и группового выбора
+                HStack(spacing: 10) {
+                    formatFilterPicker
+                    
+                    Spacer()
+                    
+                    selectionMenu
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                
+                // 4. Прокручиваемый список карточек файлов Liquid Glass
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(filteredFiles) { item in
+                            CameraGlassListRow(
+                                item: item,
+                                isSelected: selectedFileIDs.contains(item.id),
+                                isActive: activeFile?.id == item.id,
+                                onToggleSelect: {
+                                    toggleSelect(item)
+                                },
+                                onInspect: {
+                                    activeFileID = item.id
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        viewMode = .gallery
+                                    }
+                                },
+                                onRequestThumbnail: {
+                                    usbManager.requestThumbnail(for: item)
+                                },
+                                onRetry: {
+                                    Task { await usbManager.retryTransfer(for: item) }
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 90) // отступ под нижний плавающий док
+                }
+            }
+            
+            // 5. Нижний плавающий док импорта Liquid Glass
+            VStack {
+                Spacer()
+                listBottomImportDock
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
             }
         }
-        .listStyle(.plain)
     }
     
-    private var fileListViewWithHeader: some View {
-        VStack(spacing: 0) {
-            headerSection
-                .padding()
-                .background(sheetBackgroundColor)
-            
-            Divider()
-            
-            filterAndSelectionBar
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(sheetBackgroundColor.opacity(0.7))
-            
-            Divider()
-            
-            fileListView
+    private var listBottomImportDock: some View {
+        HStack(spacing: 12) {
+            let selectedCount = selectedStats.count
+            if selectedCount > 0 {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Выбрано: \(selectedCount) из \(filteredFiles.count)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color.white)
+                    Text(ByteCountFormatter.string(fromByteCount: selectedStats.bytes, countStyle: .file))
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.white.opacity(0.7))
+                }
+                
+                Spacer()
+                
+                Button {
+                    guard !isImportActionInProgress else { return }
+                    isImportActionInProgress = true
+                    let toImport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
+                    Task {
+                        defer { isImportActionInProgress = false }
+                        await usbManager.importSelectedFiles(toImport)
+                        selectedFileIDs.removeAll()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if isImportActionInProgress {
+                            ProgressView().controlSize(.mini).tint(AppTheme.Colors.onAccent)
+                        } else {
+                            Image(systemName: "arrow.down.circle.fill")
+                        }
+                        Text("Загрузить (\(selectedCount))")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundStyle(AppTheme.Colors.onAccent)
+                    .padding(.horizontal, 16)
+                    .frame(height: 38)
+                    .background(AppTheme.Colors.accent)
+                    .clipShape(Capsule())
+                    .shadow(color: AppTheme.Colors.accent.opacity(0.4), radius: 8, y: 3)
+                }
+                .buttonStyle(.plain)
+                .disabled(isImportActionInProgress)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Кадров на карте: \(stats.totalCount)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color.white)
+                    Text(stats.unimportedCount > 0 ? "Новых: \(stats.unimportedCount) (\(stats.formattedUnimportedSize))" : "Все сохранены")
+                        .font(.system(size: 11))
+                        .foregroundStyle(stats.unimportedCount > 0 ? Color.white.opacity(0.8) : AppTheme.Colors.statusGreen)
+                }
+                
+                Spacer()
+                
+                if stats.unimportedCount > 0 {
+                    Button {
+                        guard !isImportActionInProgress else { return }
+                        isImportActionInProgress = true
+                        Task {
+                            defer { isImportActionInProgress = false }
+                            if formatFilter != .all {
+                                await usbManager.importFilteredUnimported(matching: formatFilter)
+                            } else {
+                                await usbManager.importAllUnimported()
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isImportActionInProgress {
+                                ProgressView().controlSize(.mini).tint(AppTheme.Colors.onAccent)
+                            } else {
+                                Image(systemName: "arrow.down.circle.fill")
+                            }
+                            Text("Загрузить новые (\(stats.unimportedCount))")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundStyle(AppTheme.Colors.onAccent)
+                        .padding(.horizontal, 16)
+                        .frame(height: 38)
+                        .background(AppTheme.Colors.accent)
+                        .clipShape(Capsule())
+                        .shadow(color: AppTheme.Colors.accent.opacity(0.4), radius: 8, y: 3)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isImportActionInProgress)
+                }
+            }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .glassPill(shadowRadius: 14, shadowY: 6)
     }
+
     
     // MARK: - 1. iPad Landscape / Wide Studio Layout (согласно референсу iPad)
     
@@ -685,17 +885,34 @@ public struct USBCameraBrowserView: View {
                             .frame(height: 32)
                         }
                         
-                        // Переключение в табличный вид
+                        // Переключатель вида Студия / Список
+                        cameraViewModeSelector
+                        
+                        // Кнопка включения/выключения 100% Zoom лупы
                         Button {
-                            viewMode = .list
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                                isZoomLoupeEnabled.toggle()
+                                if isZoomLoupeEnabled && loupeOffset == .zero {
+                                    loupeOffset = .zero
+                                    loupeDragBase = .zero
+                                }
+                            }
                         } label: {
-                            Image(systemName: "list.bullet")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Color.white)
-                                .frame(width: 32, height: 32)
+                            HStack(spacing: 4) {
+                                Image(systemName: isZoomLoupeEnabled ? "viewfinder.circle.fill" : "viewfinder")
+                                    .font(.system(size: 12, weight: .bold))
+                                Text("Лупа")
+                                    .font(.system(size: 11, weight: .bold))
+                            }
+                            .foregroundStyle(isZoomLoupeEnabled ? AppTheme.Colors.onAccent : Color.white)
+                            .padding(.horizontal, 10)
+                            .frame(height: 32)
+                            .background(isZoomLoupeEnabled ? AppTheme.Colors.accent : Color.white.opacity(0.12))
+                            .clipShape(Capsule())
+                            .glassSurface(shape: Capsule())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Табличный вид")
+                        .accessibilityLabel(isZoomLoupeEnabled ? "Выключить 100% лупу" : "Включить 100% лупу")
                         
                         // Выбор активного кадра
                         if let item = activeFile {
@@ -749,10 +966,79 @@ public struct USBCameraBrowserView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 6)
                 
+                // Индикатор фонового чтения оглавления
+                if !usbManager.isCatalogReady {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(AppTheme.Colors.accent)
+                        Text("Чтение оглавления карты памяти... (\(stats.totalCount) файлов найдено)")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.9))
+                        Spacer()
+                        Text("В фоне")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.accent)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .glassPill()
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 4)
+                }
+                
                 // Основная центральная область кадра
                 ZStack {
                     if let item = activeFile {
                         mainImageView(for: item, size: geometry.size)
+                            .onTapGesture { location in
+                                let relativeX = location.x - geometry.size.width / 2.0
+                                let relativeY = location.y - geometry.size.height / 2.0
+                                let maxX = max(0, (geometry.size.width - 150) / 2.0)
+                                let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                let clampedX = min(max(relativeX, -maxX), maxX)
+                                let clampedY = min(max(relativeY, -maxY), maxY)
+                                
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
+                                    if !isZoomLoupeEnabled {
+                                        isZoomLoupeEnabled = true
+                                    }
+                                    loupeOffset = CGSize(width: clampedX, height: clampedY)
+                                    loupeDragBase = loupeOffset
+                                }
+                            }
+                        
+                        if isZoomLoupeEnabled {
+                            ZoomLoupeOverlayView(
+                                diameter: 140,
+                                isVisible: true,
+                                labelText: "100% Zoom",
+                                magnification: 2.6,
+                                offset: loupeOffset,
+                                onDragChanged: { translation in
+                                    let maxX = max(0, (geometry.size.width - 150) / 2.0)
+                                    let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                    let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
+                                    let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
+                                    loupeOffset = CGSize(width: newX, height: newY)
+                                },
+                                onDragEnded: { translation in
+                                    let maxX = max(0, (geometry.size.width - 150) / 2.0)
+                                    let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                    let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
+                                    let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
+                                    loupeOffset = CGSize(width: newX, height: newY)
+                                    loupeDragBase = loupeOffset
+                                },
+                                onClose: {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                                        isZoomLoupeEnabled = false
+                                    }
+                                }
+                            ) {
+                                mainImageContent(for: item)
+                            }
+                        }
                         
                         // Верхний левый угол картинки: бейдж RAW в точности по референсу iPad
                         VStack {
@@ -865,59 +1151,142 @@ public struct USBCameraBrowserView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // 1. Верхний минималистичный заголовок по референсу iPhone
-                HStack {
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Color.white.opacity(0.9))
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 4) {
-                        Text("Z")
-                            .font(.system(size: 14, weight: .black, design: .serif))
-                            .italic()
-                        Text(usbManager.cameraName?.replacingOccurrences(of: "Nikon ", with: "").replacingOccurrences(of: "Z ", with: "") ?? "8")
-                            .font(.system(size: 14, weight: .bold))
-                        Text("• USB-C 10Gbps")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.white.opacity(0.75))
+                // 1. Верхний минималистичный заголовок Liquid Glass
+                HStack(spacing: 8) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 13))
+                        Text(usbManager.cameraName?.replacingOccurrences(of: "Nikon ", with: "") ?? "Z 8")
+                            .font(.system(size: 13, weight: .bold))
                     }
                     .foregroundStyle(Color.white)
+                    .padding(.horizontal, 10)
+                    .frame(height: 32)
+                    .glassPill()
                     
                     Spacer()
                     
-                    HStack(spacing: 2) {
-                        Image(systemName: "battery.100")
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color.white.opacity(0.9))
+                    // Переключатель вида: Студия / Список
+                    cameraViewModeSelector
+                    
+                    Spacer()
+                    
+                    // Кнопка включения/выключения 100% Zoom лупы
+                    Button {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                            isZoomLoupeEnabled.toggle()
+                            if isZoomLoupeEnabled && loupeOffset == .zero {
+                                loupeOffset = .zero
+                                loupeDragBase = .zero
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: isZoomLoupeEnabled ? "viewfinder.circle.fill" : "viewfinder")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("Лупа")
+                                .font(.system(size: 11, weight: .bold))
+                        }
+                        .foregroundStyle(isZoomLoupeEnabled ? AppTheme.Colors.onAccent : Color.white)
+                        .padding(.horizontal, 10)
+                        .frame(height: 32)
+                        .background(isZoomLoupeEnabled ? AppTheme.Colors.accent : Color.white.opacity(0.12))
+                        .clipShape(Capsule())
+                        .glassSurface(shape: Capsule())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isZoomLoupeEnabled ? "Выключить 100% лупу" : "Включить 100% лупу")
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 16)
                 .padding(.top, 8)
-                .padding(.bottom, 8)
+                .padding(.bottom, 6)
                 
-                // 2. Центральная область кадра с круглой 100% Zoom лупой
+                // Индикатор фонового чтения оглавления
+                if !usbManager.isCatalogReady {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(AppTheme.Colors.accent)
+                        Text("Чтение карты памяти... (\(stats.totalCount) файлов)")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.9))
+                        Spacer()
+                        Text("В фоне")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.accent)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .glassPill()
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
+                }
+                
+                // 2. Центральная область кадра с управляемой 100% Zoom лупой
                 ZStack {
                     if let item = activeFile {
                         mainImageView(for: item, size: geometry.size)
+                            .onTapGesture { location in
+                                let relativeX = location.x - geometry.size.width / 2.0
+                                let relativeY = location.y - geometry.size.height / 2.0
+                                let maxX = max(0, (geometry.size.width - 150) / 2.0)
+                                let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                let clampedX = min(max(relativeX, -maxX), maxX)
+                                let clampedY = min(max(relativeY, -maxY), maxY)
+                                
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
+                                    if !isZoomLoupeEnabled {
+                                        isZoomLoupeEnabled = true
+                                    }
+                                    loupeOffset = CGSize(width: clampedX, height: clampedY)
+                                    loupeDragBase = loupeOffset
+                                }
+                            }
                         
-                        // Интерактивная увеличительная лупа 100% Zoom над кадром
-                        ZoomLoupeOverlayView(diameter: 135, isVisible: true, labelText: "100% Zoom") {
-                            mainImageContent(for: item)
+                        if isZoomLoupeEnabled {
+                            ZoomLoupeOverlayView(
+                                diameter: 135,
+                                isVisible: true,
+                                labelText: "100% Zoom",
+                                magnification: 2.6,
+                                offset: loupeOffset,
+                                onDragChanged: { translation in
+                                    let maxX = max(0, (geometry.size.width - 150) / 2.0)
+                                    let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                    let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
+                                    let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
+                                    loupeOffset = CGSize(width: newX, height: newY)
+                                },
+                                onDragEnded: { translation in
+                                    let maxX = max(0, (geometry.size.width - 150) / 2.0)
+                                    let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                    let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
+                                    let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
+                                    loupeOffset = CGSize(width: newX, height: newY)
+                                    loupeDragBase = loupeOffset
+                                },
+                                onClose: {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                                        isZoomLoupeEnabled = false
+                                    }
+                                }
+                            ) {
+                                mainImageContent(for: item)
+                            }
                         }
-                        .offset(x: -40, y: -80)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .gesture(
-                    DragGesture(minimumDistance: 30)
+                    DragGesture(minimumDistance: 45)
                         .onEnded { val in
-                            if val.translation.width < -40 {
-                                withAnimation(.easeInOut(duration: 0.15)) { selectNextFile() }
-                            } else if val.translation.width > 40 {
-                                withAnimation(.easeInOut(duration: 0.15)) { selectPreviousFile() }
+                            if abs(val.translation.width) > abs(val.translation.height) * 1.5 {
+                                if val.translation.width < -50 {
+                                    withAnimation(.easeInOut(duration: 0.15)) { selectNextFile() }
+                                } else if val.translation.width > 50 {
+                                    withAnimation(.easeInOut(duration: 0.15)) { selectPreviousFile() }
+                                }
                             }
                         }
                 )
@@ -1290,9 +1659,232 @@ public struct USBCameraBrowserView: View {
     }
 }
 
+// MARK: - Элемент строки карточки списка в стиле Liquid Glass
+
+public struct CameraGlassListRow: View, Equatable {
+    public let item: CameraFileItem
+    public let isSelected: Bool
+    public let isActive: Bool
+    public let onToggleSelect: () -> Void
+    public let onInspect: () -> Void
+    public let onRequestThumbnail: () -> Void
+    public let onRetry: () -> Void
+    
+    public init(
+        item: CameraFileItem,
+        isSelected: Bool,
+        isActive: Bool,
+        onToggleSelect: @escaping () -> Void,
+        onInspect: @escaping () -> Void,
+        onRequestThumbnail: @escaping () -> Void,
+        onRetry: @escaping () -> Void
+    ) {
+        self.item = item
+        self.isSelected = isSelected
+        self.isActive = isActive
+        self.onToggleSelect = onToggleSelect
+        self.onInspect = onInspect
+        self.onRequestThumbnail = onRequestThumbnail
+        self.onRetry = onRetry
+    }
+    
+    public static func == (lhs: CameraGlassListRow, rhs: CameraGlassListRow) -> Bool {
+        lhs.item.id == rhs.item.id &&
+        lhs.isSelected == rhs.isSelected &&
+        lhs.isActive == rhs.isActive &&
+        lhs.item.status == rhs.item.status &&
+        lhs.item.rating == rhs.item.rating &&
+        (lhs.item.thumbnail != nil) == (rhs.item.thumbnail != nil)
+    }
+    
+    public var body: some View {
+        HStack(spacing: 12) {
+            // Чекбокс выбора
+            Button(action: onToggleSelect) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.45))
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            
+            // Превью кадра с бейджем формата
+            ZStack(alignment: .topLeading) {
+                Group {
+                    if let thumb = item.thumbnail {
+                        #if canImport(UIKit)
+                        Image(uiImage: UIImage(cgImage: thumb))
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                        #elseif canImport(AppKit)
+                        Image(nsImage: NSImage(cgImage: thumb, size: NSSize(width: 72, height: 50)))
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                        #else
+                        Image(decorative: thumb, scale: 1.0)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                        #endif
+                    } else {
+                        Rectangle()
+                            .fill(Color(white: 0.18))
+                            .overlay(
+                                Image(systemName: item.isRAW ? "camera.fill" : "photo")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(Color.white.opacity(0.35))
+                            )
+                    }
+                }
+                .frame(width: 72, height: 50)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .onAppear {
+                    if item.thumbnail == nil {
+                        onRequestThumbnail()
+                    }
+                }
+                
+                // Бейдж формата в углу превью
+                Text(item.isRAW ? "RAW" : "JPG")
+                    .font(.system(size: 8, weight: .black, design: .monospaced))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(item.isRAW ? Color.purple.opacity(0.85) : Color.blue.opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .padding(3)
+            }
+            
+            // Метаданные файла
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.filename)
+                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                
+                HStack(spacing: 6) {
+                    Text(item.formattedSize)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.7))
+                    
+                    if let date = item.creationDate {
+                        Text("•")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.white.opacity(0.4))
+                        Text(date.formatted(date: .abbreviated, time: .shortened))
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.white.opacity(0.65))
+                    }
+                }
+                
+                // Рейтинг
+                if item.rating > 0 {
+                    HStack(spacing: 1) {
+                        ForEach(1...5, id: \.self) { star in
+                            Image(systemName: star <= item.rating ? "star.fill" : "star")
+                                .font(.system(size: 8))
+                                .foregroundStyle(star <= item.rating ? AppTheme.Colors.ratingActive : Color.white.opacity(0.2))
+                        }
+                    }
+                    .padding(.top, 1)
+                }
+            }
+            
+            Spacer()
+            
+            // Статус импорта
+            statusBadge(for: item.status)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(isActive ? AppTheme.Colors.accent.opacity(0.12) : Color.white.opacity(0.06))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(
+                    isActive ? AppTheme.Colors.accent.opacity(0.6) : Color.white.opacity(0.12),
+                    lineWidth: isActive ? 1.5 : 0.8
+                )
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onInspect()
+        }
+    }
+    
+    @ViewBuilder
+    private func statusBadge(for status: CameraFileImportStatus) -> some View {
+        switch status {
+        case .imported:
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                Text("Загружен")
+            }
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(AppTheme.Colors.statusGreen)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(AppTheme.Colors.statusGreen.opacity(0.15))
+            .clipShape(Capsule())
+            
+        case .importing(let progress):
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.mini).tint(AppTheme.Colors.accent)
+                Text("\(Int(progress * 100))%")
+            }
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(AppTheme.Colors.accent)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(AppTheme.Colors.accent.opacity(0.15))
+            .clipShape(Capsule())
+            
+        case .queued:
+            HStack(spacing: 4) {
+                Image(systemName: "clock")
+                Text("В очереди")
+            }
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(Color.cyan)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.cyan.opacity(0.15))
+            .clipShape(Capsule())
+
+            
+        case .failed:
+            Button(action: onRetry) {
+                HStack(spacing: 3) {
+                    Image(systemName: "exclamationmark.arrow.circlepath")
+                    Text("Повтор")
+                }
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(AppTheme.Colors.statusRed)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(AppTheme.Colors.statusRed.opacity(0.15))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            
+        case .notImported:
+            Text("Новый")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.55))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.08))
+                .clipShape(Capsule())
+        }
+    }
+}
+
 // MARK: - Элемент строки каталога с поддержкой Equatable для плавной работы при 1000+ файлах
 
 public struct CameraFileRowView: View, Equatable {
+
     public let item: CameraFileItem
     public let isSelected: Bool
     public let onToggleSelect: () -> Void

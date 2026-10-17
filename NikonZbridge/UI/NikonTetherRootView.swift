@@ -532,9 +532,18 @@ public struct NikonTetherRootView: View {
             
             Spacer()
             
+            // Быстрый переключатель Сетка / Список для iOS / iPadOS
+            Picker("Вид", selection: $appState.viewMode) {
+                Image(systemName: "square.grid.2x2").tag(ViewMode.icons)
+                Image(systemName: "list.bullet").tag(ViewMode.list)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 86)
+            
             // Меню вида (Сетка, Список, Таблица) и сортировки
             Menu {
                 Section("Режим отображения") {
+
                     Picker("Режим", selection: $appState.viewMode) {
                         Label("Сетка", systemImage: "square.grid.2x2").tag(ViewMode.icons)
                         Label("Список", systemImage: "list.bullet").tag(ViewMode.list)
