@@ -733,7 +733,8 @@ public struct ExportSheetView: View {
             guard let folder = targetFolderURL else { return }
             destination = .directory(url: folder, bookmarkData: targetFolderBookmark)
         case .photos:
-            destination = .photoLibrary()
+            let album = appState.currentSession?.name ?? "Nikon Z Bridge"
+            destination = .photoLibrary(albumName: album)
         case .share:
             destination = .shareSheet
         }

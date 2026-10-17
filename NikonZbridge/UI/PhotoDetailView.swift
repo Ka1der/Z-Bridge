@@ -23,6 +23,10 @@ public struct PhotoDetailView: View {
     @State private var basePanOffset: CGSize = .zero
     @State private var loadedAssetID: UUID? = nil
     
+    // Сохранение в Apple Photos
+    @State private var isSavingToPhotos: Bool = false
+    @State private var saveNotice: String? = nil
+    
     public init(
         group: CaptureGroup,
         appState: AppState? = nil,
@@ -140,6 +144,35 @@ public struct PhotoDetailView: View {
                             }
                             .frame(minHeight: AppTheme.Dimensions.minTouchTarget)
                         }
+                    }
+                    
+                    // Плашка статуса сохранения в Apple Photos
+                    if let notice = saveNotice {
+                        VStack {
+                            HStack(spacing: 6) {
+                                if isSavingToPhotos {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                        .tint(AppTheme.Colors.accent)
+                                } else if notice.contains("✓") {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(AppTheme.Colors.statusGreen)
+                                } else {
+                                    Image(systemName: "exclamationmark.circle.fill")
+                                        .foregroundStyle(AppTheme.Colors.statusRed)
+                                }
+                                Text(notice)
+                                    .font(AppTheme.Typography.captionBold)
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .glassPill(tint: notice.contains("✓") ? AppTheme.Colors.statusGreen : (isSavingToPhotos ? AppTheme.Colors.accent : AppTheme.Colors.statusRed))
+                            .padding(.top, 16)
+                            
+                            Spacer()
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
@@ -416,27 +449,40 @@ public struct PhotoDetailView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(group.pickStatus == .rejected ? "Снять отметку отклонения" : "Отклонить (Reject)")
                     
-                    // Поделиться / Экспорт
-                    if let asset = currentAsset {
-                        ShareLink(item: asset.fileURL) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 15))
-                                .foregroundStyle(AppTheme.Colors.accent)
-                                .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                    // Сохранить / Поделиться / Экспорт
+                    Menu {
+                        Button {
+                            saveCurrentPhotoToLibrary()
+                        } label: {
+                            Label("Сохранить в «Фото»", systemImage: "square.and.arrow.down")
                         }
-                        .accessibilityLabel("Поделиться кадром")
-                    } else {
+                        
                         Button {
                             appState?.presentExport(for: [group])
                         } label: {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 15))
-                                .foregroundStyle(AppTheme.Colors.accent)
-                                .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
+                            Label("Параметры экспорта...", systemImage: "folder.badge.gearshape")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Экспорт кадра")
+                        
+                        if let asset = currentAsset {
+                            ShareLink(item: asset.fileURL) {
+                                Label("Поделиться файлом...", systemImage: "square.and.arrow.up")
+                            }
+                        }
+                    } label: {
+                        ZStack {
+                            if isSavingToPhotos {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                    .tint(AppTheme.Colors.accent)
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(AppTheme.Colors.accent)
+                            }
+                        }
+                        .frame(width: AppTheme.Dimensions.minTouchTarget, height: AppTheme.Dimensions.minTouchTarget)
                     }
+                    .accessibilityLabel("Сохранить или экспортировать кадр")
                 }
             }
             .padding(AppTheme.Spacing.md)
@@ -515,11 +561,18 @@ public struct PhotoDetailView: View {
                 Label("Сравнить кадры...", systemImage: "square.split.2x1")
             }
             
-            // 3. Экспорт текущего кадра
+            // 3. Сохранить в системную фотогалерею «Фото»
+            Button {
+                saveCurrentPhotoToLibrary()
+            } label: {
+                Label("Сохранить в «Фото»", systemImage: "square.and.arrow.down")
+            }
+            
+            // 4. Параметры экспорта кадра
             Button {
                 appState?.presentExport(for: [group])
             } label: {
-                Label("Экспорт кадра...", systemImage: "square.and.arrow.up")
+                Label("Параметры экспорта...", systemImage: "folder.badge.gearshape")
             }
             
             // 4. Фиксация на мониторе клиента (Hold)
@@ -693,6 +746,50 @@ public struct PhotoDetailView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") {
                         isShowingEXIFSheet = false
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Сохранение в Apple Photos
+    
+    private func saveCurrentPhotoToLibrary() {
+        guard !isSavingToPhotos else { return }
+        isSavingToPhotos = true
+        withAnimation {
+            saveNotice = "Сохранение в «Фото»..."
+        }
+        Task {
+            do {
+                if let state = appState {
+                    try await state.saveGroupToPhotoLibrary(group)
+                } else {
+                    try await ExportManager.shared.saveToPhotos(group: group)
+                }
+                await MainActor.run {
+                    withAnimation {
+                        saveNotice = "Сохранено в «Фото» ✓"
+                    }
+                    isSavingToPhotos = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                        withAnimation {
+                            if saveNotice == "Сохранено в «Фото» ✓" {
+                                saveNotice = nil
+                            }
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    withAnimation {
+                        saveNotice = "Ошибка: \(error.localizedDescription)"
+                    }
+                    isSavingToPhotos = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                        withAnimation {
+                            saveNotice = nil
+                        }
                     }
                 }
             }

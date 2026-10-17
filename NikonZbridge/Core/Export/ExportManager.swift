@@ -2,6 +2,13 @@ import Foundation
 #if canImport(Photos)
 import Photos
 #endif
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(AppKit)
+import AppKit
+#endif
+
 
 /// Актор управления пакетным экспортом, внешними накопителями (SSD/SD) и системной медиатекой
 public actor ExportManager {
@@ -349,8 +356,8 @@ public actor ExportManager {
                 strategy: conflictStrategy
             )
             
-        case .photoLibrary:
-            return try await saveToPhotoLibrary(sourceURL: sourceURL, isRAW: item.asset.isRAW)
+        case .photoLibrary(let albumName):
+            return try await saveToPhotoLibrary(sourceURL: sourceURL, isRAW: item.asset.isRAW, albumName: albumName)
             
         case .shareSheet:
             // Создаем временную копию для Share Sheet, гарантируя неизменность оригинала
@@ -454,17 +461,70 @@ public actor ExportManager {
     
     // MARK: - Сохранение в Apple Photos
     
-    private func saveToPhotoLibrary(sourceURL: URL, isRAW: Bool) async throws -> URL {
+    /// Извлечение высококачественного JPEG-превью для прикрепления к RAW-ассету в Photos
+    private func extractPreviewJPEGData(from url: URL) -> Data? {
+        guard let previewImage = RAWPreviewExtractor.extractThumbnail(from: url, maxPixelSize: 4096) else {
+            return nil
+        }
+        #if canImport(UIKit)
+        return previewImage.jpegData(compressionQuality: 0.95)
+        #elseif canImport(AppKit)
+        guard let tiff = previewImage.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        return rep.representation(using: .jpeg, properties: [:])
+        #else
+        return nil
+        #endif
+    }
+    
+    private func saveToPhotoLibrary(
+        sourceURL: URL,
+        isRAW: Bool,
+        albumName: String? = nil
+    ) async throws -> URL {
         #if canImport(Photos)
         try await withCheckedThrowingContinuation { continuation in
+            var placeholder: PHObjectPlaceholder?
+            
             PHPhotoLibrary.shared().performChanges({
                 let request = PHAssetCreationRequest.forAsset()
+                placeholder = request.placeholderForCreatedAsset
+                
+                let resourceOptions = PHAssetResourceCreationOptions()
+                resourceOptions.shouldMoveFile = false
+                
                 if isRAW {
-                    let options = PHAssetResourceCreationOptions()
-                    options.shouldMoveFile = false
-                    request.addResource(with: .alternatePhoto, fileURL: sourceURL, options: options)
+                    // КРИТИЧЕСКИ ВАЖНО: PhotoKit требует, чтобы ассет содержал базовый ресурс типа .photo.
+                    // Если вызвать только .alternatePhoto без .photo, PhotoKit возвращает ошибку 3300:
+                    // "Invalid resource: an asset must have a primary image resource".
+                    // Извлекаем полноразмерный JPEG-превью кадра:
+                    if let jpegData = self.extractPreviewJPEGData(from: sourceURL) {
+                        // 1. Основной отображаемый ресурс (.photo) для моментального рендеринга в Фотогалерее iOS:
+                        request.addResource(with: .photo, data: jpegData, options: nil)
+                        // 2. Альтернативный оригинальный RAW-файл (.alternatePhoto) с сохранением полного динамического диапазона:
+                        request.addResource(with: .alternatePhoto, fileURL: sourceURL, options: resourceOptions)
+                    } else {
+                        // Фолбэк: если превью извлечь не удалось, передаем сам RAW-файл как основной .photo
+                        request.addResource(with: .photo, fileURL: sourceURL, options: resourceOptions)
+                    }
                 } else {
-                    request.addResource(with: .photo, fileURL: sourceURL, options: nil)
+                    // Стандартный JPEG / HEIF кадр
+                    request.addResource(with: .photo, fileURL: sourceURL, options: resourceOptions)
+                }
+                
+                // Добавление в альбом (если указан и есть права чтения альбомов)
+                if let album = albumName, !album.isEmpty, let placeholder = placeholder,
+                   PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized {
+                    let fetchOptions = PHFetchOptions()
+                    fetchOptions.predicate = NSPredicate(format: "title = %@", album)
+                    let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
+                    if let collection = collections.firstObject {
+                        let albumChangeRequest = PHAssetCollectionChangeRequest(for: collection)
+                        albumChangeRequest?.addAssets([placeholder] as NSArray)
+                    } else {
+                        let createAlbumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: album)
+                        createAlbumRequest.addAssets([placeholder] as NSArray)
+                    }
                 }
             }) { success, error in
                 if success {
@@ -480,23 +540,88 @@ public actor ExportManager {
         #endif
     }
     
+    // MARK: - Прямое сохранение в системную медиатеку «Фото»
+    
+    public func saveToPhotos(asset: MediaAsset, albumName: String? = nil) async throws {
+        let authorized = await checkAndRequestPhotosPermission()
+        guard authorized else {
+            throw ExportError.photoLibraryPermissionDenied
+        }
+        _ = try await saveToPhotoLibrary(sourceURL: asset.fileURL, isRAW: asset.isRAW, albumName: albumName)
+    }
+    
+    public func saveToPhotos(group: CaptureGroup, albumName: String? = nil) async throws {
+        let authorized = await checkAndRequestPhotosPermission()
+        guard authorized else {
+            throw ExportError.photoLibraryPermissionDenied
+        }
+        
+        // Если это парный снимок (RAW + JPEG/HEIF)
+        if let raw = group.rawAsset, let companion = group.jpegAsset ?? group.heifAsset {
+            #if canImport(Photos)
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                PHPhotoLibrary.shared().performChanges({
+                    let request = PHAssetCreationRequest.forAsset()
+                    let rawOptions = PHAssetResourceCreationOptions()
+                    rawOptions.shouldMoveFile = false
+                    let photoOptions = PHAssetResourceCreationOptions()
+                    photoOptions.shouldMoveFile = false
+                    
+                    // 1. Companion JPEG/HEIF как основной .photo
+                    request.addResource(with: .photo, fileURL: companion.fileURL, options: photoOptions)
+                    // 2. Оригинал RAW как .alternatePhoto
+                    request.addResource(with: .alternatePhoto, fileURL: raw.fileURL, options: rawOptions)
+                }) { success, error in
+                    if success {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: error ?? ExportError.photoLibrarySaveFailed)
+                    }
+                }
+            }
+            #else
+            throw ExportError.photoLibraryNotSupportedOnPlatform
+            #endif
+        } else if let primary = group.primaryAsset {
+            _ = try await saveToPhotoLibrary(sourceURL: primary.fileURL, isRAW: primary.isRAW, albumName: albumName)
+        }
+    }
+    
     // MARK: - Проверка прав доступа к Photos
     
-    private func checkAndRequestPhotosPermission() async -> Bool {
+    public func checkAndRequestPhotosPermission() async -> Bool {
         #if canImport(Photos)
-        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        switch status {
-        case .authorized, .limited:
+        // 1. Проверяем разрешение на добавление (.addOnly) — этого достаточно для сохранения
+        let addStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        if addStatus == .authorized || addStatus == .limited {
             return true
-        case .notDetermined:
+        }
+        
+        // 2. Если статус addOnly еще не определен, запрашиваем addOnly
+        if addStatus == .notDetermined {
+            let granted = await withCheckedContinuation { continuation in
+                PHPhotoLibrary.requestAuthorization(for: .addOnly) { newStatus in
+                    continuation.resume(returning: newStatus == .authorized || newStatus == .limited)
+                }
+            }
+            if granted { return true }
+        }
+        
+        // 3. Фолбэк на проверку readWrite (если ранее уже было выдано полное разрешение)
+        let rwStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        if rwStatus == .authorized || rwStatus == .limited {
+            return true
+        }
+        
+        if rwStatus == .notDetermined {
             return await withCheckedContinuation { continuation in
                 PHPhotoLibrary.requestAuthorization(for: .readWrite) { newStatus in
                     continuation.resume(returning: newStatus == .authorized || newStatus == .limited)
                 }
             }
-        default:
-            return false
         }
+        
+        return false
         #else
         return false
         #endif
