@@ -917,43 +917,14 @@ public struct USBCameraBrowserView: View {
                 
                 Spacer()
                 
-                // Кнопка быстрого экспорта в медиатеку «Фото» iOS
+                // Единственная функциональная кнопка «Загрузить» — сохраняет в фотогалерею
                 Button {
                     guard !isExportingToPhotos else { return }
                     let toExport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
                     exportSelectedFilesToPhotos(toExport)
                 } label: {
-                    HStack(spacing: 5) {
-                        if isExportingToPhotos {
-                            ProgressView().controlSize(.mini).tint(Color.white)
-                        } else {
-                            Image(systemName: "photo.on.rectangle.angled")
-                        }
-                        Text("В «Фото»")
-                            .font(.system(size: 13, weight: .bold))
-                    }
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 14)
-                    .frame(height: 38)
-                    .background(Color.white.opacity(0.16))
-                    .clipShape(Capsule())
-                    .glassSurface(shape: Capsule())
-                }
-                .buttonStyle(.plain)
-                .disabled(isExportingToPhotos || isImportActionInProgress)
-                
-                Button {
-                    guard !isImportActionInProgress else { return }
-                    isImportActionInProgress = true
-                    let toImport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
-                    Task {
-                        defer { isImportActionInProgress = false }
-                        await usbManager.importSelectedFiles(toImport)
-                        selectedFileIDs.removeAll()
-                    }
-                } label: {
                     HStack(spacing: 6) {
-                        if isImportActionInProgress {
+                        if isExportingToPhotos {
                             ProgressView().controlSize(.mini).tint(AppTheme.Colors.onAccent)
                         } else {
                             Image(systemName: "arrow.down.circle.fill")
@@ -962,14 +933,14 @@ public struct USBCameraBrowserView: View {
                             .font(.system(size: 13, weight: .bold))
                     }
                     .foregroundStyle(AppTheme.Colors.onAccent)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 18)
                     .frame(height: 38)
                     .background(AppTheme.Colors.accent)
                     .clipShape(Capsule())
                     .shadow(color: AppTheme.Colors.accent.opacity(0.4), radius: 8, y: 3)
                 }
                 .buttonStyle(.plain)
-                .disabled(isImportActionInProgress || isExportingToPhotos)
+                .disabled(isExportingToPhotos)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Кадров на карте: \(stats.totalCount)")
@@ -984,19 +955,12 @@ public struct USBCameraBrowserView: View {
                 
                 if stats.unimportedCount > 0 {
                     Button {
-                        guard !isImportActionInProgress else { return }
-                        isImportActionInProgress = true
-                        Task {
-                            defer { isImportActionInProgress = false }
-                            if formatFilter != .all {
-                                await usbManager.importFilteredUnimported(matching: formatFilter)
-                            } else {
-                                await usbManager.importAllUnimported()
-                            }
-                        }
+                        guard !isExportingToPhotos else { return }
+                        let candidates = filteredCandidateFiles
+                        exportSelectedFilesToPhotos(candidates)
                     } label: {
                         HStack(spacing: 6) {
-                            if isImportActionInProgress {
+                            if isExportingToPhotos {
                                 ProgressView().controlSize(.mini).tint(AppTheme.Colors.onAccent)
                             } else {
                                 Image(systemName: "arrow.down.circle.fill")
@@ -1005,14 +969,14 @@ public struct USBCameraBrowserView: View {
                                 .font(.system(size: 13, weight: .bold))
                         }
                         .foregroundStyle(AppTheme.Colors.onAccent)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 18)
                         .frame(height: 38)
                         .background(AppTheme.Colors.accent)
                         .clipShape(Capsule())
                         .shadow(color: AppTheme.Colors.accent.opacity(0.4), radius: 8, y: 3)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isImportActionInProgress)
+                    .disabled(isExportingToPhotos)
                 }
             }
         }
@@ -1141,21 +1105,20 @@ public struct USBCameraBrowserView: View {
                             .buttonStyle(.plain)
                         }
                         
-                        // Быстрый импорт выбранных
+                        // Быстрая загрузка выбранных в фотогалерею
                         if selectedStats.count > 0 {
                             Button {
-                                guard !isImportActionInProgress else { return }
-                                isImportActionInProgress = true
-                                let toImport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
-                                Task {
-                                    defer { isImportActionInProgress = false }
-                                    await usbManager.importSelectedFiles(toImport)
-                                    selectedFileIDs.removeAll()
-                                }
+                                guard !isExportingToPhotos else { return }
+                                let toExport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
+                                exportSelectedFilesToPhotos(toExport)
                             } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "arrow.down.circle.fill")
-                                    Text("Импорт (\(selectedStats.count))")
+                                HStack(spacing: 5) {
+                                    if isExportingToPhotos {
+                                        ProgressView().controlSize(.mini).tint(AppTheme.Colors.onAccent)
+                                    } else {
+                                        Image(systemName: "arrow.down.circle.fill")
+                                    }
+                                    Text("Загрузить (\(selectedStats.count))")
                                         .font(.system(size: 11, weight: .bold))
                                 }
                                 .foregroundStyle(AppTheme.Colors.onAccent)
@@ -1165,6 +1128,7 @@ public struct USBCameraBrowserView: View {
                                 .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
+                            .disabled(isExportingToPhotos)
                         }
                     }
                     .padding(.horizontal, 6)
@@ -1333,16 +1297,9 @@ public struct USBCameraBrowserView: View {
                         statusText: "\(stats.totalCount > 0 ? Int(Double(stats.importedCount) / Double(stats.totalCount) * 100) : 65)% transferred",
                         remainingFilesText: "\(stats.unimportedCount > 0 ? stats.unimportedCount : 34) files left",
                         onTap: {
-                            guard !isImportActionInProgress else { return }
-                            isImportActionInProgress = true
-                            Task {
-                                defer { isImportActionInProgress = false }
-                                if formatFilter != .all {
-                                    await usbManager.importFilteredUnimported(matching: formatFilter)
-                                } else {
-                                    await usbManager.importAllUnimported()
-                                }
-                            }
+                            guard !isExportingToPhotos else { return }
+                            let candidates = filteredCandidateFiles
+                            exportSelectedFilesToPhotos(candidates)
                         }
                     )
                     .offset(y: -58)
@@ -1508,12 +1465,9 @@ public struct USBCameraBrowserView: View {
                         exportActiveFileToPhotos(active)
                     },
                     onTransferTap: {
-                        guard !isImportActionInProgress else { return }
-                        isImportActionInProgress = true
-                        Task {
-                            defer { isImportActionInProgress = false }
-                            await usbManager.importAllUnimported()
-                        }
+                        guard !isExportingToPhotos else { return }
+                        let candidates = filteredCandidateFiles
+                        exportSelectedFilesToPhotos(candidates)
                     },
                     onCancelTransfer: {
                         if let active = activeFile {

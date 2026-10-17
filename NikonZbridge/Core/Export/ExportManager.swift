@@ -8,6 +8,9 @@ import UIKit
 #if canImport(AppKit)
 import AppKit
 #endif
+#if canImport(UniformTypeIdentifiers)
+import UniformTypeIdentifiers
+#endif
 
 
 /// Актор управления пакетным экспортом, внешними накопителями (SSD/SD) и системной медиатекой
@@ -545,6 +548,80 @@ public actor ExportManager {
         #endif
     }
     
+    #if canImport(Photos)
+    private func performPhotoLibrarySave(
+        sourceURL: URL,
+        isRAW: Bool,
+        targetAlbum: PHAssetCollection?,
+        needCreateAlbum: Bool,
+        albumName: String?,
+        pairedPreviewURL: URL?
+    ) async throws -> URL {
+        return try await withCheckedThrowingContinuation { continuation in
+            var placeholder: PHObjectPlaceholder?
+            
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetCreationRequest.forAsset()
+                placeholder = request.placeholderForCreatedAsset
+                
+                let rawOptions = PHAssetResourceCreationOptions()
+                rawOptions.shouldMoveFile = false
+                rawOptions.originalFilename = sourceURL.lastPathComponent
+                
+                if isRAW {
+                    let ext = sourceURL.pathExtension.lowercased()
+                    if ext == "nef" {
+                        rawOptions.uniformTypeIdentifier = "com.nikon.raw-image"
+                    } else if ext == "nrw" {
+                        rawOptions.uniformTypeIdentifier = "com.nikon.nrw-raw-image"
+                    } else if ext == "dng" {
+                        rawOptions.uniformTypeIdentifier = "com.adobe.raw-image"
+                    } else {
+                        #if canImport(UniformTypeIdentifiers)
+                        if #available(iOS 14.0, macOS 11.0, *), let ut = UTType(filenameExtension: ext) {
+                            rawOptions.uniformTypeIdentifier = ut.identifier
+                        } else {
+                            rawOptions.uniformTypeIdentifier = "com.nikon.raw-image"
+                        }
+                        #else
+                        rawOptions.uniformTypeIdentifier = "com.nikon.raw-image"
+                        #endif
+                    }
+                    
+                    if let pairedPreview = pairedPreviewURL {
+                        // Режим совместимости (fallback): JPEG как .photo, RAW как .alternatePhoto
+                        let photoOptions = PHAssetResourceCreationOptions()
+                        photoOptions.shouldMoveFile = false
+                        request.addResource(with: .photo, fileURL: pairedPreview, options: photoOptions)
+                        request.addResource(with: .alternatePhoto, fileURL: sourceURL, options: rawOptions)
+                    } else {
+                        // Основной режим: RAW (.NEF) сохраняется НАПРЯМУЮ как первичный ресурс .photo
+                        request.addResource(with: .photo, fileURL: sourceURL, options: rawOptions)
+                    }
+                } else {
+                    request.addResource(with: .photo, fileURL: sourceURL, options: rawOptions)
+                }
+                
+                // Добавление в альбом (без вызова fetch внутри блока performChanges!)
+                if let target = targetAlbum, let ph = placeholder {
+                    let albumChangeRequest = PHAssetCollectionChangeRequest(for: target)
+                    albumChangeRequest?.addAssets([ph] as NSArray)
+                } else if needCreateAlbum, let album = albumName, let ph = placeholder {
+                    let createAlbumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: album)
+                    createAlbumRequest.addAssets([ph] as NSArray)
+                }
+            }) { success, error in
+                if success {
+                    continuation.resume(returning: sourceURL)
+                } else {
+                    let err = error ?? ExportError.photoLibrarySaveFailed
+                    continuation.resume(throwing: err)
+                }
+            }
+        }
+    }
+    #endif
+
     public func saveToPhotoLibrary(
         sourceURL: URL,
         isRAW: Bool,
@@ -569,9 +646,22 @@ public actor ExportManager {
             }
         }
         
-        // 2. Для RAW-файлов подготавливаем временный JPEG-файл превью
-        var tempJPEGURL: URL? = nil
-        if isRAW {
+        // 2. Первичная попытка: прямое сохранение RAW (.NEF) как основного ресурса .photo
+        do {
+            return try await performPhotoLibrarySave(
+                sourceURL: sourceURL,
+                isRAW: isRAW,
+                targetAlbum: targetAlbum,
+                needCreateAlbum: needCreateAlbum,
+                albumName: albumName,
+                pairedPreviewURL: nil
+            )
+        } catch {
+            guard isRAW else { throw error }
+            
+            // Если прямое сохранение RAW не удалось (например, ошибка 3300 на некоторых версиях iOS),
+            // создаем fallback-превью JPEG и сохраняем в спаренном режиме
+            var tempJPEGURL: URL? = nil
             if let jpegData = self.extractPreviewJPEGData(from: sourceURL) {
                 let tempDir = fileManager.temporaryDirectory.appendingPathComponent("PhotoKitExport_\(UUID().uuidString)")
                 try? fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -580,56 +670,21 @@ public actor ExportManager {
                     tempJPEGURL = tempFile
                 }
             }
-        }
-        
-        defer {
-            if let temp = tempJPEGURL {
-                try? fileManager.removeItem(at: temp.deletingLastPathComponent())
-            }
-        }
-        
-        return try await withCheckedThrowingContinuation { continuation in
-            var placeholder: PHObjectPlaceholder?
             
-            PHPhotoLibrary.shared().performChanges({
-                let request = PHAssetCreationRequest.forAsset()
-                placeholder = request.placeholderForCreatedAsset
-                
-                let rawOptions = PHAssetResourceCreationOptions()
-                rawOptions.shouldMoveFile = false
-                
-                if isRAW {
-                    if let tempJPEG = tempJPEGURL {
-                        // 1. Основной ресурс (.photo) — JPEG превью для быстрого рендеринга в галерее iOS
-                        let photoOptions = PHAssetResourceCreationOptions()
-                        photoOptions.shouldMoveFile = false
-                        request.addResource(with: .photo, fileURL: tempJPEG, options: photoOptions)
-                        
-                        // 2. Альтернативный оригинальный RAW (.alternatePhoto) с сохранением полного динамического диапазона
-                        request.addResource(with: .alternatePhoto, fileURL: sourceURL, options: rawOptions)
-                    } else {
-                        request.addResource(with: .photo, fileURL: sourceURL, options: rawOptions)
-                    }
-                } else {
-                    request.addResource(with: .photo, fileURL: sourceURL, options: rawOptions)
-                }
-                
-                // Добавление в альбом (без вызова fetch внутри блока!)
-                if let target = targetAlbum, let ph = placeholder {
-                    let albumChangeRequest = PHAssetCollectionChangeRequest(for: target)
-                    albumChangeRequest?.addAssets([ph] as NSArray)
-                } else if needCreateAlbum, let album = albumName, let ph = placeholder {
-                    let createAlbumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: album)
-                    createAlbumRequest.addAssets([ph] as NSArray)
-                }
-            }) { success, error in
-                if success {
-                    continuation.resume(returning: sourceURL)
-                } else {
-                    let err = error ?? ExportError.photoLibrarySaveFailed
-                    continuation.resume(throwing: err)
+            defer {
+                if let temp = tempJPEGURL {
+                    try? fileManager.removeItem(at: temp.deletingLastPathComponent())
                 }
             }
+            
+            return try await performPhotoLibrarySave(
+                sourceURL: sourceURL,
+                isRAW: isRAW,
+                targetAlbum: targetAlbum,
+                needCreateAlbum: needCreateAlbum,
+                albumName: albumName,
+                pairedPreviewURL: tempJPEGURL
+            )
         }
         #else
         throw ExportError.photoLibraryNotSupportedOnPlatform
@@ -652,7 +707,13 @@ public actor ExportManager {
             throw ExportError.photoLibraryPermissionDenied
         }
         
-        // Если это парный снимок (RAW + JPEG/HEIF) и оба файла существуют на накопителе
+        // Если выбран RAW или primaryAsset является RAW — сохраняем именно RAW!
+        if let raw = group.rawAsset, fileManager.fileExists(atPath: raw.fileURL.path), group.primaryAsset?.isRAW == true {
+            _ = try await saveToPhotoLibrary(sourceURL: raw.fileURL, isRAW: true, albumName: albumName)
+            return
+        }
+        
+        // Если это парный снимок (RAW + JPEG/HEIF) и оба файла существуют на накопителе, и primaryAsset НЕ RAW
         if let raw = group.rawAsset, let companion = group.jpegAsset ?? group.heifAsset,
            fileManager.fileExists(atPath: raw.fileURL.path),
            fileManager.fileExists(atPath: companion.fileURL.path) {
@@ -675,8 +736,17 @@ public actor ExportManager {
                     placeholder = request.placeholderForCreatedAsset
                     let rawOptions = PHAssetResourceCreationOptions()
                     rawOptions.shouldMoveFile = false
+                    rawOptions.originalFilename = raw.fileURL.lastPathComponent
+                    let ext = raw.fileURL.pathExtension.lowercased()
+                    if ext == "nef" {
+                        rawOptions.uniformTypeIdentifier = "com.nikon.raw-image"
+                    } else if ext == "nrw" {
+                        rawOptions.uniformTypeIdentifier = "com.nikon.nrw-raw-image"
+                    }
+                    
                     let photoOptions = PHAssetResourceCreationOptions()
                     photoOptions.shouldMoveFile = false
+                    photoOptions.originalFilename = companion.fileURL.lastPathComponent
                     
                     // 1. Companion JPEG/HEIF как основной .photo
                     request.addResource(with: .photo, fileURL: companion.fileURL, options: photoOptions)

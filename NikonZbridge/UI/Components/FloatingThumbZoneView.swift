@@ -180,12 +180,12 @@ public struct FloatingThumbZoneView: View {
             onExport?()
         } label: {
             HStack(spacing: 6) {
-                Text("EXPORT")
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color.white)
-                
-                Image(systemName: "square.and.arrow.up")
+                Image(systemName: "arrow.down.circle.fill")
                     .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.accent)
+                
+                Text("ЗАГРУЗИТЬ")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.white)
             }
             .padding(.horizontal, 14)
