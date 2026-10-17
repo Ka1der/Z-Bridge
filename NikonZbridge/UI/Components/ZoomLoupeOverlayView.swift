@@ -13,12 +13,13 @@ public struct ZoomLoupeOverlayView<Content: View>: View {
     public let cgImage: CGImage?
     public let onDragChanged: ((CGSize) -> Void)?
     public let onDragEnded: ((CGSize) -> Void)?
+    public let onTap: (() -> Void)?
     public let onToggleZoom: (() -> Void)?
     public let onClose: (() -> Void)?
     @ViewBuilder public let content: () -> Content
     
     public init(
-        diameter: CGFloat = 150,
+        diameter: CGFloat = 218,
         isVisible: Bool = true,
         labelText: String = "100% Zoom",
         magnification: CGFloat = 3.0,
@@ -27,6 +28,7 @@ public struct ZoomLoupeOverlayView<Content: View>: View {
         cgImage: CGImage? = nil,
         onDragChanged: ((CGSize) -> Void)? = nil,
         onDragEnded: ((CGSize) -> Void)? = nil,
+        onTap: (() -> Void)? = nil,
         onToggleZoom: (() -> Void)? = nil,
         onClose: (() -> Void)? = nil,
         @ViewBuilder content: @escaping () -> Content
@@ -40,6 +42,7 @@ public struct ZoomLoupeOverlayView<Content: View>: View {
         self.cgImage = cgImage
         self.onDragChanged = onDragChanged
         self.onDragEnded = onDragEnded
+        self.onTap = onTap
         self.onToggleZoom = onToggleZoom
         self.onClose = onClose
         self.content = content
@@ -47,8 +50,7 @@ public struct ZoomLoupeOverlayView<Content: View>: View {
     
     public var body: some View {
         if isVisible {
-            VStack(spacing: 8) {
-                // Круглая увеличительная оптическая линза
+            // Круглая увеличительная оптическая линза
                 ZStack {
                     // Черная подложка
                     Circle()
@@ -101,28 +103,6 @@ public struct ZoomLoupeOverlayView<Content: View>: View {
                         endRadius: diameter * 0.50
                     )
                     
-                    // Тонкое перекрестие видоискателя для точной оценки резкости
-                    Path { path in
-                        let center = diameter / 2.0
-                        let tick: CGFloat = 8
-                        let gap: CGFloat = 3
-                        path.move(to: CGPoint(x: center - tick, y: center))
-                        path.addLine(to: CGPoint(x: center - gap, y: center))
-                        path.move(to: CGPoint(x: center + gap, y: center))
-                        path.addLine(to: CGPoint(x: center + tick, y: center))
-                        path.move(to: CGPoint(x: center, y: center - tick))
-                        path.addLine(to: CGPoint(x: center, y: center - gap))
-                        path.move(to: CGPoint(x: center, y: center + gap))
-                        path.addLine(to: CGPoint(x: center, y: center + tick))
-                    }
-                    .stroke(Color.white.opacity(0.9), lineWidth: 1.2)
-                    
-                    // Центральная микро-точка фокусировки
-                    Circle()
-                        .fill(Color.cyan)
-                        .frame(width: 3, height: 3)
-                        .shadow(color: Color.cyan, radius: 2)
-                    
                     // Внешнее кольцо оправы Liquid Glass с акцентным свечением
                     Circle()
                         .stroke(
@@ -142,73 +122,33 @@ public struct ZoomLoupeOverlayView<Content: View>: View {
                 .frame(width: diameter, height: diameter)
                 .clipShape(Circle())
                 .shadow(color: Color.black.opacity(0.70), radius: 22, x: 0, y: 10)
-                
-                // Интерактивная плашка статуса с переключением масштаба и кнопкой закрытия
-                HStack(spacing: 8) {
-                    Image(systemName: "viewfinder")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color.cyan)
-                    
-                    if let onToggleZoom {
-                        Button(action: onToggleZoom) {
-                            HStack(spacing: 4) {
-                                Text(labelText)
-                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(Color.white)
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                    .font(.system(size: 9, weight: .semibold))
-                                    .foregroundStyle(Color.cyan)
+                .contentShape(Circle())
+                .offset(offset)
+                .gesture(
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { val in
+                            onDragChanged?(val.translation)
+                        }
+                        .onEnded { val in
+                            let dist = hypot(val.translation.width, val.translation.height)
+                            if dist < 6 {
+                                onTap?()
+                            } else {
+                                onDragEnded?(val.translation)
                             }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Переключить масштаб увеличения")
-                    } else {
-                        Text(labelText)
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Color.white.opacity(0.95))
-                    }
-                    
-                    if let onClose {
-                        Button(action: onClose) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.white.opacity(0.75))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.leading, 2)
-                        .accessibilityLabel("Выключить лупу")
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Color.black.opacity(0.75))
-                .background(.ultraThinMaterial)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
                 )
-                .shadow(color: Color.black.opacity(0.4), radius: 6, y: 2)
-            }
-            .contentShape(Rectangle())
-            .offset(offset)
-            .gesture(
-                DragGesture(minimumDistance: 1)
-                    .onChanged { val in
-                        onDragChanged?(val.translation)
-                    }
-                    .onEnded { val in
-                        onDragEnded?(val.translation)
-                    }
-            )
-            .transition(.scale(scale: 0.85).combined(with: .opacity))
+                .onTapGesture {
+                    onTap?()
+                }
+                .transition(.scale(scale: 0.85).combined(with: .opacity))
         }
     }
 }
 
 extension ZoomLoupeOverlayView where Content == EmptyView {
     public init(
-        diameter: CGFloat = 150,
+        diameter: CGFloat = 218,
         isVisible: Bool = true,
         labelText: String = "100% Zoom",
         magnification: CGFloat = 3.0,
@@ -217,6 +157,7 @@ extension ZoomLoupeOverlayView where Content == EmptyView {
         cgImage: CGImage? = nil,
         onDragChanged: ((CGSize) -> Void)? = nil,
         onDragEnded: ((CGSize) -> Void)? = nil,
+        onTap: (() -> Void)? = nil,
         onToggleZoom: (() -> Void)? = nil,
         onClose: (() -> Void)? = nil
     ) {
@@ -230,6 +171,7 @@ extension ZoomLoupeOverlayView where Content == EmptyView {
             cgImage: cgImage,
             onDragChanged: onDragChanged,
             onDragEnded: onDragEnded,
+            onTap: onTap,
             onToggleZoom: onToggleZoom,
             onClose: onClose,
             content: { EmptyView() }

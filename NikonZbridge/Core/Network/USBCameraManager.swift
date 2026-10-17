@@ -1,6 +1,13 @@
 import Foundation
 @preconcurrency import ImageCaptureCore
 import CoreGraphics
+import ImageIO
+
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// Менеджер прямого кабельного подключения к камере Nikon в режиме «Передача файлов» (MTP/PTP)
 /// Реализует управляемую очередь, дифференциацию оглавления и live-снимков, режимы импорта и просмотр содержимого карты.
@@ -232,6 +239,65 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
     public func requestThumbnail(for item: CameraFileItem) {
         guard let file = item.cameraFile ?? cameraFileMap[item.id] else { return }
         file.requestThumbnail()
+    }
+    
+    /// Кэш высококачественных превью (до 4096px) для экрана студии и лупы
+    private let highResPreviewCache = NSCache<NSString, AnyObject>()
+    
+    /// Запрос превью высокой четкости (Retina / 4K) для активного кадра в окне просмотра и лупе
+    public func requestHighResolutionPreview(for item: CameraFileItem, maxPixelSize: Int = 3840) async -> CGImage? {
+        let cacheKey = "\(item.id)_\(maxPixelSize)" as NSString
+        if let cached = highResPreviewCache.object(forKey: cacheKey) {
+            #if canImport(UIKit)
+            if let ui = cached as? UIImage { return ui.cgImage }
+            #elseif canImport(AppKit)
+            if let ns = cached as? NSImage { return ns.cgImage(forProposedRect: nil, context: nil, hints: nil) }
+            #endif
+        }
+        
+        // 1. Если файл уже сохранен локально — моментально считываем 4K превью из оригинального NEF/JPG
+        if let localURL = await getLocalFileURL(for: item) {
+            if let highRes = RAWPreviewExtractor.extractCGImage(from: localURL, maxPixelSize: maxPixelSize) {
+                #if canImport(UIKit)
+                highResPreviewCache.setObject(UIImage(cgImage: highRes), forKey: cacheKey)
+                #elseif canImport(AppKit)
+                let ns = NSImage(cgImage: highRes, size: NSSize(width: highRes.width, height: highRes.height))
+                highResPreviewCache.setObject(ns, forKey: cacheKey)
+                #endif
+                return highRes
+            }
+        }
+        
+        // 2. Если файл еще на камере — запрашиваем превью высокого разрешения через ImageCaptureCore
+        guard let file = item.cameraFile ?? cameraFileMap[item.id] else { return nil }
+        
+        return await withCheckedContinuation { continuation in
+            let options: [ICCameraItemThumbnailOption: Any] = [
+                .imageSourceThumbnailMaxPixelSize: maxPixelSize
+            ]
+            file.requestThumbnailData(options: options) { [weak self] data, error in
+                guard let data = data, error == nil,
+                      let source = CGImageSourceCreateWithData(data as CFData, nil),
+                      let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                        kCGImageSourceCreateThumbnailFromImageIfAbsent: true,
+                        kCGImageSourceCreateThumbnailWithTransform: true,
+                        kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+                        kCGImageSourceShouldCacheImmediately: true
+                      ] as CFDictionary) ?? CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                #if canImport(UIKit)
+                self?.highResPreviewCache.setObject(UIImage(cgImage: cgImage), forKey: cacheKey)
+                #elseif canImport(AppKit)
+                let ns = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+                self?.highResPreviewCache.setObject(ns, forKey: cacheKey)
+                #endif
+                
+                continuation.resume(returning: cgImage)
+            }
+        }
     }
     
     // MARK: - CameraTransport Protocol (Pull & Retry)
@@ -1011,6 +1077,14 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                     let nextItem = await transferQueue.markCompleted(compositeID: targetCompositeID, markAsImported: isForActiveSession)
                     if isForActiveSession {
                         updateItemStatus(compositeID: targetCompositeID, status: .imported)
+                        if let highRes = RAWPreviewExtractor.extractCGImage(from: asset.fileURL, maxPixelSize: 3840) {
+                            #if canImport(UIKit)
+                            self.highResPreviewCache.setObject(UIImage(cgImage: highRes), forKey: "\(targetCompositeID)_3840" as NSString)
+                            #elseif canImport(AppKit)
+                            let ns = NSImage(cgImage: highRes, size: NSSize(width: highRes.width, height: highRes.height))
+                            self.highResPreviewCache.setObject(ns, forKey: "\(targetCompositeID)_3840" as NSString)
+                            #endif
+                        }
                         await MainActor.run {
                             self.onFileIngested?(IngestedFile(from: asset))
                         }

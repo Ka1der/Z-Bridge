@@ -55,6 +55,21 @@ public struct RAWPreviewExtractor: Sendable {
         #endif
     }
     
+    /// Извлечение высококачественного CGImage (до 4096px) без полного декодирования сенсорного RAW
+    public static func extractCGImage(
+        from url: URL,
+        maxPixelSize: Int = 3840
+    ) -> CGImage? {
+        if let platformImg = extractThumbnail(from: url, maxPixelSize: maxPixelSize) {
+            #if canImport(UIKit)
+            return platformImg.cgImage
+            #elseif canImport(AppKit)
+            return platformImg.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            #endif
+        }
+        return nil
+    }
+    
     /// Извлечение метаданных EXIF (выдержка, диафрагма, ISO, фокусное расстояние)
     public static func extractEXIFMetadata(from url: URL) -> [String: Any]? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
