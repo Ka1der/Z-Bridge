@@ -14,7 +14,14 @@ public struct USBCameraBrowserView: View {
         nonmutating set { if let sharedFormatFilter { sharedFormatFilter.wrappedValue = newValue } else { localFormatFilter = newValue } }
     }
     private var formatFilterBinding: Binding<CameraFileFormatFilter> {
-        Binding(get: { formatFilter }, set: { formatFilter = $0 })
+        Binding(
+            get: { formatFilter },
+            set: { newValue in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    formatFilter = newValue
+                }
+            }
+        )
     }
     @State private var localViewMode: CameraBrowserViewMode = .gallery
     private var sharedViewMode: Binding<CameraBrowserViewMode>?
@@ -736,12 +743,31 @@ public struct USBCameraBrowserView: View {
     }
     
     private var formatFilterPicker: some View {
-        Picker("Формат", selection: formatFilterBinding) {
-            ForEach(CameraFileFormatFilter.allCases) { filter in
-                Text(filter.rawValue).tag(filter)
+        Menu {
+            Picker("Формат", selection: formatFilterBinding) {
+                ForEach(CameraFileFormatFilter.allCases) { filter in
+                    Label(filter.menuTitle, systemImage: filter.iconName)
+                        .tag(filter)
+                }
             }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: formatFilter.iconName)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(formatFilter == .all ? Color.white.opacity(0.8) : AppTheme.Colors.accent)
+                
+                Text(formatFilter.shortTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.6))
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .glassPill()
         }
-        .pickerStyle(.segmented)
     }
     
     private var viewModePicker: some View {
@@ -791,12 +817,19 @@ public struct USBCameraBrowserView: View {
                 Label("Снять выбор", systemImage: "xmark.circle")
             }
         } label: {
-            Label("Выбор", systemImage: "checklist")
-                .font(.subheadline)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(cardBackgroundColor)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            HStack(spacing: 6) {
+                Image(systemName: "checklist")
+                    .font(.system(size: 11, weight: .bold))
+                Text("Выбор")
+                    .font(.system(size: 13, weight: .semibold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.6))
+            }
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .glassPill()
         }
     }
     
@@ -857,7 +890,7 @@ public struct USBCameraBrowserView: View {
                     .foregroundColor(.secondary)
                 
                 VStack(spacing: 6) {
-                    Text("Нет файлов формата «\(formatFilter.rawValue)»")
+                    Text("Нет файлов формата «\(formatFilter.shortTitle)»")
                         .font(.headline)
                         .foregroundColor(.primary)
                     Text("На карте найдено \(usbManager.catalogFiles.count) файлов других форматов.")
@@ -1137,23 +1170,7 @@ public struct USBCameraBrowserView: View {
                         .accessibilityLabel("Обновить каталог")
                         
                         // Фильтр форматов
-                        Menu {
-                            Picker("Формат", selection: formatFilterBinding) {
-                                ForEach(CameraFileFormatFilter.allCases) { f in
-                                    Text(f.rawValue).tag(f)
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "line.3.horizontal.decrease")
-                                    .font(.system(size: 12, weight: .bold))
-                                Text(formatFilter.rawValue)
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            .foregroundStyle(Color.white)
-                            .padding(.horizontal, 10)
-                            .frame(height: 32)
-                        }
+                        formatFilterPicker
                         
                         // Переключатель вида Студия / Список
                         cameraViewModeSelector

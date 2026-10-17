@@ -191,6 +191,42 @@ public enum CameraFileFormatFilter: String, CaseIterable, Identifiable, Sendable
     
     public var id: String { rawValue }
     
+    /// Короткое название для кнопки выпадающего списка
+    public var shortTitle: String {
+        switch self {
+        case .all:
+            return "Все форматы"
+        case .rawOnly:
+            return "RAW"
+        case .companionOnly:
+            return "JPEG"
+        }
+    }
+    
+    /// Название для пунктов выпадающего меню
+    public var menuTitle: String {
+        switch self {
+        case .all:
+            return "Все форматы"
+        case .rawOnly:
+            return "Только RAW (.NEF)"
+        case .companionOnly:
+            return "Только JPEG"
+        }
+    }
+    
+    /// Иконка для меню и кнопки
+    public var iconName: String {
+        switch self {
+        case .all:
+            return "line.3.horizontal.decrease"
+        case .rawOnly:
+            return "camera.fill"
+        case .companionOnly:
+            return "photo"
+        }
+    }
+    
     public func matches(isRAW: Bool) -> Bool {
         switch self {
         case .all:
