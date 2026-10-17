@@ -76,6 +76,10 @@
 		EC4B1F391C473E31C8C68E72 /* XMPCompatibilityGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B324082CC2DAD7CA506D3B /* XMPCompatibilityGuideView.swift */; };
 		01127953D2DA13F7407275E5 /* XMPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 383B4E40896B2FF88262C538 /* XMPGenerator.swift */; };
 		957DEE4BFE50CEB9BD1A9243 /* XMPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF71AFCC352CB26B11CCE126 /* XMPModels.swift */; };
+		3FA910806687D6C69AD443A2 /* CameraStatusHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76F47DDB7DD5AF8C2D125F6 /* CameraStatusHUDView.swift */; };
+		78333AD6D6BF7FB1C3E61A0E /* FloatingThumbZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8045BF79C8767E1E202A0C58 /* FloatingThumbZoneView.swift */; };
+		DE2D329D7984259A9F9D60B5 /* FloatingTransferPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1338BC97A72A2D5010554D9D /* FloatingTransferPill.swift */; };
+		413DC041361B849FDED4D895 /* ZoomLoupeOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1855474CEFC2EC1DC6290054 /* ZoomLoupeOverlayView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -150,6 +154,10 @@
 		D0B324082CC2DAD7CA506D3B /* XMPCompatibilityGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XMPCompatibilityGuideView.swift; sourceTree = "<group>"; };
 		383B4E40896B2FF88262C538 /* XMPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XMPGenerator.swift; sourceTree = "<group>"; };
 		EF71AFCC352CB26B11CCE126 /* XMPModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XMPModels.swift; sourceTree = "<group>"; };
+		E76F47DDB7DD5AF8C2D125F6 /* CameraStatusHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraStatusHUDView.swift; sourceTree = "<group>"; };
+		8045BF79C8767E1E202A0C58 /* FloatingThumbZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingThumbZoneView.swift; sourceTree = "<group>"; };
+		1338BC97A72A2D5010554D9D /* FloatingTransferPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingTransferPill.swift; sourceTree = "<group>"; };
+		1855474CEFC2EC1DC6290054 /* ZoomLoupeOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomLoupeOverlayView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -204,6 +212,10 @@
 		0C08A5CB804F761A83AF2C8E /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				E76F47DDB7DD5AF8C2D125F6 /* CameraStatusHUDView.swift */,
+				8045BF79C8767E1E202A0C58 /* FloatingThumbZoneView.swift */,
+				1338BC97A72A2D5010554D9D /* FloatingTransferPill.swift */,
+				1855474CEFC2EC1DC6290054 /* ZoomLoupeOverlayView.swift */,
 				5AD218B427B904A4B420692A /* ConnectionStatusView.swift */,
 				66BF224C6EFFD0AF55528BE9 /* PrimaryImportButton.swift */,
 				C5BCB6805065E4D38B9E69D8 /* TransferProgressStrip.swift */,
@@ -484,6 +496,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FA910806687D6C69AD443A2 /* CameraStatusHUDView.swift in Sources */,
+				78333AD6D6BF7FB1C3E61A0E /* FloatingThumbZoneView.swift in Sources */,
+				DE2D329D7984259A9F9D60B5 /* FloatingTransferPill.swift in Sources */,
+				413DC041361B849FDED4D895 /* ZoomLoupeOverlayView.swift in Sources */,
 				24179CBBE308425B5A456C27 /* AdaptiveAppShellView.swift in Sources */,
 				CF3299C90811E4713BC53107 /* AdaptiveLayoutResolver.swift in Sources */,
 				885251740806C5AE97140EC4 /* AppState.swift in Sources */,
