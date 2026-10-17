@@ -44,6 +44,42 @@ public struct USBCameraBrowserView: View {
     @State private var isZoomLoupeEnabled: Bool = false
     @State private var loupeOffset: CGSize = .zero
     @State private var loupeDragBase: CGSize = .zero
+    @State private var loupeMagnification: CGFloat = 3.0 // 100% Zoom (3.0x масштабирование отображаемого кадра)
+    
+    private var loupeZoomLabel: String {
+        abs(loupeMagnification - 3.0) < 0.1 ? "100% Zoom" : "200% Zoom"
+    }
+    
+    private func toggleLoupeZoom() {
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+            if abs(loupeMagnification - 3.0) < 0.1 {
+                loupeMagnification = 5.0
+            } else {
+                loupeMagnification = 3.0
+            }
+        }
+    }
+    
+    private func fittedImageSize(for item: CameraFileItem, in containerSize: CGSize) -> CGSize {
+        let maxW = max(containerSize.width - 24, 100)
+        let maxH = max(containerSize.height - 24, 100)
+        guard let thumb = item.thumbnail else {
+            return CGSize(width: maxW, height: maxH)
+        }
+        let imgW = CGFloat(thumb.width)
+        let imgH = CGFloat(thumb.height)
+        guard imgW > 0, imgH > 0 else {
+            return CGSize(width: maxW, height: maxH)
+        }
+        let aspect = imgW / imgH
+        var targetW = maxW
+        var targetH = targetW / aspect
+        if targetH > maxH {
+            targetH = maxH
+            targetW = targetH * aspect
+        }
+        return CGSize(width: targetW, height: targetH)
+    }
     
     private var cameraViewModeSelector: some View {
         Picker("Вид", selection: viewModeBinding) {
@@ -1073,7 +1109,7 @@ public struct USBCameraBrowserView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: isZoomLoupeEnabled ? "viewfinder.circle.fill" : "viewfinder")
                                     .font(.system(size: 12, weight: .bold))
-                                Text("Лупа")
+                                Text(isZoomLoupeEnabled ? loupeZoomLabel : "Лупа")
                                     .font(.system(size: 11, weight: .bold))
                             }
                             .foregroundStyle(isZoomLoupeEnabled ? AppTheme.Colors.onAccent : Color.white)
@@ -1162,12 +1198,14 @@ public struct USBCameraBrowserView: View {
                 // Основная центральная область кадра
                 ZStack {
                     if let item = activeFile {
+                        let imageSize = fittedImageSize(for: item, in: geometry.size)
+                        
                         mainImageView(for: item, size: geometry.size)
                             .onTapGesture { location in
                                 let relativeX = location.x - geometry.size.width / 2.0
                                 let relativeY = location.y - geometry.size.height / 2.0
-                                let maxX = max(0, (geometry.size.width - 150) / 2.0)
-                                let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                let maxX = max(0, (imageSize.width - 60) / 2.0)
+                                let maxY = max(0, (imageSize.height - 60) / 2.0)
                                 let clampedX = min(max(relativeX, -maxX), maxX)
                                 let clampedY = min(max(relativeY, -maxY), maxY)
                                 
@@ -1182,34 +1220,37 @@ public struct USBCameraBrowserView: View {
                         
                         if isZoomLoupeEnabled {
                             ZoomLoupeOverlayView(
-                                diameter: 140,
+                                diameter: 155,
                                 isVisible: true,
-                                labelText: "100% Zoom",
-                                magnification: 2.6,
+                                labelText: loupeZoomLabel,
+                                magnification: loupeMagnification,
                                 offset: loupeOffset,
+                                displaySize: imageSize,
+                                cgImage: item.thumbnail,
                                 onDragChanged: { translation in
-                                    let maxX = max(0, (geometry.size.width - 150) / 2.0)
-                                    let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                    let maxX = max(0, (imageSize.width - 60) / 2.0)
+                                    let maxY = max(0, (imageSize.height - 60) / 2.0)
                                     let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
                                     let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
                                     loupeOffset = CGSize(width: newX, height: newY)
                                 },
                                 onDragEnded: { translation in
-                                    let maxX = max(0, (geometry.size.width - 150) / 2.0)
-                                    let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                    let maxX = max(0, (imageSize.width - 60) / 2.0)
+                                    let maxY = max(0, (imageSize.height - 60) / 2.0)
                                     let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
                                     let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
                                     loupeOffset = CGSize(width: newX, height: newY)
                                     loupeDragBase = loupeOffset
+                                },
+                                onToggleZoom: {
+                                    toggleLoupeZoom()
                                 },
                                 onClose: {
                                     withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                                         isZoomLoupeEnabled = false
                                     }
                                 }
-                            ) {
-                                mainImageContent(for: item)
-                            }
+                            )
                         }
                         
                         // Верхний левый угол картинки: бейдж RAW в точности по референсу iPad
@@ -1333,12 +1374,12 @@ public struct USBCameraBrowserView: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: isZoomLoupeEnabled ? "viewfinder.circle.fill" : "viewfinder")
-                                .font(.system(size: 12, weight: .bold))
-                            Text("Лупа")
-                                .font(.system(size: 11, weight: .bold))
-                        }
+                            HStack(spacing: 4) {
+                                Image(systemName: isZoomLoupeEnabled ? "viewfinder.circle.fill" : "viewfinder")
+                                    .font(.system(size: 12, weight: .bold))
+                                Text(isZoomLoupeEnabled ? loupeZoomLabel : "Лупа")
+                                    .font(.system(size: 11, weight: .bold))
+                            }
                         .foregroundStyle(isZoomLoupeEnabled ? AppTheme.Colors.onAccent : Color.white)
                         .padding(.horizontal, 10)
                         .frame(height: 32)
@@ -1377,12 +1418,14 @@ public struct USBCameraBrowserView: View {
                 // 2. Центральная область кадра с управляемой 100% Zoom лупой
                 ZStack {
                     if let item = activeFile {
+                        let imageSize = fittedImageSize(for: item, in: geometry.size)
+                        
                         mainImageView(for: item, size: geometry.size)
                             .onTapGesture { location in
                                 let relativeX = location.x - geometry.size.width / 2.0
                                 let relativeY = location.y - geometry.size.height / 2.0
-                                let maxX = max(0, (geometry.size.width - 150) / 2.0)
-                                let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                let maxX = max(0, (imageSize.width - 50) / 2.0)
+                                let maxY = max(0, (imageSize.height - 50) / 2.0)
                                 let clampedX = min(max(relativeX, -maxX), maxX)
                                 let clampedY = min(max(relativeY, -maxY), maxY)
                                 
@@ -1397,34 +1440,37 @@ public struct USBCameraBrowserView: View {
                         
                         if isZoomLoupeEnabled {
                             ZoomLoupeOverlayView(
-                                diameter: 135,
+                                diameter: 145,
                                 isVisible: true,
-                                labelText: "100% Zoom",
-                                magnification: 2.6,
+                                labelText: loupeZoomLabel,
+                                magnification: loupeMagnification,
                                 offset: loupeOffset,
+                                displaySize: imageSize,
+                                cgImage: item.thumbnail,
                                 onDragChanged: { translation in
-                                    let maxX = max(0, (geometry.size.width - 150) / 2.0)
-                                    let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                    let maxX = max(0, (imageSize.width - 50) / 2.0)
+                                    let maxY = max(0, (imageSize.height - 50) / 2.0)
                                     let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
                                     let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
                                     loupeOffset = CGSize(width: newX, height: newY)
                                 },
                                 onDragEnded: { translation in
-                                    let maxX = max(0, (geometry.size.width - 150) / 2.0)
-                                    let maxY = max(0, (geometry.size.height - 150) / 2.0)
+                                    let maxX = max(0, (imageSize.width - 50) / 2.0)
+                                    let maxY = max(0, (imageSize.height - 50) / 2.0)
                                     let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
                                     let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
                                     loupeOffset = CGSize(width: newX, height: newY)
                                     loupeDragBase = loupeOffset
+                                },
+                                onToggleZoom: {
+                                    toggleLoupeZoom()
                                 },
                                 onClose: {
                                     withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                                         isZoomLoupeEnabled = false
                                     }
                                 }
-                            ) {
-                                mainImageContent(for: item)
-                            }
+                            )
                         }
                     }
                 }
@@ -1433,6 +1479,7 @@ public struct USBCameraBrowserView: View {
                 .gesture(
                     DragGesture(minimumDistance: 45)
                         .onEnded { val in
+                            guard !isZoomLoupeEnabled else { return }
                             if abs(val.translation.width) > abs(val.translation.height) * 1.5 {
                                 if val.translation.width < -50 {
                                     withAnimation(.easeInOut(duration: 0.15)) { selectNextFile() }
