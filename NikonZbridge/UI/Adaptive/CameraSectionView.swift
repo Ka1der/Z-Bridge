@@ -35,7 +35,7 @@ public struct CameraSectionView: View {
             }
             .padding(AppTheme.Spacing.lg)
         }
-        .background(AppTheme.Colors.background)
+        .studioBackground()
     }
     
     // MARK: - 1. Карточка статуса подключения
@@ -43,23 +43,44 @@ public struct CameraSectionView: View {
     private var connectionHeaderCard: some View {
         GlassCard(cornerRadius: AppTheme.Radius.lg) {
             HStack(spacing: AppTheme.Spacing.md) {
+                // Иконка в стеклянном круге с мягким свечением
                 ZStack {
                     Circle()
-                        .fill(connectionStatusColor.opacity(0.18))
+                        .fill(connectionStatusColor.opacity(0.12))
+                        .background(.ultraThinMaterial, in: Circle())
                         .frame(width: 48, height: 48)
+                        .overlay(
+                            Circle()
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [connectionStatusColor.opacity(0.45), connectionStatusColor.opacity(0.1)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                        .shadow(color: connectionStatusColor.opacity(appState.isCameraConnected ? 0.35 : 0), radius: 8)
                     
                     Image(systemName: connectionIcon)
-                        .font(.title2)
+                        .font(.title2.weight(.semibold))
                         .foregroundStyle(connectionStatusColor)
                 }
                 
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
-                    Text(appState.connectionStatusTitle)
-                        .font(AppTheme.Typography.title3)
-                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(connectionStatusColor)
+                            .frame(width: 8, height: 8)
+                            .shadow(color: connectionStatusColor.opacity(0.6), radius: 4)
+                        
+                        Text(appState.connectionStatusTitle)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                    }
                     
                     Text(connectionSubtitle)
-                        .font(AppTheme.Typography.caption)
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(AppTheme.Colors.textSecondary)
                 }
                 
@@ -68,10 +89,13 @@ public struct CameraSectionView: View {
                 Button {
                     appState.isSettingsPresented = true
                 } label: {
-                    Image(systemName: "gearshape")
-                        .font(.body.bold())
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.85))
+                        .frame(width: 36, height: 36)
+                        .glassSurface(shape: Circle())
                 }
-                .buttonStyle(.appIconGlass)
+                .buttonStyle(.plain)
                 .accessibilityLabel("Настройки подключения")
             }
             .padding(AppTheme.Spacing.md)
@@ -173,23 +197,28 @@ public struct CameraSectionView: View {
     
     private func metricTile(icon: String, value: String, label: String, valueColor: Color) -> some View {
         GlassCard(cornerRadius: AppTheme.Radius.md) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                Image(systemName: icon)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: icon)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(valueColor.opacity(0.85))
+                    Spacer()
+                }
                 
                 Text(value)
-                    .font(AppTheme.Typography.subheadlineBold)
+                    .font(.system(size: 19, weight: .bold, design: .rounded))
                     .foregroundStyle(valueColor)
                     .lineLimit(1)
                     .monospacedDigit()
+                    .shadow(color: valueColor.opacity(valueColor == AppTheme.Colors.accent || valueColor == AppTheme.Colors.statusGreen ? 0.30 : 0), radius: 5)
                 
-                Text(label)
-                    .font(AppTheme.Typography.caption2)
+                Text(label.uppercased())
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.6)
                     .foregroundStyle(AppTheme.Colors.textTertiary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(AppTheme.Spacing.md)
+            .padding(14)
         }
     }
     
@@ -199,28 +228,48 @@ public struct CameraSectionView: View {
         GlassCard(cornerRadius: AppTheme.Radius.lg) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
                 HStack {
-                    Label("Прямое подключение USB-C", systemImage: "cable.connector")
-                        .font(AppTheme.Typography.subheadlineBold)
-                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "cable.connector")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(appState.usbConnected ? AppTheme.Colors.statusGreen : AppTheme.Colors.textSecondary)
+                        Text("Прямое подключение USB-C")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                    }
                     
                     Spacer()
                     
                     if appState.usbConnected {
-                        Text(appState.currentUSBManager.isCatalogReady ? "Готово к импорту" : "Подключено")
-                            .font(AppTheme.Typography.captionBold)
-                            .foregroundStyle(AppTheme.Colors.statusGreen)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(AppTheme.Colors.statusGreen.opacity(0.15))
-                            .clipShape(Capsule())
+                        HStack(spacing: 5) {
+                            Circle().fill(AppTheme.Colors.statusGreen).frame(width: 6, height: 6)
+                                .shadow(color: AppTheme.Colors.statusGreen.opacity(0.6), radius: 3)
+                            Text(appState.currentUSBManager.isCatalogReady ? "Готово к импорту" : "Подключено")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(AppTheme.Colors.statusGreen)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(AppTheme.Colors.statusGreen.opacity(0.12))
+                                .background(.ultraThinMaterial, in: Capsule())
+                        )
+                        .overlay(Capsule().stroke(AppTheme.Colors.statusGreen.opacity(0.30), lineWidth: 1))
                     } else {
-                        Text("Отключено")
-                            .font(AppTheme.Typography.captionBold)
-                            .foregroundStyle(AppTheme.Colors.textSecondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(AppTheme.Colors.surfaceSecondary)
-                            .clipShape(Capsule())
+                        HStack(spacing: 5) {
+                            Circle().fill(Color.white.opacity(0.35)).frame(width: 6, height: 6)
+                            Text("Отключено")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.06))
+                                .background(.ultraThinMaterial, in: Capsule())
+                        )
+                        .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
                     }
                 }
                 
@@ -291,12 +340,14 @@ public struct CameraSectionView: View {
                                 set: { appState.currentUSBManager.isAutoDownloadNewShotsEnabled = $0 }
                             ))
                             .font(AppTheme.Typography.captionBold)
+                            .tint(AppTheme.Colors.accent)
                             
                             Toggle("Загружать файлы с карты при подключении", isOn: Binding(
                                 get: { appState.currentUSBManager.isAutoDownloadCardOnConnectEnabled },
                                 set: { appState.currentUSBManager.isAutoDownloadCardOnConnectEnabled = $0 }
                             ))
                             .font(AppTheme.Typography.captionBold)
+                            .tint(AppTheme.Colors.accent)
                             
                             Text("Ручной импорт не изменяет эти настройки. Параметры сохраняются между запусками.")
                                 .font(AppTheme.Typography.caption2)
@@ -344,9 +395,14 @@ public struct CameraSectionView: View {
         GlassCard(cornerRadius: AppTheme.Radius.lg) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
                 HStack {
-                    Label("Беспроводная передача Wi-Fi / FTP", systemImage: "wifi")
-                        .font(AppTheme.Typography.subheadlineBold)
-                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "wifi")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.accent)
+                        Text("Беспроводная передача Wi-Fi / FTP")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                    }
                     
                     Spacer()
                     
@@ -361,22 +417,33 @@ public struct CameraSectionView: View {
                         }
                     ))
                     .labelsHidden()
+                    .tint(AppTheme.Colors.accent)
                 }
                 
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
                         Circle()
                             .fill(appState.isServerRunning ? AppTheme.Colors.statusGreen : AppTheme.Colors.statusNeutral)
                             .frame(width: 8, height: 8)
+                            .shadow(color: appState.isServerRunning ? AppTheme.Colors.statusGreen.opacity(0.6) : Color.clear, radius: 4)
+                        
                         Text(appState.isServerRunning ? "Сервер работает (порт 2121)" : "Сервер остановлен")
-                            .font(AppTheme.Typography.captionBold)
+                            .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(appState.isServerRunning ? AppTheme.Colors.statusGreen : AppTheme.Colors.textSecondary)
                         
                         Spacer()
                         
                         Text("Клиентов: \(appState.connectedClients)")
-                            .font(AppTheme.Typography.captionBold)
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
                             .foregroundStyle(appState.connectedClients > 0 ? AppTheme.Colors.accent : AppTheme.Colors.textSecondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(Color.white.opacity(0.06))
+                                    .background(.ultraThinMaterial, in: Capsule())
+                            )
+                            .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1))
                     }
                     
                     if appState.isServerRunning {
@@ -386,7 +453,6 @@ public struct CameraSectionView: View {
                     }
                 }
                 
-                // Важное пояснение для пользователя: не обещаем просмотр карты через существующий FTP-сервер
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "info.circle")
                         .font(.caption2)
@@ -402,13 +468,34 @@ public struct CameraSectionView: View {
                 } label: {
                     HStack {
                         Image(systemName: "wifi.badge.questionmark")
+                            .font(.system(size: 13, weight: .semibold))
                         Text("Настройки Wi-Fi и реквизиты FTP...")
+                            .font(.system(size: 13, weight: .semibold))
                         Spacer()
                         Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color.white.opacity(0.5))
                     }
-                    .font(AppTheme.Typography.captionBold)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.black.opacity(0.25))
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.12), Color.white.opacity(0.03)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
                 }
-                .buttonStyle(.appSecondaryGlass)
+                .buttonStyle(.plain)
             }
             .padding(AppTheme.Spacing.md)
         }
@@ -423,13 +510,34 @@ public struct CameraSectionView: View {
             } label: {
                 HStack {
                     Image(systemName: "info.circle")
+                        .font(.system(size: 13, weight: .semibold))
                     Text("Таблица совместимости форматов XMP...")
+                        .font(.system(size: 13, weight: .semibold))
                     Spacer()
                     Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.5))
                 }
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.black.opacity(0.25))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.12), Color.white.opacity(0.03)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
             }
-            .buttonStyle(.appSecondaryGlass)
+            .buttonStyle(.plain)
         }
     }
 }

@@ -265,12 +265,17 @@ public enum AppTheme {
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
         @Environment(\.colorSchemeContrast) private var contrast
+        @Environment(\.colorScheme) private var colorScheme
         
         public init() {}
         
         public func makeBody(configuration: Configuration) -> some View {
+            let isHighContrast = (contrast == .increased)
+            let strokeColor = isHighContrast ? AppTheme.Colors.borderStrong : AppTheme.Colors.borderSubtle
+            let strokeWidth: CGFloat = isHighContrast ? AppTheme.Dimensions.borderWidthHighContrast : 0.8
+            
             configuration.label
-                .font(AppTheme.Typography.subheadline)
+                .font(AppTheme.Typography.subheadlineBold)
                 .foregroundStyle(AppTheme.Colors.textPrimary)
                 .padding(.horizontal, AppTheme.Spacing.md)
                 .frame(minHeight: AppTheme.Dimensions.buttonHeight)
@@ -279,11 +284,10 @@ public enum AppTheme {
                         if reduceTransparency {
                             AppTheme.Colors.surfaceSecondary
                         } else {
-                        #if canImport(UIKit)
-                        Color(uiColor: .secondarySystemFill)
-                        #else
-                        AppTheme.Colors.surfaceSecondary
-                        #endif
+                            (colorScheme == .dark
+                                ? Color(red: 26/255.0, green: 28/255.0, blue: 34/255.0).opacity(0.68)
+                                : Color.white.opacity(0.70))
+                            .background(.ultraThinMaterial, in: Capsule())
                         }
                     }
                 )
@@ -291,12 +295,22 @@ public enum AppTheme {
                 .overlay(
                     Capsule()
                         .stroke(
-                            contrast == .increased ? AppTheme.Colors.borderStrong : AppTheme.Colors.borderSubtle,
-                            lineWidth: contrast == .increased ? AppTheme.Dimensions.borderWidthHighContrast : AppTheme.Dimensions.borderWidth
+                            isHighContrast
+                                ? AnyShapeStyle(strokeColor)
+                                : AnyShapeStyle(
+                                    LinearGradient(
+                                        colors: colorScheme == .dark
+                                            ? [Color.white.opacity(0.24), Color.white.opacity(0.06)]
+                                            : [Color.white.opacity(0.75), Color.black.opacity(0.08)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                ),
+                            lineWidth: strokeWidth
                         )
                 )
-                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1.0)
-                .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1.0) : 0.45)
+                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1.0)
+                .opacity(isEnabled ? (configuration.isPressed ? 0.80 : 1.0) : 0.45)
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: configuration.isPressed)
         }
     }
@@ -307,10 +321,15 @@ public enum AppTheme {
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
         @Environment(\.colorSchemeContrast) private var contrast
+        @Environment(\.colorScheme) private var colorScheme
         
         public init() {}
         
         public func makeBody(configuration: Configuration) -> some View {
+            let isHighContrast = (contrast == .increased)
+            let strokeColor = isHighContrast ? AppTheme.Colors.borderStrong : AppTheme.Colors.borderSubtle
+            let strokeWidth: CGFloat = isHighContrast ? AppTheme.Dimensions.borderWidthHighContrast : 0.8
+            
             configuration.label
                 .font(AppTheme.Typography.subheadlineBold)
                 .foregroundStyle(AppTheme.Colors.textPrimary)
@@ -320,11 +339,10 @@ public enum AppTheme {
                         if reduceTransparency {
                             AppTheme.Colors.surfaceSecondary
                         } else {
-                        #if canImport(UIKit)
-                        Color(uiColor: .secondarySystemFill)
-                        #else
-                        AppTheme.Colors.surfaceSecondary
-                        #endif
+                            (colorScheme == .dark
+                                ? Color(red: 26/255.0, green: 28/255.0, blue: 34/255.0).opacity(0.68)
+                                : Color.white.opacity(0.70))
+                            .background(.ultraThinMaterial, in: Circle())
                         }
                     }
                 )
@@ -332,8 +350,18 @@ public enum AppTheme {
                 .overlay(
                     Circle()
                         .stroke(
-                            contrast == .increased ? AppTheme.Colors.borderStrong : AppTheme.Colors.borderSubtle,
-                            lineWidth: contrast == .increased ? AppTheme.Dimensions.borderWidthHighContrast : AppTheme.Dimensions.borderWidth
+                            isHighContrast
+                                ? AnyShapeStyle(strokeColor)
+                                : AnyShapeStyle(
+                                    LinearGradient(
+                                        colors: colorScheme == .dark
+                                            ? [Color.white.opacity(0.24), Color.white.opacity(0.06)]
+                                            : [Color.white.opacity(0.75), Color.black.opacity(0.08)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                ),
+                            lineWidth: strokeWidth
                         )
                 )
                 .scaleEffect(configuration.isPressed && !reduceMotion ? 0.94 : 1.0)

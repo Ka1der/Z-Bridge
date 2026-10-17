@@ -119,7 +119,7 @@ public struct ConnectionSheetView: View {
                 }
                 .padding(AppTheme.Spacing.md)
             }
-            .background(AppTheme.Colors.background)
+            .studioBackground()
             .navigationTitle("Настройки")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
@@ -135,7 +135,7 @@ public struct ConnectionSheetView: View {
                     content(for: tab)
                         .padding(AppTheme.Spacing.md)
                 }
-                .background(AppTheme.Colors.background)
+                .studioBackground()
                 .navigationTitle(tab.title)
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
@@ -149,7 +149,7 @@ public struct ConnectionSheetView: View {
     private var wideSettingsLayout: some View {
         NavigationStack {
             HStack(spacing: 0) {
-                // Левая боковая панель со списком разделов
+                // Левая боковая панель со списком разделов в стиле Liquid Glass
                 VStack(spacing: AppTheme.Spacing.xs) {
                     ForEach(SettingsTab.visibleCases) { tab in
                         let isSelected = selectedTab == tab
@@ -158,9 +158,13 @@ public struct ConnectionSheetView: View {
                         } label: {
                             HStack(spacing: AppTheme.Spacing.sm) {
                                 ZStack {
-                                    RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                    RoundedRectangle(cornerRadius: AppTheme.Radius.xs, style: .continuous)
                                         .fill(tab.systemColor.opacity(isSelected ? 0.25 : 0.12))
                                         .frame(width: 32, height: 32)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: AppTheme.Radius.xs, style: .continuous)
+                                                .stroke(tab.systemColor.opacity(isSelected ? 0.40 : 0.15), lineWidth: 0.6)
+                                        )
                                     Image(systemName: tab.iconName)
                                         .font(.system(size: 14, weight: .bold))
                                         .foregroundStyle(tab.systemColor)
@@ -186,8 +190,24 @@ public struct ConnectionSheetView: View {
                             }
                             .padding(AppTheme.Spacing.sm)
                             .background(
-                                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                                    .fill(isSelected ? AppTheme.Colors.surfaceSecondary : Color.clear)
+                                Group {
+                                    if isSelected {
+                                        RoundedRectangle(cornerRadius: AppTheme.Radius.sm, style: .continuous)
+                                            .fill(Color.white.opacity(0.08))
+                                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: AppTheme.Radius.sm, style: .continuous))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: AppTheme.Radius.sm, style: .continuous)
+                                                    .stroke(
+                                                        LinearGradient(
+                                                            colors: [Color.white.opacity(0.24), Color.white.opacity(0.05)],
+                                                            startPoint: .topLeading,
+                                                            endPoint: .bottomTrailing
+                                                        ),
+                                                        lineWidth: 0.8
+                                                    )
+                                            )
+                                    }
+                                }
                             )
                         }
                         .buttonStyle(.plain)
@@ -199,17 +219,28 @@ public struct ConnectionSheetView: View {
                 }
                 .padding(AppTheme.Spacing.md)
                 .frame(width: 290)
-                .background(AppTheme.Colors.surfacePrimary.opacity(0.6))
+                .background(
+                    Color(red: 18/255.0, green: 20/255.0, blue: 25/255.0).opacity(0.65)
+                        .background(.ultraThinMaterial)
+                )
                 
-                Divider()
-                    .overlay(AppTheme.Colors.borderSubtle)
+                // Спекулярный вертикальный разделитель
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.18), Color.white.opacity(0.04)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: 0.8)
                 
                 // Правая панель с подробными настройками
                 ScrollView {
                     content(for: selectedTab)
                         .padding(AppTheme.Spacing.lg)
                 }
-                .background(AppTheme.Colors.background)
+                .studioBackground()
             }
             .navigationTitle("Настройки")
             #if os(iOS)
@@ -331,12 +362,86 @@ public struct ConnectionSheetView: View {
         }
     }
     
+    // MARK: - Вспомогательные элементы Liquid Glass
+    
+    private func instructionStepRow(number: String, text: LocalizedStringKey, isSecondary: Bool = false) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 18, height: 18)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.18), lineWidth: 0.6)
+                    )
+                Text(number)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+            }
+            .padding(.top, 1)
+            
+            Text(text)
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(isSecondary ? AppTheme.Colors.textSecondary : AppTheme.Colors.textPrimary)
+        }
+    }
+    
+    @ViewBuilder
+    private var serverStateBadge: some View {
+        switch appState.serverState {
+        case .running(let port):
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(AppTheme.Colors.statusGreen)
+                    .frame(width: 6, height: 6)
+                    .shadow(color: AppTheme.Colors.statusGreen.opacity(0.8), radius: 4)
+                Text("Порт \(port) активен")
+                    .font(AppTheme.Typography.caption2Bold)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .glassPill(tint: AppTheme.Colors.statusGreen)
+            .foregroundStyle(AppTheme.Colors.statusGreen)
+        case .starting:
+            HStack(spacing: 5) {
+                ProgressView()
+                    .scaleEffect(0.6)
+                Text("Запуск...")
+                    .font(AppTheme.Typography.caption2Bold)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .glassPill(tint: AppTheme.Colors.statusOrange)
+            .foregroundStyle(AppTheme.Colors.statusOrange)
+        case .stopped:
+            Text("Остановлен")
+                .font(AppTheme.Typography.caption2Bold)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .glassPill()
+                .foregroundStyle(AppTheme.Colors.textSecondary)
+        case .failed(let err):
+            Text("Ошибка: \(err)")
+                .font(AppTheme.Typography.caption2Bold)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .glassPill(tint: AppTheme.Colors.statusRed)
+                .foregroundStyle(AppTheme.Colors.statusRed)
+        }
+    }
+    
     private var statusCard: some View {
         GlassCard(cornerRadius: AppTheme.Radius.md) {
             HStack(spacing: 12) {
-                Circle()
-                    .fill(appState.isCameraConnected ? AppTheme.Colors.statusGreen : AppTheme.Colors.statusOrange)
-                    .frame(width: 12, height: 12)
+                ZStack {
+                    Circle()
+                        .fill((appState.isCameraConnected ? AppTheme.Colors.statusGreen : AppTheme.Colors.statusOrange).opacity(0.20))
+                        .frame(width: 22, height: 22)
+                    Circle()
+                        .fill(appState.isCameraConnected ? AppTheme.Colors.statusGreen : AppTheme.Colors.statusOrange)
+                        .frame(width: 10, height: 10)
+                        .shadow(color: (appState.isCameraConnected ? AppTheme.Colors.statusGreen : AppTheme.Colors.statusOrange).opacity(0.8), radius: 5)
+                }
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(appState.connectionStatusTitle)
@@ -350,16 +455,20 @@ public struct ConnectionSheetView: View {
                 Spacer()
                 
                 if appState.connectedClients > 0 {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(AppTheme.Colors.statusGreen)
+                            .frame(width: 6, height: 6)
+                            .shadow(color: AppTheme.Colors.statusGreen.opacity(0.8), radius: 4)
                         Image(systemName: "wifi")
+                            .font(.system(size: 11, weight: .bold))
                         Text("\(appState.connectedClients)")
+                            .font(AppTheme.Typography.captionBold)
                     }
-                    .font(AppTheme.Typography.captionBold)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(AppTheme.Colors.statusGreen.opacity(0.18))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .glassPill(tint: AppTheme.Colors.statusGreen)
                     .foregroundStyle(AppTheme.Colors.statusGreen)
-                    .clipShape(Capsule())
                 }
             }
             .padding(AppTheme.Spacing.md)
@@ -369,58 +478,69 @@ public struct ConnectionSheetView: View {
     private var usbSectionCard: some View {
         GlassCard(cornerRadius: AppTheme.Radius.md) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                HStack {
-                    Image(systemName: "cable.connector")
-                        .foregroundStyle(AppTheme.Colors.statusGreen)
+                HStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(AppTheme.Colors.statusGreen.opacity(0.18))
+                            .frame(width: 26, height: 26)
+                        Image(systemName: "cable.connector")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.statusGreen)
+                    }
+                    
                     Text("ПОДКЛЮЧЕНИЕ ПО КАБЕЛЮ USB-C (БЕЗ FTP)")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(AppTheme.Colors.statusGreen)
+                    
                     Spacer()
-                    Text("Рекомендуется")
-                        .font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(AppTheme.Colors.statusGreen.opacity(0.15))
-                        .foregroundStyle(AppTheme.Colors.statusGreen)
-                        .clipShape(Capsule())
+                    
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(AppTheme.Colors.statusGreen)
+                            .frame(width: 5, height: 5)
+                        Text("Рекомендуется")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .glassPill(tint: AppTheme.Colors.statusGreen)
+                    .foregroundStyle(AppTheme.Colors.statusGreen)
                 }
                 
                 HStack(spacing: 10) {
                     Circle()
                         .fill(appState.usbConnected ? AppTheme.Colors.statusGreen : AppTheme.Colors.textTertiary)
                         .frame(width: 8, height: 8)
+                        .shadow(color: appState.usbConnected ? AppTheme.Colors.statusGreen.opacity(0.7) : Color.clear, radius: 4)
                     Text(appState.usbConnected ? "USB-камера подключена (\(appState.currentUSBManager.cameraName ?? "Nikon Z"))" : "Кабель USB-C не подключен")
                         .font(AppTheme.Typography.captionBold)
                         .foregroundStyle(AppTheme.Colors.textPrimary)
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("1. В меню камеры: **Настройки ➔ USB ➔ «Передача файлов»**.")
-                    Text("2. Соедините камеру и устройство кабелем Type-C.")
-                    Text("3. **Настраивать FTP в камере НЕ НУЖНО.** Приложение сразу распознает камеру.")
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    instructionStepRow(number: "1", text: "В меню камеры: **Настройки ➔ USB ➔ «Передача файлов»**.")
+                    instructionStepRow(number: "2", text: "Соедините камеру и устройство кабелем Type-C.")
+                    instructionStepRow(number: "3", text: "**Настраивать FTP в камере НЕ НУЖНО.** Приложение сразу распознает камеру.", isSecondary: true)
                 }
-                .font(AppTheme.Typography.caption)
-                .foregroundStyle(AppTheme.Colors.textPrimary)
                 
-                VStack(spacing: 8) {
-                    Button {
-                        appState.isMatrixPresented = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "checklist")
-                            Text("Таблица совместимости моделей и прошивок")
-                                .font(AppTheme.Typography.captionBold)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                        }
-                        .padding(10)
-                        .background(AppTheme.Colors.surfaceSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                Button {
+                    appState.isMatrixPresented = true
+                } label: {
+                    HStack {
+                        Image(systemName: "checklist")
+                            .foregroundStyle(AppTheme.Colors.accent)
+                        Text("Таблица совместимости моделей и прошивок")
+                            .font(AppTheme.Typography.captionBold)
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                            .foregroundStyle(AppTheme.Colors.textTertiary)
                     }
-                    .buttonStyle(.plain)
+                    .padding(12)
+                    .glassInset(cornerRadius: AppTheme.Radius.sm)
                 }
+                .buttonStyle(.plain)
             }
             .padding(AppTheme.Spacing.md)
         }
@@ -429,42 +549,36 @@ public struct ConnectionSheetView: View {
     private var wifiAndFTPSettingsCard: some View {
         GlassCard(cornerRadius: AppTheme.Radius.md) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                HStack {
-                    Image(systemName: "wifi")
-                        .foregroundStyle(AppTheme.Colors.accent)
+                HStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(AppTheme.Colors.accent.opacity(0.18))
+                            .frame(width: 26, height: 26)
+                        Image(systemName: "wifi")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.accent)
+                    }
+                    
                     Text("ПО ВОЗДУХУ: WI-FI ЧЕРЕЗ FTP-СЕРВЕР")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(AppTheme.Colors.accent)
+                    
                     Spacer()
                     
-                    switch appState.serverState {
-                    case .running(let port):
-                        Text("Порт \(port) активен")
-                            .font(AppTheme.Typography.caption2Bold)
-                            .foregroundStyle(AppTheme.Colors.statusGreen)
-                    case .starting:
-                        Text("Запуск...")
-                            .font(AppTheme.Typography.caption2Bold)
-                            .foregroundStyle(AppTheme.Colors.statusOrange)
-                    case .stopped:
-                        Text("Остановлен")
-                            .font(AppTheme.Typography.caption2Bold)
-                            .foregroundStyle(AppTheme.Colors.textSecondary)
-                    case .failed(let err):
-                        Text("Ошибка: \(err)")
-                            .font(AppTheme.Typography.caption2Bold)
-                            .foregroundStyle(AppTheme.Colors.statusRed)
-                    }
+                    serverStateBadge
                 }
                 
                 if !copiedNotice.isEmpty {
-                    HStack {
+                    HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(AppTheme.Colors.statusGreen)
                         Text(copiedNotice)
                             .font(AppTheme.Typography.captionBold)
                             .foregroundStyle(AppTheme.Colors.statusGreen)
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .glassPill(tint: AppTheme.Colors.statusGreen)
                 }
                 
                 HStack {
@@ -472,15 +586,26 @@ public struct ConnectionSheetView: View {
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(AppTheme.Colors.textSecondary)
                     Spacer()
-                    Text("\(appState.connectedClients)")
-                        .font(AppTheme.Typography.captionBold)
-                        .foregroundStyle(appState.connectedClients > 0 ? AppTheme.Colors.statusGreen : AppTheme.Colors.textPrimary)
+                    HStack(spacing: 5) {
+                        if appState.connectedClients > 0 {
+                            Circle()
+                                .fill(AppTheme.Colors.statusGreen)
+                                .frame(width: 6, height: 6)
+                                .shadow(color: AppTheme.Colors.statusGreen.opacity(0.8), radius: 4)
+                        }
+                        Text("\(appState.connectedClients)")
+                            .font(AppTheme.Typography.captionBold)
+                            .foregroundStyle(appState.connectedClients > 0 ? AppTheme.Colors.statusGreen : AppTheme.Colors.textPrimary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .glassPill(tint: appState.connectedClients > 0 ? AppTheme.Colors.statusGreen : nil)
                 }
                 
                 // IP и порт
                 if let primary = appState.primaryIP {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text("СЕРВЕР (IP И ПОРТ):")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(AppTheme.Colors.textSecondary)
@@ -492,24 +617,27 @@ public struct ConnectionSheetView: View {
                         Button {
                             copyToClipboard(primary.ipAddress, notice: "IP скопирован!")
                         } label: {
-                            Text("Копировать IP")
-                                .font(AppTheme.Typography.captionBold)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(AppTheme.Colors.surfaceSecondary)
-                                .clipShape(Capsule())
+                            HStack(spacing: 5) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 11, weight: .bold))
+                                Text("Копировать IP")
+                                    .font(AppTheme.Typography.captionBold)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .glassPill()
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(10)
-                    .background(AppTheme.Colors.surfacePrimary.opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                    .padding(12)
+                    .glassInset(cornerRadius: AppTheme.Radius.sm)
                 }
                 
                 // Учетные данные FTP
-                VStack(spacing: 8) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                VStack(spacing: 10) {
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text("ИМЯ ПОЛЬЗОВАТЕЛЯ (USER):")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(AppTheme.Colors.textSecondary)
@@ -522,18 +650,18 @@ public struct ConnectionSheetView: View {
                             copyToClipboard(appState.ftpUsername, notice: "Логин скопирован!")
                         } label: {
                             Image(systemName: "doc.on.doc")
-                                .font(.caption)
+                                .font(.system(size: 13, weight: .medium))
                                 .padding(8)
-                                .background(AppTheme.Colors.surfaceSecondary)
-                                .clipShape(Circle())
+                                .glassSurface(shape: Circle())
+                                .foregroundStyle(AppTheme.Colors.textPrimary)
                         }
                         .buttonStyle(.plain)
                     }
                     
                     Divider().overlay(AppTheme.Colors.borderSubtle)
                     
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text("ПАРОЛЬ (PASS) В KEYCHAIN:")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(AppTheme.Colors.textSecondary)
@@ -547,10 +675,10 @@ public struct ConnectionSheetView: View {
                             isPasswordVisible.toggle()
                         } label: {
                             Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
-                                .font(.caption)
+                                .font(.system(size: 13, weight: .medium))
                                 .padding(8)
-                                .background(AppTheme.Colors.surfaceSecondary)
-                                .clipShape(Circle())
+                                .glassSurface(shape: Circle())
+                                .foregroundStyle(AppTheme.Colors.textPrimary)
                         }
                         .buttonStyle(.plain)
                         
@@ -558,10 +686,10 @@ public struct ConnectionSheetView: View {
                             copyToClipboard(appState.ftpPassword, notice: "Пароль скопирован!")
                         } label: {
                             Image(systemName: "doc.on.doc")
-                                .font(.caption)
+                                .font(.system(size: 13, weight: .medium))
                                 .padding(8)
-                                .background(AppTheme.Colors.surfaceSecondary)
-                                .clipShape(Circle())
+                                .glassSurface(shape: Circle())
+                                .foregroundStyle(AppTheme.Colors.textPrimary)
                         }
                         .buttonStyle(.plain)
                         
@@ -569,18 +697,16 @@ public struct ConnectionSheetView: View {
                             appState.regenerateFTPPassword()
                         } label: {
                             Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.caption)
+                                .font(.system(size: 13, weight: .medium))
                                 .padding(8)
-                                .background(AppTheme.Colors.statusOrange.opacity(0.2))
+                                .glassSurface(shape: Circle(), tint: AppTheme.Colors.statusOrange)
                                 .foregroundStyle(AppTheme.Colors.statusOrange)
-                                .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(10)
-                .background(AppTheme.Colors.surfacePrimary.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                .padding(12)
+                .glassInset(cornerRadius: AppTheme.Radius.sm)
                 
                 // Переключатели FTP
                 VStack(spacing: 8) {
@@ -589,7 +715,9 @@ public struct ConnectionSheetView: View {
                         set: { appState.toggleFTPReceiving($0) }
                     ))
                     .font(AppTheme.Typography.captionBold)
-                    .tint(AppTheme.Colors.statusGreen)
+                    .tint(AppTheme.Colors.accent)
+                    .padding(10)
+                    .glassInset(cornerRadius: AppTheme.Radius.sm)
                     
                     Toggle("Автозапуск FTP при старте программы", isOn: Binding(
                         get: { appState.isFTPAutoStartEnabled },
@@ -597,30 +725,34 @@ public struct ConnectionSheetView: View {
                     ))
                     .font(AppTheme.Typography.captionBold)
                     .tint(AppTheme.Colors.accent)
+                    .padding(10)
+                    .glassInset(cornerRadius: AppTheme.Radius.sm)
                     
                     Button {
                         appState.restartServer()
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 8) {
                             Image(systemName: "arrow.clockwise")
                             Text("Перезапустить FTP-сервер")
                         }
                         .font(AppTheme.Typography.captionBold)
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.appSecondaryGlass)
+                    .padding(.top, 4)
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Инструкция по настройке камеры Nikon Z:")
                         .font(AppTheme.Typography.captionBold)
                         .foregroundStyle(AppTheme.Colors.textPrimary)
-                    Text("1. Меню сети 📡 ➔ **«Подключение к FTP-серверу»** ➔ Создать профиль.")
-                    Text("2. Укажите IP-адрес, порт, логин и пароль выше.")
-                    Text("3. Включите **«Автоматическая отправка»** в меню параметров FTP.")
-                    Text("4. Для адаптера **Nikon WT-7**: режим FTP с теми же реквизитами.")
+                        .padding(.top, 4)
+                    
+                    instructionStepRow(number: "1", text: "Меню сети 📡 ➔ **«Подключение к FTP-серверу»** ➔ Создать профиль.")
+                    instructionStepRow(number: "2", text: "Укажите IP-адрес, порт, логин и пароль выше.")
+                    instructionStepRow(number: "3", text: "Включите **«Автоматическая отправка»** в меню параметров FTP.")
+                    instructionStepRow(number: "4", text: "Для адаптера **Nikon WT-7**: режим FTP с теми же реквизитами.", isSecondary: true)
                 }
-                .font(AppTheme.Typography.caption)
-                .foregroundStyle(AppTheme.Colors.textSecondary)
             }
             .padding(AppTheme.Spacing.md)
         }
@@ -778,7 +910,10 @@ public struct ConnectionSheetView: View {
                                 .font(AppTheme.Typography.captionBold)
                                 .frame(width: 80, alignment: .leading)
                             TextField("Имя фотографа", text: $sessionAuthorText)
-                                .textFieldStyle(.roundedBorder)
+                                .font(AppTheme.Typography.subheadline)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .glassInset(cornerRadius: 8)
                         }
                         
                         HStack {
@@ -786,7 +921,10 @@ public struct ConnectionSheetView: View {
                                 .font(AppTheme.Typography.captionBold)
                                 .frame(width: 80, alignment: .leading)
                             TextField("© 2026 Фотограф", text: $sessionCopyrightText)
-                                .textFieldStyle(.roundedBorder)
+                                .font(AppTheme.Typography.subheadline)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .glassInset(cornerRadius: 8)
                         }
                         
                         HStack {
@@ -794,15 +932,21 @@ public struct ConnectionSheetView: View {
                                 .font(AppTheme.Typography.captionBold)
                                 .frame(width: 80, alignment: .leading)
                             TextField("Описание съемки", text: $sessionCommentText)
-                                .textFieldStyle(.roundedBorder)
+                                .font(AppTheme.Typography.subheadline)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .glassInset(cornerRadius: 8)
                         }
                     }
                     
                     HStack {
                         if sessionMetadataSavedNotice {
-                            Text("Метаданные сохранены!")
-                                .font(AppTheme.Typography.captionBold)
-                                .foregroundStyle(AppTheme.Colors.statusGreen)
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Метаданные сохранены!")
+                            }
+                            .font(AppTheme.Typography.captionBold)
+                            .foregroundStyle(AppTheme.Colors.statusGreen)
                         }
                         Spacer()
                         Button("Сохранить метаданные") {
@@ -836,10 +980,9 @@ public struct ConnectionSheetView: View {
                         Text("Безопасное действие")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(AppTheme.Colors.statusGreen)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.Colors.statusGreen.opacity(0.15))
-                            .clipShape(Capsule())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .glassPill(tint: AppTheme.Colors.statusGreen)
                     }
                     
                     Text("Очистка кэша миниатюр освобождает оперативную память и временные превью. Исходные файлы RAW и JPEG на диске остаются в полной сохранности.")
@@ -1085,16 +1228,15 @@ public struct ConnectionSheetView: View {
                                 copyToClipboard(appState.currentSessionDirectory.path, notice: "Путь скопирован!")
                             } label: {
                                 Image(systemName: "doc.on.doc")
-                                    .font(.caption)
-                                    .padding(6)
-                                    .background(AppTheme.Colors.surfaceSecondary)
-                                    .clipShape(Circle())
+                                    .font(.system(size: 11, weight: .medium))
+                                    .padding(8)
+                                    .glassSurface(shape: Circle())
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
                             }
                             .buttonStyle(.plain)
                         }
-                        .padding(8)
-                        .background(AppTheme.Colors.surfacePrimary.opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                        .padding(10)
+                        .glassInset(cornerRadius: AppTheme.Radius.sm)
                     }
                     
                     if let current = appState.currentSession {
@@ -1115,16 +1257,15 @@ public struct ConnectionSheetView: View {
                                     copyToClipboard(current.folderURL.path, notice: "Путь скопирован!")
                                 } label: {
                                     Image(systemName: "doc.on.doc")
-                                        .font(.caption)
-                                        .padding(6)
-                                        .background(AppTheme.Colors.surfaceSecondary)
-                                        .clipShape(Circle())
+                                        .font(.system(size: 11, weight: .medium))
+                                        .padding(8)
+                                        .glassSurface(shape: Circle())
+                                        .foregroundStyle(AppTheme.Colors.textPrimary)
                                 }
                                 .buttonStyle(.plain)
                             }
-                            .padding(8)
-                            .background(AppTheme.Colors.surfacePrimary.opacity(0.5))
-                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                            .padding(10)
+                            .glassInset(cornerRadius: AppTheme.Radius.sm)
                         }
                     }
                     
