@@ -59,6 +59,25 @@ public enum ClientMonitorFilterMode: String, CaseIterable, Identifiable, Sendabl
             return asset.rating == 5
         }
     }
+    
+    public func matches(file: CameraFileItem) -> Bool {
+        switch self {
+        case .all:
+            return true
+        case .onlyPicked:
+            return false
+        case .rated1Plus:
+            return file.rating >= 1
+        case .rated2Plus:
+            return file.rating >= 2
+        case .rated3Plus:
+            return file.rating >= 3
+        case .rated4Plus:
+            return file.rating >= 4
+        case .rated5Only:
+            return file.rating == 5
+        }
+    }
 }
 
 /// Настройка задержки автоматического переключения клиентского монитора

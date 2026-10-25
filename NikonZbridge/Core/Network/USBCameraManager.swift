@@ -888,8 +888,14 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                 }
             }
         } else {
-            // Live tethering: постановка новых снимков в очередь
+            // Live tethering: постановка новых снимков в очередь и трансляция на клиентский монитор
             for (file, compositeID) in newLiveFiles {
+                if let item = catalogFiles.first(where: { $0.id == compositeID }) {
+                    Task { @MainActor in
+                        ClientMonitorManager.shared.handleIncomingCameraFile(item)
+                    }
+                }
+                
                 if isAutoDownloadNewShotsEnabled {
                     Task {
                         await scheduleDownload(for: file, compositeID: compositeID, existingJob: nil, priority: true)
@@ -947,6 +953,16 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
         } else if let idx = catalogFiles.firstIndex(where: { $0.id == compositeID }) {
             catalogIndexByID[compositeID] = idx
             catalogFiles[idx].thumbnail = thumb
+        }
+        
+        Task { @MainActor in
+            if ClientMonitorManager.shared.displayedCameraFile?.id == compositeID {
+                #if canImport(UIKit)
+                ClientMonitorManager.shared.setDirectImage(UIImage(cgImage: thumb), title: file.name ?? "Nikon Z")
+                #elseif canImport(AppKit)
+                ClientMonitorManager.shared.setDirectImage(NSImage(cgImage: thumb, size: NSSize(width: thumb.width, height: thumb.height)), title: file.name ?? "Nikon Z")
+                #endif
+            }
         }
     }
     
@@ -1084,6 +1100,16 @@ extension USBCameraManager: @preconcurrency ICCameraDeviceDelegate, @preconcurre
                             let ns = NSImage(cgImage: highRes, size: NSSize(width: highRes.width, height: highRes.height))
                             self.highResPreviewCache.setObject(ns, forKey: "\(targetCompositeID)_3840" as NSString)
                             #endif
+                            
+                            Task { @MainActor in
+                                if ClientMonitorManager.shared.displayedCameraFile?.id == targetCompositeID || ClientMonitorManager.shared.displayedCameraFile == nil {
+                                    #if canImport(UIKit)
+                                    ClientMonitorManager.shared.setDirectImage(UIImage(cgImage: highRes), title: asset.filename)
+                                    #elseif canImport(AppKit)
+                                    ClientMonitorManager.shared.setDirectImage(NSImage(cgImage: highRes, size: NSSize(width: highRes.width, height: highRes.height)), title: asset.filename)
+                                    #endif
+                                }
+                            }
                         }
                         await MainActor.run {
                             self.onFileIngested?(IngestedFile(from: asset))

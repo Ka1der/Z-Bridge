@@ -47,20 +47,28 @@ public enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
     
     public var id: String { rawValue }
     
-    public var title: String { rawValue }
+    public var title: String {
+        switch self {
+        case .connection: return tr("Подключение", "Connection")
+        case .importTab: return tr("Импорт", "Import")
+        case .sessions: return tr("Сессии и хранение", "Sessions & Storage")
+        case .clientScreen: return tr("Клиентский экран", "Client Screen")
+        case .diagnostics: return tr("Диагностика", "Diagnostics")
+        }
+    }
     
     public var subtitle: String {
         switch self {
         case .connection:
-            return "Кабель USB-C, Wi-Fi, FTP-сервер и настройки"
+            return tr("Кабель USB-C, Wi-Fi, FTP-сервер и настройки", "USB-C cable, Wi-Fi, FTP server and settings")
         case .importTab:
-            return "Live tethering, автозагрузка с карты и форматы"
+            return tr("Live tethering, автозагрузка с карты и форматы", "Live tethering, card auto-download and formats")
         case .sessions:
-            return "Старт с пустой сессии, метаданные и кэш превью"
+            return tr("Старт с пустой сессии, метаданные и кэш превью", "Empty session start, metadata and preview cache")
         case .clientScreen:
-            return "Внешний монитор, HDMI, удержание Hold и знак"
+            return tr("Внешний монитор, HDMI, удержание Hold и знак", "External monitor, HDMI, Hold duration and watermark")
         case .diagnostics:
-            return "Пути к файлам, SQLite WAL, сверка и DiskGuard"
+            return tr("Пути к файлам, SQLite WAL, сверка и DiskGuard", "File paths, SQLite WAL, reconcile and DiskGuard")
         }
     }
     
@@ -87,15 +95,24 @@ public enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
 
 /// Порядок сортировки кадров в галерее
 public enum SortOrderOption: String, CaseIterable, Identifiable, Sendable {
-    case dateDesc = "Сначала новые"
-    case dateAsc = "Сначала старые"
-    case nameAsc = "Имя (А-Я)"
-    case nameDesc = "Имя (Я-А)"
-    case ratingDesc = "По рейтингу"
-    case sizeDesc = "По размеру"
+    case dateDesc = "dateDesc"
+    case dateAsc = "dateAsc"
+    case nameAsc = "nameAsc"
+    case nameDesc = "nameDesc"
+    case ratingDesc = "ratingDesc"
+    case sizeDesc = "sizeDesc"
     
     public var id: String { rawValue }
-    public var title: String { rawValue }
+    public var title: String {
+        switch self {
+        case .dateDesc: return tr("Сначала новые", "Newest first")
+        case .dateAsc: return tr("Сначала старые", "Oldest first")
+        case .nameAsc: return tr("Имя (А-Я)", "Name (A-Z)")
+        case .nameDesc: return tr("Имя (Я-А)", "Name (Z-A)")
+        case .ratingDesc: return tr("По рейтингу", "By rating")
+        case .sizeDesc: return tr("По размеру", "By size")
+        }
+    }
     
     public var iconName: String {
         switch self {
@@ -109,16 +126,26 @@ public enum SortOrderOption: String, CaseIterable, Identifiable, Sendable {
 
 /// Фильтрация по звездному рейтингу
 public enum RatingFilterOption: String, CaseIterable, Identifiable, Sendable {
-    case all = "Все звёзды"
-    case stars1Plus = "★ 1+"
-    case stars2Plus = "★ 2+"
-    case stars3Plus = "★ 3+"
-    case stars4Plus = "★ 4+"
-    case stars5Only = "★ 5"
-    case unrated = "Без оценки"
+    case all = "all"
+    case stars1Plus = "stars1Plus"
+    case stars2Plus = "stars2Plus"
+    case stars3Plus = "stars3Plus"
+    case stars4Plus = "stars4Plus"
+    case stars5Only = "stars5Only"
+    case unrated = "unrated"
     
     public var id: String { rawValue }
-    public var title: String { rawValue }
+    public var title: String {
+        switch self {
+        case .all: return tr("Все звёзды", "All stars")
+        case .stars1Plus: return "★ 1+"
+        case .stars2Plus: return "★ 2+"
+        case .stars3Plus: return "★ 3+"
+        case .stars4Plus: return "★ 4+"
+        case .stars5Only: return "★ 5"
+        case .unrated: return tr("Без оценки", "Unrated")
+        }
+    }
     
     public func matches(rating: Int) -> Bool {
         switch self {
@@ -135,14 +162,22 @@ public enum RatingFilterOption: String, CaseIterable, Identifiable, Sendable {
 
 /// Фильтрация по флагу отбора (Pick / Reject)
 public enum PickFilterOption: String, CaseIterable, Identifiable, Sendable {
-    case all = "Все флаги"
-    case picked = "Только отобранные"
-    case unflagged = "Без флага"
-    case rejected = "Отклонённые"
-    case hideRejected = "Скрыть отклонённые"
+    case all = "all"
+    case picked = "picked"
+    case unflagged = "unflagged"
+    case rejected = "rejected"
+    case hideRejected = "hideRejected"
     
     public var id: String { rawValue }
-    public var title: String { rawValue }
+    public var title: String {
+        switch self {
+        case .all: return tr("Все флаги", "All flags")
+        case .picked: return tr("Только отобранные", "Picked only")
+        case .unflagged: return tr("Без флага", "Unflagged")
+        case .rejected: return tr("Отклонённые", "Rejected")
+        case .hideRejected: return tr("Скрыть отклонённые", "Hide rejected")
+        }
+    }
     
     public func matches(status: PickStatus) -> Bool {
         switch self {
@@ -160,23 +195,40 @@ public enum PhotoSource: String, CaseIterable, Identifiable {
     public static var visibleCases: [Self] {
         allCases.filter { AppFeatures.onDeviceGalleryEnabled || $0 != .session }
     }
-    case session = "На устройстве"
-    case camera = "На камере"
+    case session = "session"
+    case camera = "camera"
     public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .session: return tr("На устройстве", "On Device")
+        case .camera: return tr("На камере", "On Camera")
+        }
+    }
 }
 
 public enum AppSection: String, CaseIterable, Identifiable, Sendable {
     public static var visibleCases: [Self] { allCases.filter { AppFeatures.sessionManagementEnabled || $0 != .sessions } }
-    case photos = "Фото"
-    case camera = "Подключение"
-    case sessions = "Сессии"
+    case photos = "photos"
+    case camera = "camera"
+    case settings = "settings"
+    case sessions = "sessions"
     
     public var id: String { rawValue }
+    
+    public var title: String {
+        switch self {
+        case .photos: return tr("Фото", "Photos")
+        case .camera: return tr("Подключение", "Connection")
+        case .settings: return tr("Настройки", "Settings")
+        case .sessions: return tr("Сессии", "Sessions")
+        }
+    }
     
     public var iconName: String {
         switch self {
         case .photos: return "photo.on.rectangle"
         case .camera: return "camera"
+        case .settings: return "gearshape"
         case .sessions: return "square.stack.3d.up"
         }
     }
@@ -185,6 +237,7 @@ public enum AppSection: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .photos: return "photo.fill"
         case .camera: return "camera.fill"
+        case .settings: return "gearshape.fill"
         case .sessions: return "square.stack.3d.up.fill"
         }
     }
@@ -198,8 +251,22 @@ public final class AppState: ObservableObject {
         didSet { if !AppFeatures.sessionManagementEnabled && selectedSection == .sessions { selectedSection = .photos } }
     }
     @Published public var isSidebarCollapsed: Bool = false
-    @Published public var isSettingsPresented: Bool = false
-    @Published public var isShowingConnectionSheet: Bool = false
+    @Published public var isSettingsPresented: Bool = false {
+        didSet {
+            if isSettingsPresented {
+                selectedSection = .settings
+                isSettingsPresented = false
+            }
+        }
+    }
+    @Published public var isShowingConnectionSheet: Bool = false {
+        didSet {
+            if isShowingConnectionSheet {
+                selectedSection = .camera
+                isShowingConnectionSheet = false
+            }
+        }
+    }
     @Published public var isShowingSessionSheet: Bool = false {
         didSet { if !AppFeatures.sessionManagementEnabled && isShowingSessionSheet { isShowingSessionSheet = false } }
     }
@@ -229,7 +296,14 @@ public final class AppState: ObservableObject {
     }
     @Published public var selectedCameraFileIDs: Set<String> = []
     @Published public var cameraFormatFilter: CameraFileFormatFilter = .all
-    @Published public var cameraBrowserViewMode: CameraBrowserViewMode = .gallery
+    @Published public var cameraBrowserViewMode: CameraBrowserViewMode = .list
+
+    public var selectedCameraFile: CameraFileItem? {
+        if let firstID = selectedCameraFileIDs.first {
+            return currentUSBManager.catalogFiles.first(where: { $0.id == firstID })
+        }
+        return currentUSBManager.catalogFiles.last
+    }
 
     // Совместимость существующих действий: открываем карту в основном разделе.
     public var isUSBBrowserPresented: Bool {
@@ -896,15 +970,25 @@ public final class AppState: ObservableObject {
         usbConnectionState.isConnecting
     }
     
+    public var normalizedCameraName: String {
+        let raw = usbCameraName ?? (connectedSources.first?.displayName ?? "")
+        return NikonCameraModel.normalizedDisplayName(from: raw)
+    }
+    
+    public var connectedCameraModel: NikonCameraModel? {
+        let raw = usbCameraName ?? (connectedSources.first?.displayName ?? "")
+        return NikonCameraModel.match(from: raw)
+    }
+    
     public var connectionStatusTitle: String {
         if usbConnected {
-            return usbCameraName ?? "Nikon Z (Кабель)"
+            return normalizedCameraName
         } else if let first = connectedSources.first {
-            return first.displayName
+            return NikonCameraModel.normalizedDisplayName(from: first.displayName)
         } else if connectedClients > 0 {
             return "Nikon Z (Wi-Fi)"
         } else {
-            return "Ожидание камеры"
+            return tr("Ожидание камеры", "Waiting for camera")
         }
     }
     
@@ -914,7 +998,7 @@ public final class AppState: ObservableObject {
         } else if connectedClients > 0 {
             return "Wi-Fi"
         } else {
-            return "Откл."
+            return tr("Откл.", "Disconn.")
         }
     }
     
@@ -1504,10 +1588,22 @@ public final class AppState: ObservableObject {
     }
     
     public func presentClientMonitor() {
-        if clientMonitorManager.displayedGroup == nil {
-            clientMonitorManager.displayedGroup = selectedGroup ?? filteredGroups.first
+        if clientMonitorManager.displayedGroup == nil && clientMonitorManager.displayedCameraFile == nil {
+            if let selGroup = selectedGroup ?? filteredGroups.first {
+                clientMonitorManager.displayedGroup = selGroup
+            } else if let activeUSB = selectedCameraFile ?? currentUSBManager.catalogFiles.last {
+                clientMonitorManager.displayedCameraFile = activeUSB
+            }
         }
-        isClientMonitorPresented = true
+        
+        if isClientControlSheetPresented {
+            isClientControlSheetPresented = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                self?.isClientMonitorPresented = true
+            }
+        } else {
+            isClientMonitorPresented = true
+        }
     }
     
     public func presentClientControlSheet() {

@@ -29,9 +29,9 @@ public struct NikonTetherRootView: View {
                 
                 VStack(spacing: 0) {
                     if AppFeatures.onDeviceGalleryEnabled && PhotoSource.visibleCases.count > 1 {
-                        Picker("Источник снимков", selection: $appState.photoSource) {
+                        Picker(tr("Источник снимков", "Photo source"), selection: $appState.photoSource) {
                             ForEach(PhotoSource.visibleCases) { source in
-                                Text(source.rawValue).tag(source)
+                                Text(source.title).tag(source)
                             }
                         }
                         .pickerStyle(.segmented)
@@ -45,7 +45,10 @@ public struct NikonTetherRootView: View {
                             sessionName: appState.currentSession?.name,
                             selectedFileIDs: $appState.selectedCameraFileIDs,
                             formatFilter: $appState.cameraFormatFilter,
-                            viewMode: $appState.cameraBrowserViewMode
+                            viewMode: $appState.cameraBrowserViewMode,
+                            onOpenClientMonitor: {
+                                appState.presentClientMonitor()
+                            }
                         )
                     } else {
                         switch layoutMode {
@@ -113,9 +116,6 @@ public struct NikonTetherRootView: View {
         }
         .onChange(of: appState.photoSource) { source in
             if source == .camera { appState.exitViewer() }
-        }
-        .sheet(isPresented: Binding(get: { showsSheets && appState.isShowingConnectionSheet }, set: { appState.isShowingConnectionSheet = $0 })) {
-            ConnectionSheetView(appState: appState)
         }
         .sheet(isPresented: Binding(get: { showsSheets && appState.isShowingSessionSheet }, set: { appState.isShowingSessionSheet = $0 })) {
             if AppFeatures.sessionManagementEnabled { SessionManagementSheetView(appState: appState) }
@@ -314,7 +314,7 @@ public struct NikonTetherRootView: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {
-                            Text(AppFeatures.sessionManagementEnabled ? (appState.currentSession?.name ?? "Сессия") : "Передача фотографий")
+                            Text(AppFeatures.sessionManagementEnabled ? (appState.currentSession?.name ?? tr("Сессия", "Session")) : tr("Передача фотографий", "Photo Transfer"))
                                 .font(AppTheme.Typography.title3.weight(.heavy))
                                 .foregroundStyle(AppTheme.Colors.textPrimary)
                                 .lineLimit(1)
@@ -373,7 +373,7 @@ public struct NikonTetherRootView: View {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(AppTheme.Colors.accent)
                     
-                    Text(unimportedFiles > 0 ? "На карте \(totalFiles) файлов (новых: \(unimportedFiles))" : "На карте \(totalFiles) файлов")
+                    Text(unimportedFiles > 0 ? tr("На карте \(totalFiles) файлов (новых: \(unimportedFiles))", "On card: \(totalFiles) files (new: \(unimportedFiles))") : tr("На карте \(totalFiles) файлов", "On card: \(totalFiles) files"))
                         .font(AppTheme.Typography.captionBold)
                         .foregroundStyle(AppTheme.Colors.textPrimary)
                         .lineLimit(1)
@@ -383,7 +383,7 @@ public struct NikonTetherRootView: View {
                     Button {
                         appState.isUSBBrowserPresented = true
                     } label: {
-                        Text("Выбрать")
+                        Text(tr("Выбрать", "Select"))
                             .font(AppTheme.Typography.captionBold)
                             .foregroundStyle(AppTheme.Colors.accent)
                             .padding(.horizontal, 12)

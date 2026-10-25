@@ -6,6 +6,7 @@ import CoreGraphics
 public struct USBCameraBrowserView: View {
     @ObservedObject var usbManager: USBCameraManager
     public var sessionName: String?
+    public var onOpenClientMonitor: (() -> Void)? = nil
     
     @State private var localFormatFilter: CameraFileFormatFilter = .all
     private var sharedFormatFilter: Binding<CameraFileFormatFilter>?
@@ -23,7 +24,7 @@ public struct USBCameraBrowserView: View {
             }
         )
     }
-    @State private var localViewMode: CameraBrowserViewMode = .gallery
+    @State private var localViewMode: CameraBrowserViewMode = .list
     private var sharedViewMode: Binding<CameraBrowserViewMode>?
     private var viewMode: CameraBrowserViewMode {
         get { sharedViewMode?.wrappedValue ?? localViewMode }
@@ -151,11 +152,11 @@ public struct USBCameraBrowserView: View {
     }
     
     private var cameraViewModeSelector: some View {
-        Picker("Вид", selection: viewModeBinding) {
-            Label("Студия", systemImage: "rectangle.bottomhalf.filled")
-                .tag(CameraBrowserViewMode.gallery)
-            Label("Список", systemImage: "list.bullet")
+        Picker(tr("Вид", "View"), selection: viewModeBinding) {
+            Label(tr("Список", "List"), systemImage: "list.bullet")
                 .tag(CameraBrowserViewMode.list)
+            Label(tr("Студия", "Studio"), systemImage: "rectangle.bottomhalf.filled")
+                .tag(CameraBrowserViewMode.gallery)
         }
         .pickerStyle(.segmented)
         .frame(minWidth: 140, maxWidth: 170)
@@ -166,13 +167,15 @@ public struct USBCameraBrowserView: View {
         sessionName: String? = nil,
         selectedFileIDs: Binding<Set<String>>? = nil,
         formatFilter: Binding<CameraFileFormatFilter>? = nil,
-        viewMode: Binding<CameraBrowserViewMode>? = nil
+        viewMode: Binding<CameraBrowserViewMode>? = nil,
+        onOpenClientMonitor: (() -> Void)? = nil
     ) {
         self.usbManager = usbManager
         self.sessionName = sessionName
         self.sharedSelectedFileIDs = selectedFileIDs
         self.sharedFormatFilter = formatFilter
         self.sharedViewMode = viewMode
+        self.onOpenClientMonitor = onOpenClientMonitor
     }
     
     private var currentTargetSessionName: String {
@@ -316,7 +319,7 @@ public struct USBCameraBrowserView: View {
         
         isExportingToPhotos = true
         withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-            photosSaveToast = "Сохранение в «Фото» (0/\(items.count))..."
+            photosSaveToast = tr("Сохранение в «Фото» (0/\(items.count))...", "Saving to «Photos» (0/\(items.count))...")
         }
         
         Task {
@@ -335,23 +338,23 @@ public struct USBCameraBrowserView: View {
                 
                 let result = try await usbManager.exportItemsToPhotos(items) { current, total in
                     Task { @MainActor in
-                        photosSaveToast = "Сохранение в «Фото» (\(current)/\(total))..."
+                        photosSaveToast = tr("Сохранение в «Фото» (\(current)/\(total))...", "Saving to «Photos» (\(current)/\(total))...")
                     }
                 }
                 
                 await MainActor.run {
                     withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                         if result.failed == 0 {
-                            photosSaveToast = "Сохранено в «Фото» (\(result.success)) ✓"
+                            photosSaveToast = tr("Сохранено в «Фото» (\(result.success)) ✓", "Saved to «Photos» (\(result.success)) ✓")
                         } else {
-                            photosSaveToast = "Сохранено: \(result.success), ошибок: \(result.failed)"
+                            photosSaveToast = tr("Сохранено: \(result.success), ошибок: \(result.failed)", "Saved: \(result.success), failed: \(result.failed)")
                         }
                     }
                     isExportingToPhotos = false
                     selectedFileIDs.removeAll()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
                         withAnimation {
-                            if photosSaveToast?.contains("Сохранено") == true {
+                            if photosSaveToast?.contains("✓") == true || photosSaveToast?.contains("Saved") == true || photosSaveToast?.contains("Сохранено") == true {
                                 photosSaveToast = nil
                             }
                         }
@@ -360,12 +363,12 @@ public struct USBCameraBrowserView: View {
             } catch {
                 await MainActor.run {
                     withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-                        photosSaveToast = "Ошибка: \(error.localizedDescription)"
+                        photosSaveToast = tr("Ошибка: \(error.localizedDescription)", "Error: \(error.localizedDescription)")
                     }
                     isExportingToPhotos = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
                         withAnimation {
-                            if photosSaveToast?.hasPrefix("Ошибка:") == true {
+                            if photosSaveToast?.hasPrefix("Ошибка:") == true || photosSaveToast?.hasPrefix("Error:") == true {
                                 photosSaveToast = nil
                             }
                         }
@@ -459,18 +462,30 @@ public struct USBCameraBrowserView: View {
                     .zIndex(100)
                 }
             }
+            // Единый блокирующий модальный алерт чтения карты памяти
+            .overlay {
+                if isReadingCatalog {
+                    cardReadingBlockingAlert
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        .zIndex(200)
+                }
+            }
+            .animation(.easeInOut(duration: 0.28), value: isReadingCatalog)
         }
-        .alert("Доступ к медиатеке «Фото»", isPresented: $isPhotosPermissionAlertPresented) {
-            Button("Открыть Настройки") {
+        .alert(tr("Доступ к медиатеке «Фото»", "Access to «Photos» Library"), isPresented: $isPhotosPermissionAlertPresented) {
+            Button(tr("Открыть Настройки", "Open Settings")) {
                 #if canImport(UIKit)
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
                 #endif
             }
-            Button("Отмена", role: .cancel) {}
+            Button(tr("Отмена", "Cancel"), role: .cancel) {}
         } message: {
-            Text("Приложению необходимо разрешение для сохранения снимков в фотогалерею iPhone. Пожалуйста, откройте Настройки и включите доступ к «Фото».")
+            Text(tr(
+                "Приложению необходимо разрешение для сохранения снимков в фотогалерею iPhone. Пожалуйста, откройте Настройки и включите доступ к «Фото».",
+                "The app requires permission to save photos to your iPhone photo library. Please open Settings and enable access to «Photos»."
+            ))
         }
         .task {
             await usbManager.updateTargetSessionName()
@@ -483,6 +498,65 @@ public struct USBCameraBrowserView: View {
                 loadHighResPreviewIfNeeded(for: activeFile)
             }
         }
+    }
+    
+    // MARK: - Memory Card Loading Modal Alert
+    
+    private var isReadingCatalog: Bool {
+        (usbManager.isConnected && !usbManager.isCatalogReady) || isRefreshing
+    }
+    
+    private var cardReadingBlockingAlert: some View {
+        ZStack {
+            // Полупрозрачный блокирующий фон с размытием: перехватывает все касания
+            Color.black.opacity(0.60)
+                .background(.ultraThinMaterial)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {}
+            
+            // Карточка-алерт с баром загрузки Liquid Glass
+            VStack(spacing: 20) {
+                // Иконка карты памяти с акцентным сиянием
+                ZStack {
+                    Circle()
+                        .fill(AppTheme.Colors.accent.opacity(0.18))
+                        .frame(width: 64, height: 64)
+                    
+                    Image(systemName: "sdcard.fill")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(AppTheme.Colors.accent)
+                }
+                
+                // Заголовок и текущее количество считанных файлов
+                VStack(spacing: 6) {
+                    Text(tr("Чтение карты памяти", "Reading memory card"))
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(Color.white)
+                    
+                    Text(stats.totalCount > 0 ? tr("Считано файлов: \(stats.totalCount)", "Files read: \(stats.totalCount)") : tr("Считывание оглавления носителя...", "Reading media catalog..."))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.75))
+                }
+                
+                // Анимированный бар загрузки (progress bar)
+                AnimatedCardReadingBar()
+                    .frame(height: 6)
+                    .padding(.horizontal, 8)
+                
+                // Подпись ожидания
+                Text(tr("Пожалуйста, подождите...", "Please wait..."))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.5))
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 24)
+            .frame(maxWidth: 300)
+            .glassSurface(cornerRadius: 24, shadowRadius: 20, shadowY: 6)
+            .padding(.horizontal, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
     }
     
     // MARK: - Subviews
@@ -718,10 +792,12 @@ public struct USBCameraBrowserView: View {
     
     private var filterAndSelectionBar: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 formatFilterPicker
                 
                 Spacer()
+                
+                clientMonitorPillButton
                 
                 viewModePicker
                 
@@ -732,6 +808,8 @@ public struct USBCameraBrowserView: View {
                 formatFilterPicker
                 
                 HStack(spacing: 10) {
+                    clientMonitorPillButton
+                    
                     viewModePicker
                     
                     Spacer()
@@ -739,6 +817,26 @@ public struct USBCameraBrowserView: View {
                     selectionMenu
                 }
             }
+        }
+    }
+    
+    @ViewBuilder
+    private var clientMonitorPillButton: some View {
+        if let onOpenClientMonitor {
+            Button(action: onOpenClientMonitor) {
+                HStack(spacing: 4) {
+                    Image(systemName: "tv")
+                        .font(.system(size: 11, weight: .bold))
+                    Text(tr("Клиент", "Client"))
+                        .font(.system(size: 11, weight: .bold))
+                }
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .glassPill()
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(tr("Открыть клиентский экран", "Open Client Monitor"))
         }
     }
     
@@ -774,7 +872,7 @@ public struct USBCameraBrowserView: View {
         Picker("Вид", selection: viewModeBinding) {
             Label("Список", systemImage: "list.bullet")
                 .tag(CameraBrowserViewMode.list)
-            Label("Галерея", systemImage: "rectangle.bottomhalf.filled")
+            Label("Студия", systemImage: "rectangle.bottomhalf.filled")
                 .tag(CameraBrowserViewMode.gallery)
         }
         .pickerStyle(.segmented)
@@ -788,7 +886,7 @@ public struct USBCameraBrowserView: View {
                     selectedFileIDs.insert(f.id)
                 }
             } label: {
-                Label("Выбрать все доступные", systemImage: "checklist")
+                Label(tr("Выбрать все доступные", "Select All Available"), systemImage: "checklist")
             }
             
             Button {
@@ -797,7 +895,7 @@ public struct USBCameraBrowserView: View {
                     selectedFileIDs.insert(f.id)
                 }
             } label: {
-                Label("Выбрать только RAW", systemImage: "camera.fill")
+                Label(tr("Выбрать только RAW", "Select RAW Only"), systemImage: "camera.fill")
             }
             
             Button {
@@ -806,7 +904,7 @@ public struct USBCameraBrowserView: View {
                     selectedFileIDs.insert(f.id)
                 }
             } label: {
-                Label("Выбрать только Companion/JPEG", systemImage: "photo")
+                Label(tr("Выбрать только Companion/JPEG", "Select Companion/JPEG Only"), systemImage: "photo")
             }
             
             Divider()
@@ -814,22 +912,22 @@ public struct USBCameraBrowserView: View {
             Button(role: .destructive) {
                 selectedFileIDs.removeAll()
             } label: {
-                Label("Снять выбор", systemImage: "xmark.circle")
+                Label(tr("Снять выбор", "Deselect All"), systemImage: "xmark.circle")
             }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "checklist")
                     .font(.system(size: 11, weight: .bold))
-                Text("Выбор")
+                Text(selectedFileIDs.isEmpty ? tr("Выбор", "Select") : tr("Выбрано: \(selectedFileIDs.count)", "Selected: \(selectedFileIDs.count)"))
                     .font(.system(size: 13, weight: .semibold))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(Color.white.opacity(0.6))
             }
-            .foregroundStyle(Color.white)
+            .foregroundStyle(selectedFileIDs.isEmpty ? Color.white : AppTheme.Colors.accent)
             .padding(.horizontal, 12)
             .frame(height: 32)
-            .glassPill()
+            .glassPill(tint: selectedFileIDs.isEmpty ? nil : AppTheme.Colors.accent)
         }
     }
     
@@ -843,41 +941,35 @@ public struct USBCameraBrowserView: View {
                     .foregroundColor(.secondary)
                 
                 VStack(spacing: 6) {
-                    Text("Камера не подключена")
+                    Text(tr("Камера не подключена", "Camera not connected"))
                         .font(.headline)
                         .foregroundColor(.primary)
-                    Text("Подключите камеру Nikon через USB-C кабель в режиме «Передача файлов» для доступа к карте памяти.")
+                    Text(tr(
+                        "Подключите камеру Nikon через USB-C кабель в режиме «Передача файлов» для доступа к карте памяти.",
+                        "Connect your Nikon camera via USB-C cable in «File Transfer» mode to access the memory card."
+                    ))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                 }
             } else if !usbManager.isCatalogReady {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .scaleEffect(1.2)
-                    .padding(.bottom, 6)
-                
-                VStack(spacing: 6) {
-                    Text("Чтение карты памяти...")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text("\(usbManager.cameraName ?? "Nikon Z"): идет чтение файлов с карты памяти...")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                }
+                // Во время чтения оглавления карты поверх экрана отображается единый модальный алерт с баром загрузки
+                Color.clear
+                    .frame(height: 120)
             } else if usbManager.catalogFiles.isEmpty {
                 Image(systemName: "creditcard")
                     .font(.system(size: 52, weight: .light))
                     .foregroundColor(.secondary)
                 
                 VStack(spacing: 6) {
-                    Text("На карте памяти нет файлов")
+                    Text(tr("На карте памяти нет файлов", "No files on memory card"))
                         .font(.headline)
                         .foregroundColor(.primary)
-                    Text("Карта памяти пуста. Сделайте новый снимок на камеру (live tethering) или вставьте другую карту.")
+                    Text(tr(
+                        "Карта памяти пуста. Сделайте новый снимок на камеру (live tethering) или вставьте другую карту.",
+                        "Memory card is empty. Take a new shot on camera (live tethering) or insert another card."
+                    ))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -890,10 +982,10 @@ public struct USBCameraBrowserView: View {
                     .foregroundColor(.secondary)
                 
                 VStack(spacing: 6) {
-                    Text("Нет файлов формата «\(formatFilter.shortTitle)»")
+                    Text(tr("Нет файлов формата «\(formatFilter.shortTitle)»", "No files of format «\(formatFilter.shortTitle)»"))
                         .font(.headline)
                         .foregroundColor(.primary)
-                    Text("На карте найдено \(usbManager.catalogFiles.count) файлов других форматов.")
+                    Text(tr("На карте найдено \(usbManager.catalogFiles.count) файлов других форматов.", "Found \(usbManager.catalogFiles.count) files of other formats on card."))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -902,7 +994,7 @@ public struct USBCameraBrowserView: View {
                     Button {
                         formatFilter = .all
                     } label: {
-                        Text("Показать все форматы")
+                        Text(tr("Показать все форматы", "Show all formats"))
                             .font(.subheadline.bold())
                     }
                     .buttonStyle(.borderedProminent)
@@ -955,36 +1047,13 @@ public struct USBCameraBrowserView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 6)
                 
-                // 2. Индикатор фонового чтения оглавления
-                if !usbManager.isCatalogReady {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .tint(AppTheme.Colors.accent)
-                        Text("Чтение оглавления карты... Найдено: \(stats.totalCount) файлов")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.white.opacity(0.9))
-                        Spacer()
-                        Text("В фоне")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(AppTheme.Colors.accent)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.Colors.accent.opacity(0.2))
-                            .clipShape(Capsule())
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .glassPill()
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 6)
-                }
-                
-                // 3. Панель фильтров и группового выбора
+                // 2. Панель фильтров и группового выбора
                 HStack(spacing: 10) {
                     formatFilterPicker
                     
                     Spacer()
+                    
+                    clientMonitorPillButton
                     
                     selectionMenu
                 }
@@ -1038,7 +1107,7 @@ public struct USBCameraBrowserView: View {
             let selectedCount = selectedStats.count
             if selectedCount > 0 {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Выбрано: \(selectedCount) из \(filteredFiles.count)")
+                    Text(tr("Выбрано: \(selectedCount) из \(filteredFiles.count)", "Selected: \(selectedCount) of \(filteredFiles.count)"))
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Color.white)
                     Text(ByteCountFormatter.string(fromByteCount: selectedStats.bytes, countStyle: .file))
@@ -1060,7 +1129,7 @@ public struct USBCameraBrowserView: View {
                         } else {
                             Image(systemName: "arrow.down.circle.fill")
                         }
-                        Text("Загрузить (\(selectedCount))")
+                        Text(tr("Загрузить (\(selectedCount))", "Download (\(selectedCount))"))
                             .font(.system(size: 13, weight: .bold))
                     }
                     .foregroundStyle(AppTheme.Colors.onAccent)
@@ -1074,10 +1143,10 @@ public struct USBCameraBrowserView: View {
                 .disabled(isExportingToPhotos)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Кадров на карте: \(stats.totalCount)")
+                    Text(tr("Кадров на карте: \(stats.totalCount)", "Files on card: \(stats.totalCount)"))
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Color.white)
-                    Text(stats.unimportedCount > 0 ? "Новых: \(stats.unimportedCount) (\(stats.formattedUnimportedSize))" : "Все сохранены")
+                    Text(stats.unimportedCount > 0 ? tr("Новых: \(stats.unimportedCount) (\(stats.formattedUnimportedSize))", "New: \(stats.unimportedCount) (\(stats.formattedUnimportedSize))") : tr("Все сохранены", "All saved"))
                         .font(.system(size: 11))
                         .foregroundStyle(stats.unimportedCount > 0 ? Color.white.opacity(0.8) : AppTheme.Colors.statusGreen)
                 }
@@ -1096,7 +1165,7 @@ public struct USBCameraBrowserView: View {
                             } else {
                                 Image(systemName: "arrow.down.circle.fill")
                             }
-                            Text("Загрузить новые (\(stats.unimportedCount))")
+                            Text(tr("Загрузить новые (\(stats.unimportedCount))", "Download New (\(stats.unimportedCount))"))
                                 .font(.system(size: 13, weight: .bold))
                         }
                         .foregroundStyle(AppTheme.Colors.onAccent)
@@ -1169,11 +1238,16 @@ public struct USBCameraBrowserView: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel("Обновить каталог")
                         
-                        // Фильтр форматов
+                        // Фильтр форматов (RAW / JPEG / Все)
                         formatFilterPicker
                         
-                        // Переключатель вида Студия / Список
+                        // Выпадающее меню выбора
+                        selectionMenu
+                        
+                        // Переключатель вида Список / Студия
                         cameraViewModeSelector
+                        
+                        clientMonitorPillButton
                         
                         // Кнопка включения/выключения 100% Zoom лупы
                         Button {
@@ -1231,7 +1305,7 @@ public struct USBCameraBrowserView: View {
                                     Image(systemName: selectedFileIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
                                         .font(.system(size: 13, weight: .bold))
                                         .foregroundStyle(selectedFileIDs.contains(item.id) ? AppTheme.Colors.accent : Color.white)
-                                    Text(selectedFileIDs.contains(item.id) ? "Выбран" : "Выбрать")
+                                    Text(selectedFileIDs.contains(item.id) ? tr("Выбран", "Selected") : tr("Выбрать", "Select"))
                                         .font(.system(size: 11, weight: .bold))
                                         .foregroundStyle(Color.white)
                                 }
@@ -1254,7 +1328,7 @@ public struct USBCameraBrowserView: View {
                                     } else {
                                         Image(systemName: "arrow.down.circle.fill")
                                     }
-                                    Text("Загрузить (\(selectedStats.count))")
+                                    Text(tr("Загрузить (\(selectedStats.count))", "Download (\(selectedStats.count))"))
                                         .font(.system(size: 11, weight: .bold))
                                 }
                                 .foregroundStyle(AppTheme.Colors.onAccent)
@@ -1273,27 +1347,6 @@ public struct USBCameraBrowserView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 6)
-                
-                // Индикатор фонового чтения оглавления
-                if !usbManager.isCatalogReady {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .tint(AppTheme.Colors.accent)
-                        Text("Чтение оглавления карты памяти... (\(stats.totalCount) файлов найдено)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.white.opacity(0.9))
-                        Spacer()
-                        Text("В фоне")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(AppTheme.Colors.accent)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .glassPill()
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 4)
-                }
                 
                 // Основная центральная область кадра
                 ZStack {
@@ -1453,23 +1506,8 @@ public struct USBCameraBrowserView: View {
                         }
                 )
                 
-                // Плавающая капсула прогресса переноса файлов над лентой кадров
-                ZStack(alignment: .bottom) {
-                    filmstripBar
-                    
-                    // Плавающий индикатор переноса по центру над лентой
-                    FloatingTransferPill(
-                        progressPercent: stats.totalCount > 0 ? Int(Double(stats.importedCount) / Double(stats.totalCount) * 100) : 65,
-                        statusText: "\(stats.totalCount > 0 ? Int(Double(stats.importedCount) / Double(stats.totalCount) * 100) : 65)% transferred",
-                        remainingFilesText: "\(stats.unimportedCount > 0 ? stats.unimportedCount : 34) files left",
-                        onTap: {
-                            guard !isExportingToPhotos else { return }
-                            let candidates = filteredCandidateFiles
-                            exportSelectedFilesToPhotos(candidates)
-                        }
-                    )
-                    .offset(y: -58)
-                }
+                // Нижняя горизонтальная лента кадров
+                filmstripBar
             }
         }
     }
@@ -1540,26 +1578,18 @@ public struct USBCameraBrowserView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 6)
                 
-                // Индикатор фонового чтения оглавления
-                if !usbManager.isCatalogReady {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .tint(AppTheme.Colors.accent)
-                        Text("Чтение карты памяти... (\(stats.totalCount) файлов)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.white.opacity(0.9))
-                        Spacer()
-                        Text("В фоне")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(AppTheme.Colors.accent)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .glassPill()
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 4)
+                // 2. Панель фильтрации форматов (Все, RAW, JPEG) и меню группового выбора (такая же, как в списке)
+                HStack(spacing: 10) {
+                    formatFilterPicker
+                    
+                    Spacer()
+                    
+                    clientMonitorPillButton
+                    
+                    selectionMenu
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 6)
                 
                 // 2. Центральная область кадра с управляемой 100% Zoom лупой
                 ZStack {
@@ -1654,6 +1684,11 @@ public struct USBCameraBrowserView: View {
                     isTransferring: isImportActionInProgress || stats.inProgressCount > 0,
                     transferStatusText: "\(stats.importedCount)/\(max(stats.totalCount, 158)) (NEF) • 25MB/s • 34s rem.",
                     transferPercent: stats.totalCount > 0 ? Int(Double(stats.importedCount) / Double(stats.totalCount) * 100) : 42,
+                    showRatings: false,
+                    showColorTags: false,
+                    showTransferStatus: false,
+                    showExportButton: true,
+                    selectedCount: selectedFileIDs.count,
                     onRatingChanged: { newRating in
                         if let active = activeFile, let idx = usbManager.catalogFiles.firstIndex(where: { $0.id == active.id }) {
                             usbManager.catalogFiles[idx].rating = newRating
@@ -1665,8 +1700,12 @@ public struct USBCameraBrowserView: View {
                         }
                     },
                     onExport: {
-                        guard let active = activeFile else { return }
-                        exportActiveFileToPhotos(active)
+                        if !selectedFileIDs.isEmpty {
+                            let candidates = filteredCandidateFiles
+                            exportSelectedFilesToPhotos(candidates)
+                        } else if let active = activeFile {
+                            exportActiveFileToPhotos(active)
+                        }
                     },
                     onTransferTap: {
                         guard !isExportingToPhotos else { return }
@@ -1971,33 +2010,33 @@ public struct USBCameraBrowserView: View {
                 } else if !usbManager.isCatalogReady {
                     ProgressView()
                         .controlSize(.mini)
-                    Text("Чтение оглавления...")
+                    Text(tr("Чтение оглавления...", "Reading table of contents..."))
                         .fontWeight(.medium)
                 } else if s.inProgressCount > 0 {
                     ProgressView()
                         .controlSize(.mini)
-                    Text("Импорт (\(s.inProgressCount))...")
+                    Text(tr("Импорт (\(s.inProgressCount))...", "Importing (\(s.inProgressCount))..."))
                         .fontWeight(.medium)
                 } else if s.failedCount > 0 && s.unimportedCount == 0 {
                     Image(systemName: "arrow.clockwise")
-                    Text("Повторить ошибочные (\(s.failedCount))")
+                    Text(tr("Повторить ошибочные (\(s.failedCount))", "Retry Failed (\(s.failedCount))"))
                         .fontWeight(.semibold)
                 } else if candidateCount > 0 {
                     Image(systemName: "tray.and.arrow.down.fill")
                     switch formatFilter {
                     case .all:
-                        Text("Загрузить все доступные (\(candidateCount) ф., \(candidateSize))")
+                        Text(tr("Загрузить все доступные (\(candidateCount) ф., \(candidateSize))", "Download All Available (\(candidateCount) f., \(candidateSize))"))
                             .fontWeight(.medium)
                     case .rawOnly:
-                        Text("Загрузить RAW (\(candidateCount) ф., \(candidateSize))")
+                        Text(tr("Загрузить RAW (\(candidateCount) ф., \(candidateSize))", "Download RAW (\(candidateCount) f., \(candidateSize))"))
                             .fontWeight(.medium)
                     case .companionOnly:
-                        Text("Загрузить JPEG (\(candidateCount) ф., \(candidateSize))")
+                        Text(tr("Загрузить JPEG (\(candidateCount) ф., \(candidateSize))", "Download JPEG (\(candidateCount) f., \(candidateSize))"))
                             .fontWeight(.medium)
                     }
                 } else {
                     Image(systemName: "checkmark")
-                    Text("Все файлы загружены")
+                    Text(tr("Все файлы загружены", "All files downloaded"))
                         .fontWeight(.medium)
                 }
             }
@@ -2184,7 +2223,7 @@ public struct CameraGlassListRow: View, Equatable {
         case .imported:
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle.fill")
-                Text("Загружен")
+                Text(tr("Загружен", "Imported"))
             }
             .font(.system(size: 10, weight: .bold))
             .foregroundStyle(AppTheme.Colors.statusGreen)
@@ -2208,7 +2247,7 @@ public struct CameraGlassListRow: View, Equatable {
         case .queued:
             HStack(spacing: 4) {
                 Image(systemName: "clock")
-                Text("В очереди")
+                Text(tr("В очереди", "Queued"))
             }
             .font(.system(size: 10, weight: .bold))
             .foregroundStyle(Color.cyan)
@@ -2222,7 +2261,7 @@ public struct CameraGlassListRow: View, Equatable {
             Button(action: onRetry) {
                 HStack(spacing: 3) {
                     Image(systemName: "exclamationmark.arrow.circlepath")
-                    Text("Повтор")
+                    Text(tr("Повтор", "Retry"))
                 }
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(AppTheme.Colors.statusRed)
@@ -2234,7 +2273,7 @@ public struct CameraGlassListRow: View, Equatable {
             .buttonStyle(.plain)
             
         case .notImported:
-            Text("Новый")
+            Text(tr("Новый", "New"))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.55))
                 .padding(.horizontal, 8)
@@ -2419,7 +2458,7 @@ public struct CameraFileRowView: View, Equatable {
             HStack(spacing: 4) {
                 Image(systemName: "checkmark")
                     .font(.caption2.bold())
-                Text("Загружен")
+                Text(tr("Загружен", "Imported"))
                     .font(.caption2)
                     .fontWeight(.semibold)
             }
@@ -2433,7 +2472,7 @@ public struct CameraFileRowView: View, Equatable {
             HStack(spacing: 4) {
                 Image(systemName: "hourglass")
                     .font(.caption2)
-                Text("В очереди")
+                Text(tr("В очереди", "Queued"))
                     .font(.caption2)
                     .fontWeight(.medium)
             }
@@ -2463,7 +2502,7 @@ public struct CameraFileRowView: View, Equatable {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.clockwise")
-                    Text("Повторить")
+                    Text(tr("Повторить", "Retry"))
                 }
                 .font(.caption2)
                 .fontWeight(.bold)
@@ -2473,7 +2512,7 @@ public struct CameraFileRowView: View, Equatable {
             .controlSize(.small)
             
         case .notImported:
-            Text("Доступен")
+            Text(tr("Доступен", "Available"))
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 6)
@@ -2557,26 +2596,26 @@ public struct CameraFilmstripTile: View, Equatable {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 
-                // Бейдж рейтинга со звездами (в точности по референсу iPad)
-                HStack(spacing: 2) {
-                    if item.rating > 0 {
+                // Бейдж рейтинга со звездами (в точности по референсу iPad, только если есть реальный рейтинг)
+                if item.rating > 0 {
+                    HStack(spacing: 2) {
                         Text("\(item.rating)")
                             .font(.system(size: 7, weight: .bold))
                             .foregroundStyle(AppTheme.Colors.ratingActive)
-                    }
-                    HStack(spacing: 1) {
-                        ForEach(0..<max(1, min(item.rating > 0 ? item.rating : 4, 5)), id: \.self) { _ in
-                            Image(systemName: "star.fill")
-                                .font(.system(size: 5))
-                                .foregroundStyle(AppTheme.Colors.ratingActive)
+                        HStack(spacing: 1) {
+                            ForEach(1...min(item.rating, 5), id: \.self) { _ in
+                                Image(systemName: "star.fill")
+                                    .font(.system(size: 5))
+                                    .foregroundStyle(AppTheme.Colors.ratingActive)
+                            }
                         }
                     }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(Color.black.opacity(0.70))
+                    .clipShape(Capsule())
+                    .padding(3)
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(Color.black.opacity(0.70))
-                .clipShape(Capsule())
-                .padding(3)
                 
                 // Бейджи статуса загрузки и выбора (внизу слева)
                 VStack {
@@ -2647,4 +2686,43 @@ public struct CameraFilmstripTile: View, Equatable {
         }
     }
 }
+
+// MARK: - AnimatedCardReadingBar
+
+/// Анимированный бар индикации чтения карты памяти Liquid Glass
+private struct AnimatedCardReadingBar: View {
+    @State private var isAnimating: Bool = false
+    
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.15))
+                    .frame(height: geo.size.height)
+                
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                AppTheme.Colors.accent.opacity(0.4),
+                                AppTheme.Colors.accent,
+                                Color.cyan
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: geo.size.width * 0.40, height: geo.size.height)
+                    .offset(x: isAnimating ? geo.size.width * 0.60 : 0)
+            }
+            .clipShape(Capsule())
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                    isAnimating = true
+                }
+            }
+        }
+    }
+}
+
 
