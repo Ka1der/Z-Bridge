@@ -16,59 +16,55 @@ public struct NarrowAppShellView: View {
         VStack(spacing: 0) {
             // 1. Основная область активного раздела
             VStack(spacing: 0) {
-                if appState.isSettingsPresented {
-                    ConnectionSheetView(appState: appState)
-                } else {
-                    switch appState.selectedSection {
-                    case .photos:
-                        NikonTetherRootView(appState: appState)
-                    case .camera:
-                        CameraSectionView(appState: appState)
-                    case .sessions:
-                        if AppFeatures.sessionManagementEnabled { SessionsSectionView(appState: appState) } else { NikonTetherRootView(appState: appState) }
-                    }
+                switch appState.selectedSection {
+                case .photos:
+                    NikonTetherRootView(appState: appState)
+                case .camera:
+                    CameraSectionView(appState: appState)
+                case .settings:
+                    SettingsSectionView(appState: appState)
+                case .sessions:
+                    if AppFeatures.sessionManagementEnabled { SessionsSectionView(appState: appState) } else { NikonTetherRootView(appState: appState) }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            // 2. Плавающий нижний блок (скрывается в режиме студии кадра или когда открыты настройки)
-            if !appState.isSettingsPresented && !(appState.selectedSection == .photos && appState.cameraBrowserViewMode == .gallery) {
-                VStack(spacing: AppTheme.Spacing.xs) {
-                    // Плашка активной передачи файла или суммарной очереди
-                    if let activeJob = appState.activeTransferJob {
-                        TransferProgressStrip(
-                            filename: activeJob.filename,
-                            transferredBytes: activeJob.transferredBytes,
-                            totalBytes: activeJob.totalBytes,
-                            speedMBs: appState.currentTransferSpeedMBs,
-                            isUSB: activeJob.source.transportType == .usb,
-                            onTap: {
-                                appState.isQueuePresented = true
-                            },
-                            onCancel: {
-                                appState.cancelJob(id: activeJob.id)
-                            }
-                        )
-                        .padding(.horizontal, AppTheme.Spacing.md)
-                        .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
-                    } else if appState.activeQueueCount > 0 {
-                        TransferProgressStrip(
-                            completedCount: appState.completedJobs.count,
-                            totalCount: appState.completedJobs.count + appState.activeQueueCount,
-                            label: "\(appState.completedJobs.count) из \(appState.completedJobs.count + appState.activeQueueCount)",
-                            onTap: {
-                                appState.isQueuePresented = true
-                            }
-                        )
-                        .padding(.horizontal, AppTheme.Spacing.md)
-                        .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
-                    }
-                    
-                    // Нижняя плавающая панель навигации Liquid Glass
-                    bottomFloatingDock
-                        .padding(.horizontal, AppTheme.Spacing.lg)
-                        .padding(.bottom, AppTheme.Spacing.sm)
+            // 2. Плавающий нижний блок (всегда отображается)
+            VStack(spacing: AppTheme.Spacing.xs) {
+                // Плашка активной передачи файла или суммарной очереди
+                if let activeJob = appState.activeTransferJob {
+                    TransferProgressStrip(
+                        filename: activeJob.filename,
+                        transferredBytes: activeJob.transferredBytes,
+                        totalBytes: activeJob.totalBytes,
+                        speedMBs: appState.currentTransferSpeedMBs,
+                        isUSB: activeJob.source.transportType == .usb,
+                        onTap: {
+                            appState.isQueuePresented = true
+                        },
+                        onCancel: {
+                            appState.cancelJob(id: activeJob.id)
+                        }
+                    )
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
+                } else if appState.activeQueueCount > 0 {
+                    TransferProgressStrip(
+                        completedCount: appState.completedJobs.count,
+                        totalCount: appState.completedJobs.count + appState.activeQueueCount,
+                        label: "\(appState.completedJobs.count) из \(appState.completedJobs.count + appState.activeQueueCount)",
+                        onTap: {
+                            appState.isQueuePresented = true
+                        }
+                    )
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
                 }
+                
+                // Нижняя плавающая панель навигации Liquid Glass
+                bottomFloatingDock
+                    .padding(.horizontal, AppTheme.Spacing.lg)
+                    .padding(.bottom, AppTheme.Spacing.sm)
             }
         }
     }
@@ -86,11 +82,10 @@ public struct NarrowAppShellView: View {
     }
     
     private func tabButton(for section: AppSection) -> some View {
-        let isSelected = !appState.isSettingsPresented && appState.selectedSection == section
+        let isSelected = appState.selectedSection == section
         
         return Button {
             withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
-                appState.isSettingsPresented = false
                 appState.selectedSection = section
             }
         } label: {
@@ -99,7 +94,7 @@ public struct NarrowAppShellView: View {
                     .font(.system(size: 15, weight: isSelected ? .bold : .medium))
                 
                 if !dynamicTypeSize.isAccessibilitySize {
-                    Text(section.rawValue)
+                    Text(section.title)
                         .font(AppTheme.Typography.captionBold)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -123,7 +118,7 @@ public struct NarrowAppShellView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(section.rawValue)
+        .accessibilityLabel(section.title)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }

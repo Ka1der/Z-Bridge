@@ -13,7 +13,10 @@
 		9CF92208B2A151A06E387301 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80AD8280E2C31151461A5D3 /* AppTheme.swift */; };
 		F1C57C22A2A6BC982A9FEAD7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 244A9ABA041DDAFF2B26A740 /* Assets.xcassets */; };
 		46A074EBEFC9CAE0DB3C4820 /* BatchActionBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95CEA7352B2898DE086FDA76 /* BatchActionBarView.swift */; };
+		16A074EBEFC9CAE0DB3C4820 /* CameraProductImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF03 /* CameraProductImageView.swift */; };
 		77D0068392EF58B764551411 /* CameraSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF02 /* CameraSectionView.swift */; };
+		77D0068392EF58B764551412 /* SettingsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF04 /* SettingsSectionView.swift */; };
+		77D0068392EF58B764551413 /* LocalizationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF05 /* LocalizationManager.swift */; };
 		1321D410A0737718DA239E80 /* CameraSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3FE0BF9368999B89D7AF11B /* CameraSource.swift */; };
 		88132881ABFECC73F5A7C30E /* CameraTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377555700A9F8E2A17E4BDD6 /* CameraTransport.swift */; };
 		11B9E709DCB49FAA5D7FEA81 /* CaptureGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA1B276D8EE9544F11B8BA6 /* CaptureGroup.swift */; };
@@ -90,7 +93,10 @@
 		F80AD8280E2C31151461A5D3 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 		244A9ABA041DDAFF2B26A740 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		95CEA7352B2898DE086FDA76 /* BatchActionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchActionBarView.swift; sourceTree = "<group>"; };
+		470898F50416704B96D9AF03 /* CameraProductImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraProductImageView.swift; sourceTree = "<group>"; };
 		470898F50416704B96D9AF02 /* CameraSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSectionView.swift; sourceTree = "<group>"; };
+		470898F50416704B96D9AF04 /* SettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSectionView.swift; sourceTree = "<group>"; };
+		470898F50416704B96D9AF05 /* LocalizationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationManager.swift; sourceTree = "<group>"; };
 		B3FE0BF9368999B89D7AF11B /* CameraSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSource.swift; sourceTree = "<group>"; };
 		377555700A9F8E2A17E4BDD6 /* CameraTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraTransport.swift; sourceTree = "<group>"; };
 		AFA1B276D8EE9544F11B8BA6 /* CaptureGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureGroup.swift; sourceTree = "<group>"; };
@@ -185,6 +191,7 @@
 				A0E85C658C83D3DBFA384FEC /* AdaptiveAppShellView.swift */,
 				7376191F90DBBBB15E7B7AD7 /* AdaptiveLayoutResolver.swift */,
 				470898F50416704B96D9AF02 /* CameraSectionView.swift */,
+				470898F50416704B96D9AF04 /* SettingsSectionView.swift */,
 				3625A968FA114E545C9E2044 /* NarrowAppShellView.swift */,
 				03A5F042987DEF4696118EB8 /* SessionsSectionView.swift */,
 				65A611A3663236564CC9DF73 /* WideAppShellView.swift */,
@@ -218,6 +225,7 @@
 				1855474CEFC2EC1DC6290054 /* ZoomLoupeOverlayView.swift */,
 				5AD218B427B904A4B420692A /* ConnectionStatusView.swift */,
 				66BF224C6EFFD0AF55528BE9 /* PrimaryImportButton.swift */,
+				470898F50416704B96D9AF03 /* CameraProductImageView.swift */,
 				C5BCB6805065E4D38B9E69D8 /* TransferProgressStrip.swift */,
 			);
 			path = Components;
@@ -234,6 +242,7 @@
 		EF0EB7A072037B5B7F6BEB02 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				470898F50416704B96D9AF05 /* LocalizationManager.swift */,
 				A2D4A6CE93A6FD90D2BCA5CB /* ClientMonitor */,
 				2119A00A3FE19AA03103A13E /* Coordinator */,
 				D6623214B42406E71350F344 /* Database */,
@@ -505,7 +514,10 @@
 				885251740806C5AE97140EC4 /* AppState.swift in Sources */,
 				9CF92208B2A151A06E387301 /* AppTheme.swift in Sources */,
 				46A074EBEFC9CAE0DB3C4820 /* BatchActionBarView.swift in Sources */,
+				16A074EBEFC9CAE0DB3C4820 /* CameraProductImageView.swift in Sources */,
 				77D0068392EF58B764551411 /* CameraSectionView.swift in Sources */,
+				77D0068392EF58B764551412 /* SettingsSectionView.swift in Sources */,
+				77D0068392EF58B764551413 /* LocalizationManager.swift in Sources */,
 				1321D410A0737718DA239E80 /* CameraSource.swift in Sources */,
 				88132881ABFECC73F5A7C30E /* CameraTransport.swift in Sources */,
 				11B9E709DCB49FAA5D7FEA81 /* CaptureGroup.swift in Sources */,

@@ -67,7 +67,7 @@ public struct GalleryFilterSheetView: View {
                             set: { _ in appState.toggleOnlyPaired() }
                         )) {
                             HStack {
-                                Label("Только пары RAW+JPG", systemImage: "link")
+                                Label(tr("Только пары RAW+JPG", "RAW+JPG pairs only"), systemImage: "link")
                                     .foregroundStyle(.primary)
                                 Spacer()
                                 Text("\(appState.pairedCount)")
@@ -78,12 +78,12 @@ public struct GalleryFilterSheetView: View {
                         .frame(minHeight: 44)
                     }
                 } header: {
-                    Text("Формат снимков")
+                    Text(tr("Формат снимков", "Image Format"))
                 }
                 
                 // 2. Сортировка
                 Section {
-                    Picker("Порядок", selection: Binding(
+                    Picker(tr("Порядок", "Order"), selection: Binding(
                         get: { appState.sortOrder },
                         set: { appState.setSortOrder($0) }
                     )) {
@@ -94,12 +94,12 @@ public struct GalleryFilterSheetView: View {
                     .pickerStyle(.menu)
                     .frame(minHeight: 44)
                 } header: {
-                    Text("Сортировка")
+                    Text(tr("Сортировка", "Sorting"))
                 }
                 
                 // 3. Рейтинг
                 Section {
-                    Picker("Рейтинг", selection: Binding(
+                    Picker(tr("Рейтинг", "Rating"), selection: Binding(
                         get: { appState.ratingFilter },
                         set: { appState.setRatingFilter($0) }
                     )) {
@@ -110,12 +110,12 @@ public struct GalleryFilterSheetView: View {
                     .pickerStyle(.menu)
                     .frame(minHeight: 44)
                 } header: {
-                    Text("Рейтинг")
+                    Text(tr("Рейтинг", "Rating"))
                 }
                 
                 // 4. Флаг отбора
                 Section {
-                    Picker("Отбор", selection: Binding(
+                    Picker(tr("Отбор", "Flag"), selection: Binding(
                         get: { appState.pickFilter },
                         set: { appState.setPickFilter($0) }
                     )) {
@@ -126,21 +126,21 @@ public struct GalleryFilterSheetView: View {
                     .pickerStyle(.menu)
                     .frame(minHeight: 44)
                 } header: {
-                    Text("Метка отбора")
+                    Text(tr("Метка отбора", "Pick Flag"))
                 }
             }
-            .navigationTitle(appState.activeFilterCount > 0 ? "Фильтры (\(appState.activeFilterCount))" : "Фильтры")
+            .navigationTitle(appState.activeFilterCount > 0 ? tr("Фильтры (\(appState.activeFilterCount))", "Filters (\(appState.activeFilterCount))") : tr("Фильтры", "Filters"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Сбросить") {
+                    Button(tr("Сбросить", "Reset")) {
                         appState.resetFilters()
                     }
                     .disabled(!appState.hasActiveFilters)
-                    .accessibilityHint("Сбросить все фильтры к исходным значениям")
+                    .accessibilityHint(tr("Сбросить все фильтры к исходным значениям", "Reset all filters to default values"))
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Готово") {
+                    Button(tr("Готово", "Done")) {
                         dismiss()
                     }
                     .fontWeight(.semibold)

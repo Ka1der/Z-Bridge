@@ -136,7 +136,7 @@ public struct TransferProgressStrip: View {
                                 .monospacedDigit()
                             
                             if speedMBs > 0.05 {
-                                Text(String(format: "• %.1f МБ/с", speedMBs))
+                                Text(String(format: tr("• %.1f МБ/с", "• %.1f MB/s"), speedMBs))
                                     .foregroundStyle(AppTheme.Colors.statusGreen)
                                     .monospacedDigit()
                             }
@@ -240,11 +240,12 @@ public struct TransferProgressStrip: View {
     
     private func formatMBText(transferred: Int64, total: Int64?) -> String {
         let transferredMB = Double(transferred) / 1_048_576.0
+        let unit = tr("МБ", "MB")
         if let total = total, total > 0 {
             let totalMB = Double(total) / 1_048_576.0
-            return String(format: "%.1f / %.1f МБ", transferredMB, totalMB)
+            return String(format: "%.1f / %.1f %@", transferredMB, totalMB, unit)
         } else {
-            return String(format: "%.1f МБ", transferredMB)
+            return String(format: "%.1f %@", transferredMB, unit)
         }
     }
 }

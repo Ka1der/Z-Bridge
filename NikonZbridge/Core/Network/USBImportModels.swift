@@ -195,7 +195,7 @@ public enum CameraFileFormatFilter: String, CaseIterable, Identifiable, Sendable
     public var shortTitle: String {
         switch self {
         case .all:
-            return "Все форматы"
+            return tr("Все форматы", "All Formats")
         case .rawOnly:
             return "RAW"
         case .companionOnly:
@@ -207,11 +207,11 @@ public enum CameraFileFormatFilter: String, CaseIterable, Identifiable, Sendable
     public var menuTitle: String {
         switch self {
         case .all:
-            return "Все форматы"
+            return tr("Все форматы", "All Formats")
         case .rawOnly:
-            return "Только RAW (.NEF)"
+            return tr("Только RAW (.NEF)", "RAW Only (.NEF)")
         case .companionOnly:
-            return "Только JPEG"
+            return tr("Только JPEG", "JPEG Only")
         }
     }
     
@@ -242,9 +242,16 @@ public enum CameraFileFormatFilter: String, CaseIterable, Identifiable, Sendable
 /// Режим отображения содержимого карты памяти в окне импорта с камеры
 public enum CameraBrowserViewMode: String, CaseIterable, Identifiable, Sendable {
     case list = "Список"
-    case gallery = "Галерея"
+    case gallery = "Студия"
     
     public var id: String { rawValue }
+    
+    public var title: String {
+        switch self {
+        case .list: return tr("Список", "List")
+        case .gallery: return tr("Студия", "Studio")
+        }
+    }
     
     public var iconName: String {
         switch self {

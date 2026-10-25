@@ -11,6 +11,13 @@ public struct FloatingThumbZoneView: View {
     public let transferStatusText: String
     public let transferPercent: Int
     
+    // Управление видимостью (функционал полностью сохранен, по запросу интерфейс скрыт)
+    public var showRatings: Bool = false
+    public var showColorTags: Bool = false
+    public var showTransferStatus: Bool = false
+    public var showExportButton: Bool = true
+    public var selectedCount: Int = 0
+    
     public var onRatingChanged: ((Int) -> Void)? = nil
     public var onColorTagChanged: ((Int) -> Void)? = nil
     public var onExport: (() -> Void)? = nil
@@ -23,6 +30,11 @@ public struct FloatingThumbZoneView: View {
         isTransferring: Bool = true,
         transferStatusText: String = "14/158 (NEF) • 25MB/s • 34s rem.",
         transferPercent: Int = 42,
+        showRatings: Bool = false,
+        showColorTags: Bool = false,
+        showTransferStatus: Bool = false,
+        showExportButton: Bool = true,
+        selectedCount: Int = 0,
         onRatingChanged: ((Int) -> Void)? = nil,
         onColorTagChanged: ((Int) -> Void)? = nil,
         onExport: (() -> Void)? = nil,
@@ -34,6 +46,11 @@ public struct FloatingThumbZoneView: View {
         self.isTransferring = isTransferring
         self.transferStatusText = transferStatusText
         self.transferPercent = min(100, max(0, transferPercent))
+        self.showRatings = showRatings
+        self.showColorTags = showColorTags
+        self.showTransferStatus = showTransferStatus
+        self.showExportButton = showExportButton
+        self.selectedCount = selectedCount
         self.onRatingChanged = onRatingChanged
         self.onColorTagChanged = onColorTagChanged
         self.onExport = onExport
@@ -43,22 +60,31 @@ public struct FloatingThumbZoneView: View {
     
     public var body: some View {
         VStack(spacing: 8) {
-            // Верхний ряд: Рейтинг 1..5 и Цветовые метки
-            HStack(spacing: 8) {
-                // Левая капсула: Рейтинг 5 звёзд
-                ratingPill
-                
-                // Правая капсула: Цветовые метки
-                colorTagsPill
+            // Верхний ряд: Рейтинг 1..5 и Цветовые метки (скрыты, функционал сохранен)
+            if showRatings || showColorTags {
+                HStack(spacing: 8) {
+                    if showRatings {
+                        ratingPill
+                    }
+                    if showColorTags {
+                        colorTagsPill
+                    }
+                }
             }
             
-            // Нижний ряд: Живой статус передачи и кнопка Экспорта
-            HStack(spacing: 8) {
-                // Левая капсула: Прогресс передачи
-                transferStatusPill
-                
-                // Правая кнопка: Экспорт
-                exportButton
+            // Нижний ряд: Прогресс передачи (скрыт) и кнопка Экспорта
+            if showTransferStatus || showExportButton {
+                HStack(spacing: 8) {
+                    if showTransferStatus {
+                        transferStatusPill
+                    }
+                    
+                    Spacer(minLength: 0)
+                    
+                    if showExportButton {
+                        exportButton
+                    }
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -184,7 +210,7 @@ public struct FloatingThumbZoneView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(AppTheme.Colors.accent)
                 
-                Text("ЗАГРУЗИТЬ")
+                Text(selectedCount > 0 ? tr("ЗАГРУЗИТЬ (\(selectedCount))", "DOWNLOAD (\(selectedCount))") : tr("ЗАГРУЗИТЬ", "DOWNLOAD"))
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.white)
             }

@@ -114,6 +114,180 @@ public enum NikonCameraModel: String, Sendable, Codable, CaseIterable, Identifia
     
     public var fullName: String { "Nikon \(rawValue)" }
     
+    /// Каноническое коммерческое имя камеры (например: "Nikon Z5 II", "Nikon Z8")
+    public var marketingName: String {
+        switch self {
+        case .z9: return "Nikon Z9"
+        case .z8: return "Nikon Z8"
+        case .z7ii: return "Nikon Z7 II"
+        case .z7: return "Nikon Z7"
+        case .z6iii: return "Nikon Z6 III"
+        case .z6ii: return "Nikon Z6 II"
+        case .z6: return "Nikon Z6"
+        case .zf: return "Nikon Z f"
+        case .zfc: return "Nikon Z fc"
+        case .z5ii, .z5iic: return "Nikon Z5 II"
+        case .z5: return "Nikon Z5"
+        case .z50ii: return "Nikon Z50 II"
+        case .z50: return "Nikon Z50"
+        case .z30: return "Nikon Z30"
+        }
+    }
+    
+    /// Короткое имя без марки (например: "Z5 II", "Z8")
+    public var shortMarketingName: String {
+        switch self {
+        case .z9: return "Z9"
+        case .z8: return "Z8"
+        case .z7ii: return "Z7 II"
+        case .z7: return "Z7"
+        case .z6iii: return "Z6 III"
+        case .z6ii: return "Z6 II"
+        case .z6: return "Z6"
+        case .zf: return "Z f"
+        case .zfc: return "Z fc"
+        case .z5ii, .z5iic: return "Z5 II"
+        case .z5: return "Z5"
+        case .z50ii: return "Z50 II"
+        case .z50: return "Z50"
+        case .z30: return "Z30"
+        }
+    }
+    
+    /// Имя изображения камеры в Asset Catalog приложения
+    public var assetImageName: String {
+        switch self {
+        case .z9: return "nikon_z9"
+        case .z8: return "nikon_z8"
+        case .z7ii: return "nikon_z7ii"
+        case .z7: return "nikon_z7"
+        case .z6iii: return "nikon_z6iii"
+        case .z6ii: return "nikon_z6ii"
+        case .z6: return "nikon_z6"
+        case .zf: return "nikon_zf"
+        case .zfc: return "nikon_zfc"
+        case .z5ii, .z5iic: return "nikon_z5ii"
+        case .z5: return "nikon_z5"
+        case .z50ii: return "nikon_z50ii"
+        case .z50: return "nikon_z50"
+        case .z30: return "nikon_z30"
+        }
+    }
+    
+    /// Официальный URL студийного фото продукта на сервере Nikon Imaging
+    public var officialImageURL: URL? {
+        let slug: String
+        switch self {
+        case .z9: slug = "z_9"
+        case .z8: slug = "z_8"
+        case .z7ii: slug = "z_7_2"
+        case .z7: slug = "z_7"
+        case .z6iii: slug = "z6_3"
+        case .z6ii: slug = "z_6_2"
+        case .z6: slug = "z_6"
+        case .zf: slug = "z_f"
+        case .zfc: slug = "z_fc"
+        case .z5ii, .z5iic: slug = "z5_2"
+        case .z5: slug = "z_5"
+        case .z50ii: slug = "z50_2"
+        case .z50: slug = "z_50"
+        case .z30: slug = "z_30"
+        }
+        return URL(string: "https://imaging.nikon.com/imaging/lineup/mirrorless/\(slug)/img/product_01_01.jpg")
+    }
+    
+    /// Распознавание модели камеры из сырого идентификатора USB PTP (например "NIKON DSC Z 5_2", "Z5_2", "NIKON Z 6_3")
+    public static func match(from rawName: String?) -> NikonCameraModel? {
+        guard let raw = rawName?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        
+        var clean = raw.uppercased()
+        clean = clean.replacingOccurrences(of: "NIKON", with: "")
+        clean = clean.replacingOccurrences(of: "DSC", with: "")
+        clean = clean.trimmingCharacters(in: .whitespacesAndNewlines)
+        clean = clean.replacingOccurrences(of: "-", with: "_")
+        
+        let compact = clean.replacingOccurrences(of: " ", with: "")
+        
+        // Сначала проверяем модели с поколением (_2, _3, II, III), чтобы "Z 5_2" не сматчился на "Z 5"
+        if compact.contains("50_2") || compact.contains("50II") || compact.contains("50_II") {
+            return .z50ii
+        }
+        if compact.contains("5_2") || compact.contains("5II") || compact.contains("5_II") {
+            return .z5ii
+        }
+        if compact.contains("6_3") || compact.contains("6III") || compact.contains("6_III") {
+            return .z6iii
+        }
+        if compact.contains("6_2") || compact.contains("6II") || compact.contains("6_II") {
+            return .z6ii
+        }
+        if compact.contains("7_2") || compact.contains("7II") || compact.contains("7_II") {
+            return .z7ii
+        }
+        if compact.contains("ZFC") || compact.contains("FC") {
+            return .zfc
+        }
+        if compact.contains("ZF") {
+            return .zf
+        }
+        if compact.contains("Z9") {
+            return .z9
+        }
+        if compact.contains("Z8") {
+            return .z8
+        }
+        if compact.contains("Z7") {
+            return .z7
+        }
+        if compact.contains("Z6") {
+            return .z6
+        }
+        if compact.contains("Z50") {
+            return .z50
+        }
+        if compact.contains("Z30") {
+            return .z30
+        }
+        if compact.contains("Z5") {
+            return .z5
+        }
+        
+        // Поиск по CaseIterable
+        for model in allCases {
+            let key = model.rawValue.replacingOccurrences(of: " ", with: "")
+            if compact == key || compact.contains(key) {
+                return model
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Нормализованное отображаемое имя (например "Nikon Z5 II" вместо "Z5_2" или "NIKON DSC Z 5_2")
+    public static func normalizedDisplayName(from rawName: String?) -> String {
+        guard let raw = rawName?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return "Nikon Z"
+        }
+        if let matched = match(from: raw) {
+            return matched.marketingName
+        }
+        
+        var clean = raw
+        clean = clean.replacingOccurrences(of: "NIKON DSC ", with: "")
+        clean = clean.replacingOccurrences(of: "NIKON ", with: "")
+        clean = clean.replacingOccurrences(of: "DSC ", with: "")
+        clean = clean.replacingOccurrences(of: "_2", with: " II")
+        clean = clean.replacingOccurrences(of: "_3", with: " III")
+        clean = clean.replacingOccurrences(of: "_", with: " ")
+        clean = clean.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !clean.lowercased().hasPrefix("nikon") {
+            clean = "Nikon " + clean
+        }
+        return clean
+    }
+    
     public var processor: NikonProcessorGeneration {
         switch self {
         case .z9, .z8, .z6iii, .zf, .z5ii, .z5iic, .z50ii:

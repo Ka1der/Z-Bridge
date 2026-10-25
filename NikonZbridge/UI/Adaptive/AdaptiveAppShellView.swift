@@ -13,6 +13,7 @@ import SwiftUI
 /// - Никаких повторных вызовов bootstrap из onAppear.
 public struct AdaptiveAppShellView: View {
     @StateObject private var appState: AppState
+    @ObservedObject private var locManager = LocalizationManager.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     
@@ -40,12 +41,11 @@ public struct AdaptiveAppShellView: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .id(locManager.activeLanguage.rawValue)
+            .environment(\.locale, Locale(identifier: locManager.activeLanguage.rawValue))
         }
         .background(AppTheme.Colors.background.ignoresSafeArea())
         // MARK: - Централизованные модальные окна (сохраняются при вращении и ресайзе)
-        .sheet(isPresented: $appState.isShowingConnectionSheet) {
-            ConnectionSheetView(appState: appState)
-        }
         .sheet(isPresented: $appState.isShowingSessionSheet) {
             if AppFeatures.sessionManagementEnabled { SessionManagementSheetView(appState: appState) }
         }

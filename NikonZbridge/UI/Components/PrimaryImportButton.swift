@@ -23,17 +23,17 @@ public struct PrimaryImportButton: View {
     public init(
         isReadingCatalog: Bool = false,
         unimportedCount: Int = 0,
-        title: String = "Импортировать",
-        shortTitle: String = "Импорт",
-        loadingTitle: String = "Чтение...",
+        title: String? = nil,
+        shortTitle: String? = nil,
+        loadingTitle: String? = nil,
         iconName: String = "arrow.down",
         action: @escaping () -> Void
     ) {
         self.isReadingCatalog = isReadingCatalog
         self.unimportedCount = unimportedCount
-        self.title = title
-        self.shortTitle = shortTitle
-        self.loadingTitle = loadingTitle
+        self.title = title ?? tr("Импортировать", "Import")
+        self.shortTitle = shortTitle ?? tr("Импорт", "Import")
+        self.loadingTitle = loadingTitle ?? tr("Чтение...", "Reading...")
         self.iconName = iconName
         self.action = action
     }
