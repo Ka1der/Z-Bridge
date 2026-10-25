@@ -47,7 +47,7 @@
 ```
 NikonZbridge/
 ├── App/
-│   └── NikonZbridgeApp.swift           # Точка входа приложения
+│   └── ZBridgeApp.swift                # Точка входа приложения
 ├── Core/
 │   ├── ClientMonitor/                  # Логика клиентского монитора
 │   ├── Coordinator/                    # TransferCoordinator и управление сессиями

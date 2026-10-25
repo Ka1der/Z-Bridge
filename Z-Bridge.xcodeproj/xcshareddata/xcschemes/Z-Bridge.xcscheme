@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9859BCDA03D44905AC8C30F6"
-               BuildableName = "NikonZbridge.app"
-               BlueprintName = "NikonZbridge"
-               ReferencedContainer = "container:NikonZbridge.xcodeproj">
+               BuildableName = "Z-Bridge.app"
+               BlueprintName = "Z-Bridge"
+               ReferencedContainer = "container:Z-Bridge.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -46,9 +46,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9859BCDA03D44905AC8C30F6"
-            BuildableName = "NikonZbridge.app"
-            BlueprintName = "NikonZbridge"
-            ReferencedContainer = "container:NikonZbridge.xcodeproj">
+            BuildableName = "Z-Bridge.app"
+            BlueprintName = "Z-Bridge"
+            ReferencedContainer = "container:Z-Bridge.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -63,9 +63,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9859BCDA03D44905AC8C30F6"
-            BuildableName = "NikonZbridge.app"
-            BlueprintName = "NikonZbridge"
-            ReferencedContainer = "container:NikonZbridge.xcodeproj">
+            BuildableName = "Z-Bridge.app"
+            BlueprintName = "Z-Bridge"
+            ReferencedContainer = "container:Z-Bridge.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

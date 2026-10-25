@@ -56,7 +56,7 @@
 		03609E04675091E262D9D179 /* NikonCameraModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42969880D654B6C611720B2 /* NikonCameraModel.swift */; };
 		1FA0A7D7D84B5E5C6A0994C0 /* NikonCompatibilityMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F03E4F8107D7C39545F88E3 /* NikonCompatibilityMatrix.swift */; };
 		AFAD4E7ED639A933ACF8086D /* NikonTetherRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 068A44B6C2CCD7FFFFCED6EE /* NikonTetherRootView.swift */; };
-		FC92F547F36CB3D19D22F5AA /* NikonZbridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF55549477C4731D1C8E4C55 /* NikonZbridgeApp.swift */; };
+		FC92F547F36CB3D19D22F5AA /* ZBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF55549477C4731D1C8E4C55 /* ZBridgeApp.swift */; };
 		45F95B3D6659D9E17F97866A /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8FD088B71D998B6E7CD950 /* PhotoDetailView.swift */; };
 		2A08EB35703538B1DE554171 /* PhotoListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9970846B3FC797F7AF1A976 /* PhotoListView.swift */; };
 		9A55E8363046C2FC868184E1 /* PhotoTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B62F30CD05B6DA5EF420B1 /* PhotoTableView.swift */; };
@@ -86,7 +86,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		DCFA26ADD3D34476AC7F0241 /* NikonZbridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NikonZbridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DCFA26ADD3D34476AC7F0241 /* Z-Bridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Z-Bridge.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A0E85C658C83D3DBFA384FEC /* AdaptiveAppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveAppShellView.swift; sourceTree = "<group>"; };
 		7376191F90DBBBB15E7B7AD7 /* AdaptiveLayoutResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveLayoutResolver.swift; sourceTree = "<group>"; };
 		C845EB2127543BB1C4B41E46 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
@@ -137,7 +137,7 @@
 		A42969880D654B6C611720B2 /* NikonCameraModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonCameraModel.swift; sourceTree = "<group>"; };
 		5F03E4F8107D7C39545F88E3 /* NikonCompatibilityMatrix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonCompatibilityMatrix.swift; sourceTree = "<group>"; };
 		068A44B6C2CCD7FFFFCED6EE /* NikonTetherRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonTetherRootView.swift; sourceTree = "<group>"; };
-		BF55549477C4731D1C8E4C55 /* NikonZbridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NikonZbridgeApp.swift; sourceTree = "<group>"; };
+		BF55549477C4731D1C8E4C55 /* ZBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZBridgeApp.swift; sourceTree = "<group>"; };
 		8C8FD088B71D998B6E7CD950 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
 		F9970846B3FC797F7AF1A976 /* PhotoListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoListView.swift; sourceTree = "<group>"; };
 		91B62F30CD05B6DA5EF420B1 /* PhotoTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoTableView.swift; sourceTree = "<group>"; };
@@ -180,7 +180,7 @@
 		01E9F51FAFD142D8BFF2525A /*  */ = {
 			isa = PBXGroup;
 			children = (
-				FAFB6F2FA0D27B007B3D8274 /* NikonZbridge */,
+				FAFB6F2FA0D27B007B3D8274 /* Z-Bridge */,
 				80771A6C167747DC926DA93D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -202,7 +202,7 @@
 		A78DD48C6213383562F9D9BF /* App */ = {
 			isa = PBXGroup;
 			children = (
-				BF55549477C4731D1C8E4C55 /* NikonZbridgeApp.swift */,
+				BF55549477C4731D1C8E4C55 /* ZBridgeApp.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -360,7 +360,7 @@
 			path = Network;
 			sourceTree = "<group>";
 		};
-		FAFB6F2FA0D27B007B3D8274 /* NikonZbridge */ = {
+		FAFB6F2FA0D27B007B3D8274 /* Z-Bridge */ = {
 			isa = PBXGroup;
 			children = (
 				A78DD48C6213383562F9D9BF /* App */,
@@ -368,13 +368,14 @@
 				07F51666EA9CF4247B08A4DA /* Resources */,
 				F57A490C904CC6D77C6F8A46 /* UI */,
 			);
+			name = "Z-Bridge";
 			path = NikonZbridge;
 			sourceTree = "<group>";
 		};
 		80771A6C167747DC926DA93D /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				DCFA26ADD3D34476AC7F0241 /* NikonZbridge.app */,
+				DCFA26ADD3D34476AC7F0241 /* Z-Bridge.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -440,9 +441,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		9859BCDA03D44905AC8C30F6 /* NikonZbridge */ = {
+		9859BCDA03D44905AC8C30F6 /* Z-Bridge */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 93F2A68E28D345D291036979 /* Build configuration list for PBXNativeTarget "NikonZbridge" */;
+			buildConfigurationList = 93F2A68E28D345D291036979 /* Build configuration list for PBXNativeTarget "Z-Bridge" */;
 			buildPhases = (
 				EBA0E76C1CFC4EDDA14E52EA /* Sources */,
 				8949665A69B841039AAD25C4 /* Frameworks */,
@@ -452,9 +453,9 @@
 			);
 			dependencies = (
 			);
-			name = NikonZbridge;
-			productName = NikonZbridge;
-			productReference = DCFA26ADD3D34476AC7F0241 /* NikonZbridge.app */;
+			name = "Z-Bridge";
+			productName = "Z-Bridge";
+			productReference = DCFA26ADD3D34476AC7F0241 /* Z-Bridge.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -471,7 +472,7 @@
 					};
 				};
 			};
-			buildConfigurationList = F352A600D3E04E37B46EDBA0 /* Build configuration list for PBXProject "NikonZbridge" */;
+			buildConfigurationList = F352A600D3E04E37B46EDBA0 /* Build configuration list for PBXProject "Z-Bridge" */;
 			compatibilityVersion = "Xcode 16.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -484,7 +485,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				9859BCDA03D44905AC8C30F6 /* NikonZbridge */,
+				9859BCDA03D44905AC8C30F6 /* Z-Bridge */,
 			);
 		};
 /* End PBXProject section */
@@ -557,7 +558,7 @@
 				03609E04675091E262D9D179 /* NikonCameraModel.swift in Sources */,
 				1FA0A7D7D84B5E5C6A0994C0 /* NikonCompatibilityMatrix.swift in Sources */,
 				AFAD4E7ED639A933ACF8086D /* NikonTetherRootView.swift in Sources */,
-				FC92F547F36CB3D19D22F5AA /* NikonZbridgeApp.swift in Sources */,
+				FC92F547F36CB3D19D22F5AA /* ZBridgeApp.swift in Sources */,
 				45F95B3D6659D9E17F97866A /* PhotoDetailView.swift in Sources */,
 				2A08EB35703538B1DE554171 /* PhotoListView.swift in Sources */,
 				9A55E8363046C2FC868184E1 /* PhotoTableView.swift in Sources */,
@@ -624,6 +625,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nikonzbridge.app;
+				PRODUCT_MODULE_NAME = "Z_Bridge";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_INCLUDE_PATHS = "$(inherited) NikonZbridge/Core/** NikonZbridge/UI/**";
@@ -647,6 +649,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nikonzbridge.app;
+				PRODUCT_MODULE_NAME = "Z_Bridge";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_INCLUDE_PATHS = "$(inherited) NikonZbridge/Core/** NikonZbridge/UI/**";
@@ -686,7 +689,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		93F2A68E28D345D291036979 /* Build configuration list for PBXNativeTarget "NikonZbridge" */ = {
+		93F2A68E28D345D291036979 /* Build configuration list for PBXNativeTarget "Z-Bridge" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5AB95572AE9C465B8DBB7723 /* Debug */,
@@ -695,7 +698,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		F352A600D3E04E37B46EDBA0 /* Build configuration list for PBXProject "NikonZbridge" */ = {
+		F352A600D3E04E37B46EDBA0 /* Build configuration list for PBXProject "Z-Bridge" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C8081E6D36B84B2398496974 /* Debug */,

@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct NikonZbridgeApp: App {
+struct ZBridgeApp: App {
     var body: some Scene {
         WindowGroup {
             AdaptiveAppShellView()
