@@ -30,6 +30,10 @@
 	<string>Приложению необходим доступ к фотопленке для экспорта выбранных кадров и сессий.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Приложению необходимо разрешение на сохранение экспортированных фотографий в вашу медиатеку.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Приложению Z-Bridge необходим доступ к Bluetooth для обнаружения камер Nikon Z, пробуждения по радиоканалу и дистанционного спуска затвора.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Приложению Z-Bridge необходим доступ к Bluetooth для связи с камерой Nikon Z.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_ftp._tcp</string>

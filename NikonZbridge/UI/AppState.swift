@@ -287,6 +287,7 @@ public final class AppState: ObservableObject {
     @Published public var usbConnected: Bool = false
     @Published public var usbCameraName: String?
     @Published public var usbConnectionState: USBCameraConnectionState = .disconnected
+    @Published public var isBluetoothConnected: Bool = false
     @Published public var photoSource: PhotoSource = AppFeatures.onDeviceGalleryEnabled ? .session : .camera {
         didSet {
             if !AppFeatures.onDeviceGalleryEnabled && photoSource != .camera {
@@ -963,20 +964,20 @@ public final class AppState: ObservableObject {
     }
     
     public var isCameraConnected: Bool {
-        connectedClients > 0 || usbConnected || !connectedSources.isEmpty
+        connectedClients > 0 || usbConnected || isBluetoothConnected || !connectedSources.isEmpty
     }
     
     public var isCameraConnecting: Bool {
-        usbConnectionState.isConnecting
+        usbConnectionState.isConnecting || bluetoothManager.state == .connecting
     }
     
     public var normalizedCameraName: String {
-        let raw = usbCameraName ?? (connectedSources.first?.displayName ?? "")
+        let raw = usbCameraName ?? (bluetoothManager.connectedDevice?.name ?? (connectedSources.first?.displayName ?? ""))
         return NikonCameraModel.normalizedDisplayName(from: raw)
     }
     
     public var connectedCameraModel: NikonCameraModel? {
-        let raw = usbCameraName ?? (connectedSources.first?.displayName ?? "")
+        let raw = usbCameraName ?? (bluetoothManager.connectedDevice?.name ?? (connectedSources.first?.displayName ?? ""))
         return NikonCameraModel.match(from: raw)
     }
     
@@ -1049,6 +1050,7 @@ public final class AppState: ObservableObject {
     }
     
     public var currentUSBManager: USBCameraManager { usbManager }
+    public var bluetoothManager: BluetoothCameraManager { BluetoothCameraManager.shared }
     
     public func setUSBAutoDownloadNewShots(_ enabled: Bool) {
         usbManager.setAutoDownloadNewShots(enabled)
@@ -1087,6 +1089,11 @@ public final class AppState: ObservableObject {
         usbManager.$isAutoDownloadCardOnConnectEnabled
             .receive(on: DispatchQueue.main)
             .assign(to: &$isUSBAutoDownloadCardOnConnectEnabled)
+            
+        BluetoothCameraManager.shared.$connectedDevice
+            .receive(on: DispatchQueue.main)
+            .map { $0 != nil }
+            .assign(to: &$isBluetoothConnected)
         
         // Регистрация транспортов в координаторе
         Task {

@@ -6,12 +6,14 @@ public enum CameraTransportType: String, Sendable, Codable, Hashable {
     case usb
     /// Сетевое подключение к встроенному FTP-серверу (Wi-Fi или проводной адаптер USB-LAN)
     case ftp
+    /// Беспроводной канал Bluetooth Low Energy (BLE) для пробуждения, пульта затвора и геопозиции
+    case bluetooth
     
     /// Позволяет ли транспорт приложению запрашивать скачивание файла по своей инициативе (Pull)
     public var canInitiateDownload: Bool {
         switch self {
         case .usb: return true
-        case .ftp: return false
+        case .ftp, .bluetooth: return false
         }
     }
     
@@ -19,7 +21,7 @@ public enum CameraTransportType: String, Sendable, Codable, Hashable {
     public var supportsAppRetry: Bool {
         switch self {
         case .usb: return true
-        case .ftp: return false
+        case .ftp, .bluetooth: return false
         }
     }
     
@@ -27,6 +29,7 @@ public enum CameraTransportType: String, Sendable, Codable, Hashable {
         switch self {
         case .usb: return "USB (Кабель)"
         case .ftp: return "FTP (Сеть)"
+        case .bluetooth: return "Bluetooth (BLE)"
         }
     }
 }

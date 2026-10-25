@@ -17,6 +17,8 @@
 		77D0068392EF58B764551411 /* CameraSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF02 /* CameraSectionView.swift */; };
 		77D0068392EF58B764551412 /* SettingsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF04 /* SettingsSectionView.swift */; };
 		77D0068392EF58B764551413 /* LocalizationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF05 /* LocalizationManager.swift */; };
+		A9B1000120261025B1000001 /* BluetoothCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B1000220261025B1000001 /* BluetoothCameraManager.swift */; };
+		A9B1000120261025B1000002 /* BluetoothCameraModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B1000220261025B1000002 /* BluetoothCameraModels.swift */; };
 		1321D410A0737718DA239E80 /* CameraSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3FE0BF9368999B89D7AF11B /* CameraSource.swift */; };
 		88132881ABFECC73F5A7C30E /* CameraTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377555700A9F8E2A17E4BDD6 /* CameraTransport.swift */; };
 		11B9E709DCB49FAA5D7FEA81 /* CaptureGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA1B276D8EE9544F11B8BA6 /* CaptureGroup.swift */; };
@@ -97,6 +99,8 @@
 		470898F50416704B96D9AF02 /* CameraSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSectionView.swift; sourceTree = "<group>"; };
 		470898F50416704B96D9AF04 /* SettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSectionView.swift; sourceTree = "<group>"; };
 		470898F50416704B96D9AF05 /* LocalizationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationManager.swift; sourceTree = "<group>"; };
+		A9B1000220261025B1000001 /* BluetoothCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothCameraManager.swift; sourceTree = "<group>"; };
+		A9B1000220261025B1000002 /* BluetoothCameraModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothCameraModels.swift; sourceTree = "<group>"; };
 		B3FE0BF9368999B89D7AF11B /* CameraSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSource.swift; sourceTree = "<group>"; };
 		377555700A9F8E2A17E4BDD6 /* CameraTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraTransport.swift; sourceTree = "<group>"; };
 		AFA1B276D8EE9544F11B8BA6 /* CaptureGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureGroup.swift; sourceTree = "<group>"; };
@@ -239,9 +243,19 @@
 			path = Coordinator;
 			sourceTree = "<group>";
 		};
+		A9B1000320261025B1000001 /* Bluetooth */ = {
+			isa = PBXGroup;
+			children = (
+				A9B1000220261025B1000001 /* BluetoothCameraManager.swift */,
+				A9B1000220261025B1000002 /* BluetoothCameraModels.swift */,
+			);
+			path = Bluetooth;
+			sourceTree = "<group>";
+		};
 		EF0EB7A072037B5B7F6BEB02 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				A9B1000320261025B1000001 /* Bluetooth */,
 				470898F50416704B96D9AF05 /* LocalizationManager.swift */,
 				A2D4A6CE93A6FD90D2BCA5CB /* ClientMonitor */,
 				2119A00A3FE19AA03103A13E /* Coordinator */,
@@ -519,6 +533,8 @@
 				77D0068392EF58B764551411 /* CameraSectionView.swift in Sources */,
 				77D0068392EF58B764551412 /* SettingsSectionView.swift in Sources */,
 				77D0068392EF58B764551413 /* LocalizationManager.swift in Sources */,
+				A9B1000120261025B1000001 /* BluetoothCameraManager.swift in Sources */,
+				A9B1000120261025B1000002 /* BluetoothCameraModels.swift in Sources */,
 				1321D410A0737718DA239E80 /* CameraSource.swift in Sources */,
 				88132881ABFECC73F5A7C30E /* CameraTransport.swift in Sources */,
 				11B9E709DCB49FAA5D7FEA81 /* CaptureGroup.swift in Sources */,

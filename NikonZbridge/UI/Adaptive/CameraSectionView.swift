@@ -180,6 +180,8 @@ public struct CameraSectionView: View {
     private var connectionTransportDescription: String {
         if appState.usbConnected {
             return "USB-C"
+        } else if appState.isBluetoothConnected {
+            return "Bluetooth"
         } else if appState.isServerRunning {
             return "Wi-Fi FTP"
         } else {
@@ -190,6 +192,8 @@ public struct CameraSectionView: View {
     private var connectionIcon: String {
         if appState.usbConnected {
             return "cable.connector"
+        } else if appState.isBluetoothConnected {
+            return "wave.3.right.circle.fill"
         } else if appState.isServerRunning {
             return "wifi"
         } else {
@@ -210,10 +214,12 @@ public struct CameraSectionView: View {
     private var connectionSubtitle: String {
         if appState.usbConnected {
             return appState.normalizedCameraName
+        } else if appState.isBluetoothConnected, let dev = appState.bluetoothManager.connectedDevice {
+            return "Bluetooth BLE • \(dev.name)"
         } else if appState.isServerRunning {
             return tr("FTP: порт \(appState.serverPort) • Клиентов: \(appState.connectedClients)", "FTP: port \(appState.serverPort) • Clients: \(appState.connectedClients)")
         } else {
-            return tr("Подключите камеру Nikon Z по USB-C или Wi-Fi", "Connect Nikon Z camera via USB-C or Wi-Fi")
+            return tr("Подключите камеру Nikon Z по USB-C, Wi-Fi или Bluetooth", "Connect Nikon Z camera via USB-C, Wi-Fi or Bluetooth")
         }
     }
     
@@ -314,6 +320,7 @@ public struct CameraSectionView: View {
         VStack(spacing: AppTheme.Spacing.lg) {
             usbConnectionSection
             wifiFtpSection
+            bluetoothSection
             toolsSection
         }
     }
@@ -736,6 +743,332 @@ public struct CameraSectionView: View {
             .padding(.vertical, 4)
             .glassPill(tint: AppTheme.Colors.statusRed)
             .foregroundStyle(AppTheme.Colors.statusRed)
+        }
+    }
+    
+    // MARK: - Bluetooth LE подключение и пульт управления
+    
+    private var bluetoothSection: some View {
+        GlassCard(cornerRadius: AppTheme.Radius.lg) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                // Заголовок
+                HStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wave.3.right.circle.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(appState.isBluetoothConnected ? AppTheme.Colors.statusGreen : AppTheme.Colors.accent)
+                        Text(tr("Канал Bluetooth LE (Пульт и Wake-up)", "Bluetooth LE Channel (Remote & Wake-up)"))
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                    }
+                    
+                    Spacer()
+                    
+                    bluetoothStatusBadge
+                }
+                
+                if let connected = appState.bluetoothManager.connectedDevice {
+                    connectedBluetoothView(device: connected)
+                } else {
+                    disconnectedBluetoothView
+                }
+                
+                // Информационная подсказка фотографу о назначении BT
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.Colors.accent)
+                    Text(tr(
+                        "Канал Bluetooth предназначен для пробуждения, дистанционного спуска и синхронизации часов. Для быстрой передачи тяжелых снимков (RAW/JPEG) подключите кабель USB-C или Wi-Fi FTP.",
+                        "Bluetooth LE is designed for remote wake-up, shutter release and time synchronization. For fast photo transfer (RAW/JPEG), connect via USB-C cable or Wi-Fi FTP."
+                    ))
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(AppTheme.Colors.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+            }
+            .padding(AppTheme.Spacing.md)
+        }
+    }
+    
+    @ViewBuilder
+    private var bluetoothStatusBadge: some View {
+        let bt = appState.bluetoothManager
+        if appState.isBluetoothConnected {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(AppTheme.Colors.statusGreen)
+                    .frame(width: 6, height: 6)
+                    .shadow(color: AppTheme.Colors.statusGreen.opacity(0.8), radius: 4)
+                Text(tr("Подключено", "Connected"))
+                    .font(AppTheme.Typography.caption2Bold)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .glassPill(tint: AppTheme.Colors.statusGreen)
+            .foregroundStyle(AppTheme.Colors.statusGreen)
+        } else if bt.isScanning {
+            HStack(spacing: 5) {
+                ProgressView()
+                    .scaleEffect(0.6)
+                Text(tr("Поиск...", "Scanning..."))
+                    .font(AppTheme.Typography.caption2Bold)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .glassPill(tint: AppTheme.Colors.statusOrange)
+            .foregroundStyle(AppTheme.Colors.statusOrange)
+        } else if bt.state == .connecting {
+            HStack(spacing: 5) {
+                ProgressView()
+                    .scaleEffect(0.6)
+                Text(tr("Сопряжение...", "Connecting..."))
+                    .font(AppTheme.Typography.caption2Bold)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .glassPill(tint: AppTheme.Colors.statusOrange)
+            .foregroundStyle(AppTheme.Colors.statusOrange)
+        } else {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(AppTheme.Colors.textTertiary)
+                    .frame(width: 6, height: 6)
+                Text(tr("Готов к поиску", "Ready to scan"))
+                    .font(AppTheme.Typography.caption2Bold)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .glassPill()
+            .foregroundStyle(AppTheme.Colors.textSecondary)
+        }
+    }
+    
+    @ViewBuilder
+    private func connectedBluetoothView(device: BluetoothCameraDevice) -> some View {
+        let bt = appState.bluetoothManager
+        VStack(spacing: 12) {
+            // Карточка подключенной камеры
+            HStack {
+                Image(systemName: "camera.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(AppTheme.Colors.accent)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(device.name)
+                        .font(AppTheme.Typography.subheadlineBold)
+                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                    
+                    HStack(spacing: 8) {
+                        if let battery = device.batteryLevel ?? bt.batteryLevel {
+                            HStack(spacing: 3) {
+                                Image(systemName: "battery.75")
+                                Text("\(battery)%")
+                            }
+                            .font(.caption2.bold())
+                            .foregroundStyle(AppTheme.Colors.statusGreen)
+                        }
+                        
+                        HStack(spacing: 3) {
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                            Text(device.signalDescription)
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                    }
+                }
+                
+                Spacer()
+                
+                Button {
+                    bt.disconnect()
+                } label: {
+                    Text(tr("Отключить", "Disconnect"))
+                        .font(AppTheme.Typography.captionBold)
+                        .foregroundStyle(AppTheme.Colors.statusRed)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .glassInset(cornerRadius: AppTheme.Radius.sm)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(10)
+            .glassInset(cornerRadius: AppTheme.Radius.md)
+            
+            // Кнопки управления (Пульт)
+            HStack(spacing: 8) {
+                // 1. Пробудить камеру
+                Button {
+                    Task {
+                        await bt.wakeCamera()
+                    }
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.accent)
+                        Text(tr("Пробудить", "Wake-up"))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .glassInset(cornerRadius: AppTheme.Radius.sm)
+                }
+                .buttonStyle(.plain)
+                
+                // 2. Спуск затвора
+                Button {
+                    #if canImport(UIKit)
+                    UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                    #endif
+                    Task {
+                        await bt.triggerShutter()
+                    }
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "camera.aperture")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color.black)
+                        Text(tr("Спуск затвора", "Shutter"))
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color.black)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(AppTheme.Colors.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                    .shadow(color: AppTheme.Colors.accent.opacity(0.3), radius: 6)
+                }
+                .buttonStyle(.plain)
+                
+                // 3. Синхронизировать часы
+                Button {
+                    Task {
+                        await bt.syncCurrentTime()
+                    }
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(AppTheme.Colors.accent)
+                        Text(tr("Синхр. времени", "Sync Time"))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .glassInset(cornerRadius: AppTheme.Radius.sm)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if let notice = bt.lastActionNotice {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.Colors.statusGreen)
+                    Text(notice)
+                        .font(AppTheme.Typography.caption2Bold)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+                .transition(.opacity)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var disconnectedBluetoothView: some View {
+        let bt = appState.bluetoothManager
+        VStack(alignment: .leading, spacing: 10) {
+            // Кнопка поиска
+            Button {
+                if bt.isScanning {
+                    bt.stopScan()
+                } else {
+                    bt.startScan()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if bt.isScanning {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text(tr("Остановить поиск", "Stop Scanning"))
+                    } else {
+                        Image(systemName: "magnifyingglass")
+                        Text(tr("Поиск камер по Bluetooth", "Scan for Nikon BLE Cameras"))
+                    }
+                }
+                .font(AppTheme.Typography.subheadlineBold)
+                .foregroundStyle(Color.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(AppTheme.Colors.accent)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+                .shadow(color: AppTheme.Colors.accent.opacity(0.25), radius: 6)
+            }
+            .buttonStyle(.plain)
+            
+            // Список найденных устройств
+            if !bt.discoveredDevices.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(tr("Найденные камеры поблизости:", "Discovered Cameras Nearby:"))
+                        .font(AppTheme.Typography.captionBold)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                        .padding(.top, 4)
+                    
+                    ForEach(bt.discoveredDevices) { device in
+                        HStack {
+                            Image(systemName: "camera.fill")
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.Colors.accent)
+                            
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(device.name)
+                                    .font(AppTheme.Typography.subheadlineBold)
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                                Text(device.signalDescription)
+                                    .font(AppTheme.Typography.caption2)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Button {
+                                bt.connect(to: device)
+                            } label: {
+                                Text(tr("Подключить", "Connect"))
+                                    .font(AppTheme.Typography.captionBold)
+                                    .foregroundStyle(AppTheme.Colors.accent)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .glassInset(cornerRadius: AppTheme.Radius.sm)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(10)
+                        .glassInset(cornerRadius: AppTheme.Radius.sm)
+                    }
+                }
+            } else if !bt.isScanning {
+                // Подсказка по настройке сопряжения в камере
+                VStack(alignment: .leading, spacing: 6) {
+                    instructionStepRow(
+                        number: "1",
+                        text: tr("В камере: **Настройки ➔ Подключение к смарт-устройству ➔ Сопряжение (Bluetooth)** или **Пульт ДУ (ML-L7)**.", "In camera: **Setup ➔ Connect to smart device ➔ Pairing (Bluetooth)** or **Wireless remote (ML-L7)**.")
+                    )
+                    instructionStepRow(
+                        number: "2",
+                        text: tr("Нажмите кнопку поиска выше для быстрого обнаружения камеры.", "Tap scan button above to quickly find your camera.")
+                    )
+                }
+                .padding(.top, 2)
+            }
         }
     }
     
