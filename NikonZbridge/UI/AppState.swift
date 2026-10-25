@@ -939,7 +939,7 @@ public final class AppState: ObservableObject {
     // MARK: - Быстрое сохранение в системную медиатеку «Фото»
     
     public func saveGroupToPhotoLibrary(_ group: CaptureGroup) async throws {
-        let album = currentSession?.name ?? "Nikon Z Bridge"
+        let album = currentSession?.name ?? "Z-Bridge"
         try await ExportManager.shared.saveToPhotos(group: group, albumName: album)
     }
     

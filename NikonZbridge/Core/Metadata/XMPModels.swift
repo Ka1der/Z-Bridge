@@ -304,7 +304,7 @@ public struct SessionManifest: Sendable, Codable, Hashable {
             md += "\n| `\(file.filename)` | \(file.format) | \(sizeStr) | \(stars) | \(file.pickStatus) | \(cam) (\(exp)) | \(file.exportStatus) |"
         }
         
-        md += "\n\n_Создано приложением Nikon Z Bridge (Этап 12: XMP и метаданные сессии)_\n"
+        md += "\n\n_Создано приложением Z-Bridge (Этап 12: XMP и метаданные сессии)_\n"
         return md
     }
     

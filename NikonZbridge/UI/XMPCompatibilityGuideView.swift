@@ -23,7 +23,7 @@ public struct XMPCompatibilityGuideView: View {
                             .font(.headline)
                             .foregroundColor(.accentColor)
                         
-                        Text("NikonZbridge гарантирует 100% неприкосновенность оригинальных файлов (NEF, JPG, HEIF). Все оценки, отметки и метаданные записываются исключительно в сопутствующие файлы XMP sidecar.")
+                        Text("Z-Bridge гарантирует 100% неприкосновенность оригинальных файлов (NEF, JPG, HEIF). Все оценки, отметки и метаданные записываются исключительно в сопутствующие файлы XMP sidecar.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Широкая компоновка адаптивного каркаса (iPad, ландшафтный режим, macOS).
 /// Реализована в точности по референсу дизайна Liquid Glass:
-/// - Узкая компактная боковая панель (~88 pt) с логотипом Nikon Z Bridge, кнопкой меню и 4 ключевыми разделами
+/// - Узкая компактная боковая панель (~88 pt) с логотипом Z-Bridge, кнопкой меню и 4 ключевыми разделами
 ///   («Tether» с желтой рамкой и индикатором, «Storage», «Sessions», «Settings»);
 /// - Полноэкранная рабочая зона без лишних статических полос.
 public struct WideAppShellView: View {
@@ -59,17 +59,11 @@ public struct WideAppShellView: View {
     
     private var proSidebarRail: some View {
         VStack(spacing: 0) {
-            // Заголовок приложения: Nikon Z Bridge + иконка меню
-            HStack(alignment: .top, spacing: 4) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Nikon")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.white)
-                    
-                    Text("Z Bridge")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.60))
-                }
+            // Заголовок приложения: Z-Bridge + иконка меню
+            HStack(alignment: .center, spacing: 4) {
+                Text("Z-Bridge")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.white)
                 
                 Spacer()
                 

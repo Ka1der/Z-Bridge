@@ -1185,7 +1185,7 @@ extension USBCameraManager {
         }
         
         let localURL = try await ensureFileDownloaded(item)
-        let album = targetSessionName.isEmpty ? "Nikon Z Bridge" : targetSessionName
+        let album = targetSessionName.isEmpty ? "Z-Bridge" : targetSessionName
         _ = try await ExportManager.shared.saveToPhotoLibrary(
             sourceURL: localURL,
             isRAW: item.isRAW,

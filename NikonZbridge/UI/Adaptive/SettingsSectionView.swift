@@ -215,7 +215,7 @@ public struct SettingsSectionView: View {
                         Text(tr("Место сохранения", "Save Destination"))
                             .font(AppTheme.Typography.subheadlineBold)
                             .foregroundStyle(AppTheme.Colors.textPrimary)
-                        Text(tr("Медиатека «Фото» iOS (альбом Nikon Z Bridge)", "iOS «Photos» library (Nikon Z Bridge album)"))
+                        Text(tr("Медиатека «Фото» iOS (альбом Z-Bridge)", "iOS «Photos» library (Z-Bridge album)"))
                             .font(AppTheme.Typography.caption)
                             .foregroundStyle(AppTheme.Colors.textSecondary)
                     }
@@ -332,7 +332,7 @@ public struct SettingsSectionView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(AppTheme.Colors.accent)
                     
-                    Text(tr("О программе", "About Nikon Z Bridge"))
+                    Text(tr("О программе", "About Z-Bridge"))
                         .font(AppTheme.Typography.headline)
                         .foregroundStyle(AppTheme.Colors.textPrimary)
                     
@@ -348,8 +348,8 @@ public struct SettingsSectionView: View {
                 }
                 
                 Text(tr(
-                    "Nikon Z Bridge — специализированное решение для проводного и беспроводного тетеринга камер Nikon Z. Обеспечивает мгновенный доступ к RAW и JPEG кадрам, быстрый отбор и передачу в медиатеку в концепции Liquid Glass.",
-                    "Nikon Z Bridge is a specialized solution for tethered and wireless shooting with Nikon Z cameras. Delivers instant access to RAW and JPEG files, quick culling, and photo library transfers in Liquid Glass design."
+                    "Z-Bridge — специализированное решение для проводного и беспроводного тетеринга камер Nikon Z. Обеспечивает мгновенный доступ к RAW и JPEG кадрам, быстрый отбор и передачу в медиатеку в концепции Liquid Glass.",
+                    "Z-Bridge is a specialized solution for tethered and wireless shooting with Nikon Z cameras. Delivers instant access to RAW and JPEG files, quick culling, and photo library transfers in Liquid Glass design."
                 ))
                 .font(AppTheme.Typography.caption)
                 .foregroundStyle(AppTheme.Colors.textSecondary)

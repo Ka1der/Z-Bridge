@@ -63,7 +63,7 @@ public struct XMPCompatibilityGuide: Sendable {
     
     /// Словарь несовместимых и непереносимых отметок с пояснениями
     public static let nonPortableTags: [String: String] = [
-        "Pick / Flag (Lightroom Classic)": "Флаг Pick в Adobe Lightroom Classic хранится исключительно внутри базы каталога (.lrcat) и не имеет официального тега в спецификации XMP Adobe. Nikon Z Bridge транслирует Pick в xmp:Label='Pick' и photoshop:Urgency='1'.",
+        "Pick / Flag (Lightroom Classic)": "Флаг Pick в Adobe Lightroom Classic хранится исключительно внутри базы каталога (.lrcat) и не имеет официального тега в спецификации XMP Adobe. Z-Bridge транслирует Pick в xmp:Label='Pick' и photoshop:Urgency='1'.",
         "Reject (ACR / darktable)": "Отклонённые кадры помечаются тегом xmp:Rating='-1' и xmp:Label='Reject'. Нативно открываются в Adobe Camera Raw, Adobe Bridge и darktable.",
         "Capture One Color Tags": "Capture One транслирует xmp:Label='Pick' в цветовой тег Color Tag Green/Pick."
     ]
@@ -186,7 +186,7 @@ public struct XMPCompatibilityGuide: Sendable {
     
     ### 2. Отметка отбора (Pick / Белый флаг) — Ограничение Adobe Lightroom
     - В **Adobe Lightroom Classic** флаг отбора (Pick) является **внутренним свойством каталога (.lrcat)**. Компания Adobe никогда не включала белый флаг в спецификацию открытого стандарта XMP.
-    - **Решение Nikon Z Bridge**:
+    - **Решение Z-Bridge**:
       - При установке отметки «Отобран» (Pick, клавиша P) в XMP записываются стандартные теги:
         `xmp:Label="Pick"`
         `photoshop:Urgency="1"`
@@ -195,7 +195,7 @@ public struct XMPCompatibilityGuide: Sendable {
     
     ### 3. Отклоненный снимок (Reject / Черный флаг)
     - В **Adobe Camera Raw, Adobe Bridge и darktable** отклоненный кадр обозначается значением `xmp:Rating="-1"`.
-    - Nikon Z Bridge записывает `xmp:Rating="-1"` и дублирует текстовую метку `xmp:Label="Reject"`.
+    - Z-Bridge записывает `xmp:Rating="-1"` и дублирует текстовую метку `xmp:Label="Reject"`.
     
     ### 4. Соглашение по именам файлов XMP
     - **DSC_0001.xmp (по умолчанию)**: стандарт Adobe Lightroom, ACR, Bridge, Capture One.
