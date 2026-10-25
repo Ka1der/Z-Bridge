@@ -747,7 +747,7 @@ public struct CameraSectionView: View {
                 HStack {
                     Image(systemName: "checklist")
                         .foregroundStyle(AppTheme.Colors.accent)
-                    Text("Таблица совместимости моделей и форматов XMP...")
+                    Text(tr("Список поддерживаемых камер", "Supported Cameras List"))
                         .font(AppTheme.Typography.captionBold)
                         .foregroundStyle(AppTheme.Colors.textPrimary)
                     Spacer()
