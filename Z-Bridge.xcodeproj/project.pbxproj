@@ -17,6 +17,7 @@
 		77D0068392EF58B764551411 /* CameraSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF02 /* CameraSectionView.swift */; };
 		77D0068392EF58B764551412 /* SettingsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF04 /* SettingsSectionView.swift */; };
 		77D0068392EF58B764551413 /* LocalizationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF05 /* LocalizationManager.swift */; };
+		77D0068392EF58B764551499 /* AppFontSizeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470898F50416704B96D9AF99 /* AppFontSizeManager.swift */; };
 		A9B1000120261025B1000001 /* BluetoothCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B1000220261025B1000001 /* BluetoothCameraManager.swift */; };
 		A9B1000120261025B1000002 /* BluetoothCameraModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B1000220261025B1000002 /* BluetoothCameraModels.swift */; };
 		A9B1000120261112E0000001 /* PhotoEXIFData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B1000220261112E0000001 /* PhotoEXIFData.swift */; };
@@ -101,6 +102,7 @@
 		470898F50416704B96D9AF02 /* CameraSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSectionView.swift; sourceTree = "<group>"; };
 		470898F50416704B96D9AF04 /* SettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSectionView.swift; sourceTree = "<group>"; };
 		470898F50416704B96D9AF05 /* LocalizationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationManager.swift; sourceTree = "<group>"; };
+		470898F50416704B96D9AF99 /* AppFontSizeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFontSizeManager.swift; sourceTree = "<group>"; };
 		A9B1000220261025B1000001 /* BluetoothCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothCameraManager.swift; sourceTree = "<group>"; };
 		A9B1000220261025B1000002 /* BluetoothCameraModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothCameraModels.swift; sourceTree = "<group>"; };
 		A9B1000220261112E0000001 /* PhotoEXIFData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEXIFData.swift; sourceTree = "<group>"; };
@@ -262,6 +264,7 @@
 			children = (
 				A9B1000320261025B1000001 /* Bluetooth */,
 				470898F50416704B96D9AF05 /* LocalizationManager.swift */,
+				470898F50416704B96D9AF99 /* AppFontSizeManager.swift */,
 				A2D4A6CE93A6FD90D2BCA5CB /* ClientMonitor */,
 				2119A00A3FE19AA03103A13E /* Coordinator */,
 				D6623214B42406E71350F344 /* Database */,
@@ -539,6 +542,7 @@
 				77D0068392EF58B764551411 /* CameraSectionView.swift in Sources */,
 				77D0068392EF58B764551412 /* SettingsSectionView.swift in Sources */,
 				77D0068392EF58B764551413 /* LocalizationManager.swift in Sources */,
+				77D0068392EF58B764551499 /* AppFontSizeManager.swift in Sources */,
 				A9B1000120261025B1000001 /* BluetoothCameraManager.swift in Sources */,
 				A9B1000120261025B1000002 /* BluetoothCameraModels.swift in Sources */,
 				A9B1000120261112E0000001 /* PhotoEXIFData.swift in Sources */,

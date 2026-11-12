@@ -33,6 +33,7 @@ public struct USBCameraBrowserView: View {
     private var viewModeBinding: Binding<CameraBrowserViewMode> {
         Binding(get: { viewMode }, set: { viewMode = $0 })
     }
+    @ObservedObject private var fontManager = AppFontSizeManager.shared
     @State private var localSelectedFileIDs: Set<String> = []
     private var sharedSelectedFileIDs: Binding<Set<String>>?
     private var selectedFileIDs: Set<String> {
@@ -1435,7 +1436,7 @@ public struct USBCameraBrowserView: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 10)
-        .frame(width: AppTheme.isRunningOnMac ? 186 : 176)
+        .frame(width: max(176, (AppTheme.isRunningOnMac ? 186 : 176) + fontManager.fontOffset * 4))
         .background(
             Color(red: 18/255.0, green: 20/255.0, blue: 24/255.0).opacity(0.70)
                 .background(.ultraThinMaterial)
@@ -1638,7 +1639,7 @@ public struct USBCameraBrowserView: View {
             // Центральная область большого кадра
             ZStack {
                 if let item = activeFile {
-                    let rightDockW: CGFloat = AppTheme.isRunningOnMac ? 186 : 176
+                    let rightDockW: CGFloat = max(176, (AppTheme.isRunningOnMac ? 186 : 176) + fontManager.fontOffset * 4)
                     let availWidth = max(geometry.size.width - rightDockW, 320)
                     let availHeight = max(geometry.size.height - 150, 200)
                     let imageSize = fittedImageSize(for: item, in: CGSize(width: availWidth, height: availHeight))

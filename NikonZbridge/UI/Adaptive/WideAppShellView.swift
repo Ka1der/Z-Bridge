@@ -7,6 +7,7 @@ import SwiftUI
 /// - Полноэкранная рабочая зона без лишних статических полос.
 public struct WideAppShellView: View {
     @ObservedObject var appState: AppState
+    @ObservedObject private var fontManager = AppFontSizeManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     
     public init(appState: AppState) {
@@ -18,7 +19,7 @@ public struct WideAppShellView: View {
             // 1. Боковая панель навигации (Pro Slim Rail)
             if !appState.isSidebarCollapsed {
                 proSidebarRail
-                    .frame(width: AppTheme.isRunningOnMac ? 108 : 96)
+                    .frame(width: max(96, (AppTheme.isRunningOnMac ? 108 : 96) + fontManager.fontOffset * 2))
                     .background(
                         Color(red: 20/255.0, green: 22/255.0, blue: 27/255.0).opacity(0.85)
                             .background(.ultraThinMaterial)

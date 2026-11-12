@@ -6,6 +6,7 @@ import SwiftUI
 public struct SettingsSectionView: View {
     @ObservedObject var appState: AppState
     @ObservedObject private var locManager = LocalizationManager.shared
+    @ObservedObject private var fontManager = AppFontSizeManager.shared
     
     @State private var isCacheClearedNoticePresented: Bool = false
     @State private var isMatrixPresented: Bool = false
@@ -23,7 +24,10 @@ public struct SettingsSectionView: View {
                 // 2. Блок выбора языка интерфейса
                 languageSelectionCard
                 
-                // 3. Блок параметров импорта и съемки в реальном времени (live tethering)
+                // 3. Блок масштаба шрифта и интерфейса
+                fontSizeSelectionCard
+                
+                // 4. Блок параметров импорта и съемки в реальном времени (live tethering)
                 importParametersCard
                 
                 // 4. Блок кэша и хранилища
@@ -130,6 +134,94 @@ public struct SettingsSectionView: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
+                .background(Color.white.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+            }
+            .padding(AppTheme.Spacing.md)
+        }
+    }
+    
+    // MARK: - 2.1 Масштаб шрифта и элементов интерфейса
+    
+    private var fontSizeSelectionCard: some View {
+        GlassCard(cornerRadius: AppTheme.Radius.lg) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    Image(systemName: "textformat.size")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(AppTheme.Colors.accent)
+                    
+                    Text(tr("Размер шрифта и интерфейса", "Font & Interface Size"))
+                        .font(AppTheme.Typography.headline)
+                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                    
+                    Spacer()
+                }
+                
+                Text(tr(
+                    "Масштаб текста, кнопок и информационных панелей в приложении.",
+                    "Scale of text, buttons, and informational panels across the app."
+                ))
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(AppTheme.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                
+                // Переключатель масштаба шрифта
+                Picker(tr("Размер", "Size"), selection: $fontManager.selectedOption) {
+                    ForEach(AppFontSizeOption.allCases) { opt in
+                        Text(opt.displayName).tag(opt)
+                    }
+                }
+                .pickerStyle(.segmented)
+                
+                // Интерактивное превью выбранного размера шрифта
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        // Пример статусной пилюли камеры
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(AppTheme.Colors.accent)
+                                .frame(width: 8, height: 8)
+                            Text("Z5_2")
+                                .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
+                                .foregroundStyle(Color.white)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.08))
+                        .clipShape(Capsule())
+                        
+                        // Бейдж формата
+                        Text("RAW")
+                            .font(.system(size: AppTheme.macFontSize(8, macAdd: 2), weight: .black, design: .monospaced))
+                            .foregroundStyle(Color.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.85))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                        
+                        // Пример статуса
+                        Text(tr("Новый", "New"))
+                            .font(.system(size: AppTheme.macFontSize(10, macAdd: 2), weight: .bold))
+                            .foregroundStyle(Color.white.opacity(0.65))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(Capsule())
+                        
+                        Spacer()
+                    }
+                    
+                    Text(tr(
+                        "Пример: KAI_1334.NEF • 14 MB • 1/250s f/2.8 ISO 100",
+                        "Sample: KAI_1334.NEF • 14 MB • 1/250s f/2.8 ISO 100"
+                    ))
+                    .font(AppTheme.Typography.subheadline)
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .lineLimit(1)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
                 .background(Color.white.opacity(0.04))
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
             }

@@ -14,6 +14,7 @@ import SwiftUI
 public struct AdaptiveAppShellView: View {
     @StateObject private var appState: AppState
     @ObservedObject private var locManager = LocalizationManager.shared
+    @ObservedObject private var fontManager = AppFontSizeManager.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     
@@ -41,9 +42,9 @@ public struct AdaptiveAppShellView: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .id(locManager.activeLanguage.rawValue)
+            .id("shell-\(locManager.activeLanguage.rawValue)-\(fontManager.selectedOption.rawValue)")
             .environment(\.locale, Locale(identifier: locManager.activeLanguage.rawValue))
-            .dynamicTypeSize(AppTheme.isRunningOnMac ? .xLarge : dynamicTypeSize)
+            .dynamicTypeSize(fontManager.resolvedDynamicTypeSize(isMac: AppTheme.isRunningOnMac))
         }
         .background(AppTheme.Colors.background.ignoresSafeArea())
         // MARK: - Централизованные модальные окна (сохраняются при вращении и ресайзе)

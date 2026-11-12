@@ -194,8 +194,11 @@ public enum AppTheme {
         /// Высота стандартных кнопок действий
         public static let buttonHeight: CGFloat = 44
         
-        /// Высота компактных кнопок и чипов
-        public static let compactControlHeight: CGFloat = 36
+        /// Высота компактных кнопок и чипов с учетом пользовательского масштаба
+        public static var compactControlHeight: CGFloat {
+            let base: CGFloat = isRunningOnMac ? 38 : 36
+            return base + max(0, AppFontSizeManager.shared.fontOffset)
+        }
         
         /// Стандартная толщина контура
         public static let borderWidth: CGFloat = 1.0
@@ -219,70 +222,76 @@ public enum AppTheme {
         #endif
     }
     
-    /// Адаптивный размер шрифта с автоматической прибавкой для macOS (где iPad-пиксели рендерятся визуально мельче)
+    /// Адаптивный размер шрифта с автоматической прибавкой для macOS и пользовательским масштабом
     public static func macFontSize(_ baseSize: CGFloat, macAdd: CGFloat = 2.0) -> CGFloat {
-        isRunningOnMac ? (baseSize + macAdd) : baseSize
+        let baseWithPlatform = isRunningOnMac ? (baseSize + macAdd) : baseSize
+        let result = baseWithPlatform + AppFontSizeManager.shared.fontOffset
+        return max(8, result)
     }
     
     // MARK: - 5. Типографика (Typography)
     
     public enum Typography {
+        private static var offset: CGFloat {
+            AppFontSizeManager.shared.fontOffset
+        }
+        
         public static var largeTitle: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 38, weight: .bold) : Font.largeTitle.bold()
+            Font.system(size: max(16, (AppTheme.isRunningOnMac ? 38 : 34) + offset), weight: .bold)
         }
         public static var title1: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 30, weight: .bold) : Font.title.bold()
+            Font.system(size: max(15, (AppTheme.isRunningOnMac ? 30 : 28) + offset), weight: .bold)
         }
         public static var title2: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 24, weight: .bold) : Font.title2.bold()
+            Font.system(size: max(14, (AppTheme.isRunningOnMac ? 24 : 22) + offset), weight: .bold)
         }
         public static var title3: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 21, weight: .bold) : Font.title3.bold()
+            Font.system(size: max(13, (AppTheme.isRunningOnMac ? 21 : 20) + offset), weight: .bold)
         }
         
         public static var headline: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 18, weight: .semibold) : Font.headline
+            Font.system(size: max(12, (AppTheme.isRunningOnMac ? 18 : 17) + offset), weight: .semibold)
         }
         public static var subheadline: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 16, weight: .regular) : Font.subheadline
+            Font.system(size: max(11, (AppTheme.isRunningOnMac ? 16 : 15) + offset), weight: .regular)
         }
         public static var subheadlineBold: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 16, weight: .bold) : Font.subheadline.bold()
+            Font.system(size: max(11, (AppTheme.isRunningOnMac ? 16 : 15) + offset), weight: .bold)
         }
         
         public static var body: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 18, weight: .regular) : Font.body
+            Font.system(size: max(12, (AppTheme.isRunningOnMac ? 18 : 17) + offset), weight: .regular)
         }
         public static var bodyBold: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 18, weight: .bold) : Font.body.bold()
+            Font.system(size: max(12, (AppTheme.isRunningOnMac ? 18 : 17) + offset), weight: .bold)
         }
         
         public static var callout: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 17, weight: .regular) : Font.callout
+            Font.system(size: max(11, (AppTheme.isRunningOnMac ? 17 : 16) + offset), weight: .regular)
         }
         public static var footnote: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 14.5, weight: .regular) : Font.footnote
+            Font.system(size: max(10, (AppTheme.isRunningOnMac ? 14.5 : 13) + offset), weight: .regular)
         }
         
         public static var caption: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 13.5, weight: .regular) : Font.caption
+            Font.system(size: max(9, (AppTheme.isRunningOnMac ? 13.5 : 12) + offset), weight: .regular)
         }
         public static var captionBold: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 13.5, weight: .bold) : Font.caption.bold()
+            Font.system(size: max(9, (AppTheme.isRunningOnMac ? 13.5 : 12) + offset), weight: .bold)
         }
         public static var caption2: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 12.5, weight: .regular) : Font.caption2
+            Font.system(size: max(8, (AppTheme.isRunningOnMac ? 12.5 : 11) + offset), weight: .regular)
         }
         public static var caption2Bold: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 12.5, weight: .bold) : Font.caption2.bold()
+            Font.system(size: max(8, (AppTheme.isRunningOnMac ? 12.5 : 11) + offset), weight: .bold)
         }
         
         /// Моноширинный шрифт для IP, портов, скорости и метрик
         public static var code: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 13.5, weight: .regular, design: .monospaced) : Font.system(.caption, design: .monospaced)
+            Font.system(size: max(9, (AppTheme.isRunningOnMac ? 13.5 : 12) + offset), weight: .regular, design: .monospaced)
         }
         public static var metricNumber: Font {
-            AppTheme.isRunningOnMac ? Font.system(size: 23, weight: .bold, design: .default).monospacedDigit() : Font.system(.title3, design: .default, weight: .bold).monospacedDigit()
+            Font.system(size: max(14, (AppTheme.isRunningOnMac ? 23 : 20) + offset), weight: .bold, design: .default).monospacedDigit()
         }
     }
     
