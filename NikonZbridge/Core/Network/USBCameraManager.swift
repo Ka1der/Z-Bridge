@@ -300,6 +300,68 @@ public final class USBCameraManager: NSObject, ObservableObject, @preconcurrency
         }
     }
     
+    /// Кэш метаданных EXIF для файлов с карты памяти
+    private let exifMetadataCache = NSCache<NSString, NSDictionary>()
+    
+    /// Запрос метаданных EXIF для файла на камере или на локальном накопителе
+    public func requestEXIFMetadata(for item: CameraFileItem) async -> [String: Any]? {
+        let cacheKey = item.id as NSString
+        if let cached = exifMetadataCache.object(forKey: cacheKey) as? [String: Any] {
+            return cached
+        }
+        
+        // 1. Если файл уже скачан локально
+        if let localURL = await getLocalFileURL(for: item) {
+            if let exif = RAWPreviewExtractor.extractEXIFMetadata(from: localURL) {
+                exifMetadataCache.setObject(exif as NSDictionary, forKey: cacheKey)
+                return exif
+            }
+        }
+        
+        guard let file = item.cameraFile ?? cameraFileMap[item.id] else { return nil }
+        
+        // 2. Если у ICCameraFile уже есть метаданные в памяти
+        if let cachedMeta = file.metadata as? [String: Any], !cachedMeta.isEmpty {
+            exifMetadataCache.setObject(cachedMeta as NSDictionary, forKey: cacheKey)
+            return cachedMeta
+        }
+        
+        // 3. Запрос метаданных через ImageCaptureCore API
+        let metaResult: [String: Any]? = await withCheckedContinuation { continuation in
+            file.requestMetadataDictionary(options: nil) { metadata, error in
+                if let metadata = metadata as? [String: Any], !metadata.isEmpty {
+                    continuation.resume(returning: metadata)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+        
+        if let metaResult = metaResult {
+            exifMetadataCache.setObject(metaResult as NSDictionary, forKey: cacheKey)
+            return metaResult
+        }
+        
+        // 4. Запасной вариант: извлечение EXIF из заголовка встроенного JPEG-превью
+        let thumbResult: [String: Any]? = await withCheckedContinuation { continuation in
+            file.requestThumbnailData(options: nil) { data, error in
+                guard let data = data, error == nil,
+                      let props = RAWPreviewExtractor.extractEXIFMetadata(from: data) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: props)
+            }
+        }
+        
+        if let thumbResult = thumbResult {
+            exifMetadataCache.setObject(thumbResult as NSDictionary, forKey: cacheKey)
+            return thumbResult
+        }
+        
+        return nil
+    }
+    
     // MARK: - CameraTransport Protocol (Pull & Retry)
     
     public func requestDownload(fileID: String, into job: TransferJob) async throws {

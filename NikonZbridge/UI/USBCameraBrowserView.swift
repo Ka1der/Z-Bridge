@@ -47,6 +47,7 @@ public struct USBCameraBrowserView: View {
     @State private var isExportingToPhotos: Bool = false
     @State private var photosSaveToast: String? = nil
     @State private var isPhotosPermissionAlertPresented: Bool = false
+    @State private var isEXIFSheetPresented: Bool = false
     
     // Интерактивная 100% Zoom лупа
     @State private var isZoomLoupeEnabled: Bool = false
@@ -214,9 +215,13 @@ public struct USBCameraBrowserView: View {
     }
     
     private func selectNextFile() {
+        guard !filteredFiles.isEmpty else { return }
         guard let current = activeFile,
-              let idx = filteredFiles.firstIndex(where: { $0.id == current.id }),
-              idx + 1 < filteredFiles.count else { return }
+              let idx = filteredFiles.firstIndex(where: { $0.id == current.id }) else {
+            activeFileID = filteredFiles.first?.id
+            return
+        }
+        guard idx + 1 < filteredFiles.count else { return }
         slideDirection = .forward
         withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
             activeFileID = filteredFiles[idx + 1].id
@@ -224,9 +229,13 @@ public struct USBCameraBrowserView: View {
     }
     
     private func selectPreviousFile() {
+        guard !filteredFiles.isEmpty else { return }
         guard let current = activeFile,
-              let idx = filteredFiles.firstIndex(where: { $0.id == current.id }),
-              idx > 0 else { return }
+              let idx = filteredFiles.firstIndex(where: { $0.id == current.id }) else {
+            activeFileID = filteredFiles.first?.id
+            return
+        }
+        guard idx > 0 else { return }
         slideDirection = .backward
         withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
             activeFileID = filteredFiles[idx - 1].id
@@ -497,6 +506,43 @@ public struct USBCameraBrowserView: View {
             } else {
                 loadHighResPreviewIfNeeded(for: activeFile)
             }
+        }
+        .sheet(isPresented: $isEXIFSheetPresented) {
+            if let item = activeFile {
+                PhotoEXIFSheetView(item: item, usbManager: usbManager)
+            }
+        }
+        .background(
+            ZStack {
+                Button("") { selectPreviousFile() }
+                    .keyboardShortcut(.leftArrow, modifiers: [])
+                Button("") { selectNextFile() }
+                    .keyboardShortcut(.rightArrow, modifiers: [])
+                Button("") { selectPreviousFile() }
+                    .keyboardShortcut(.upArrow, modifiers: [])
+                Button("") { selectNextFile() }
+                    .keyboardShortcut(.downArrow, modifiers: [])
+            }
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .allowsHitTesting(false)
+        )
+        .focusable()
+        .onKeyPress(.leftArrow) {
+            selectPreviousFile()
+            return .handled
+        }
+        .onKeyPress(.rightArrow) {
+            selectNextFile()
+            return .handled
+        }
+        .onKeyPress(.upArrow) {
+            selectPreviousFile()
+            return .handled
+        }
+        .onKeyPress(.downArrow) {
+            selectNextFile()
+            return .handled
         }
     }
     
@@ -799,6 +845,10 @@ public struct USBCameraBrowserView: View {
                 
                 clientMonitorPillButton
                 
+                if activeFile != nil {
+                    exifPillButton
+                }
+                
                 viewModePicker
                 
                 selectionMenu
@@ -809,6 +859,10 @@ public struct USBCameraBrowserView: View {
                 
                 HStack(spacing: 10) {
                     clientMonitorPillButton
+                    
+                    if activeFile != nil {
+                        exifPillButton
+                    }
                     
                     viewModePicker
                     
@@ -838,6 +892,25 @@ public struct USBCameraBrowserView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(tr("Открыть клиентский экран", "Open Client Monitor"))
         }
+    }
+    
+    private var exifPillButton: some View {
+        Button {
+            isEXIFSheetPresented = true
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 11, weight: .bold))
+                Text("EXIF")
+                    .font(.system(size: 11, weight: .bold))
+            }
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .glassPill()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(tr("Сведения EXIF", "EXIF Data"))
     }
     
     private var formatFilterPicker: some View {
@@ -1055,6 +1128,10 @@ public struct USBCameraBrowserView: View {
                     
                     clientMonitorPillButton
                     
+                    if activeFile != nil {
+                        exifPillButton
+                    }
+                    
                     selectionMenu
                 }
                 .padding(.horizontal, 16)
@@ -1249,6 +1326,8 @@ public struct USBCameraBrowserView: View {
                         
                         clientMonitorPillButton
                         
+                        exifPillButton
+                        
                         // Кнопка включения/выключения 100% Zoom лупы
                         Button {
                             withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
@@ -1416,9 +1495,9 @@ public struct USBCameraBrowserView: View {
                             )
                         }
                         
-                        // Верхний левый угол картинки: бейдж RAW в точности по референсу iPad
+                        // Верхний левый угол картинки: бейдж RAW и кнопка EXIF
                         VStack {
-                            HStack {
+                            HStack(spacing: 8) {
                                 Text(item.isRAW ? "RAW" : "JPEG")
                                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                                     .foregroundStyle(Color.white)
@@ -1433,26 +1512,38 @@ public struct USBCameraBrowserView: View {
                                         RoundedRectangle(cornerRadius: 6)
                                             .stroke(Color.white.opacity(0.15), lineWidth: 1)
                                     )
-                                    .padding(.leading, 28)
-                                    .padding(.top, 16)
+                                
+                                Button {
+                                    isEXIFSheetPresented = true
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "info.circle")
+                                            .font(.system(size: 11, weight: .bold))
+                                        Text("EXIF")
+                                            .font(.system(size: 11, weight: .bold))
+                                    }
+                                    .foregroundStyle(Color.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(Color.black.opacity(0.65))
+                                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(tr("Сведения EXIF", "EXIF Data"))
                                 
                                 Spacer()
                             }
+                            .padding(.leading, 28)
+                            .padding(.top, 16)
+                            
                             Spacer()
-                        }
-                        
-                        // Плавающий стеклянный HUD по центру (согласно референсу iPad)
-                        VStack {
-                            Spacer()
-                            CameraStatusHUDView(
-                                cameraName: usbManager.cameraName ?? "Nikon Z",
-                                batteryLevel: 87,
-                                shutterSpeed: "1/250s",
-                                aperture: "f/2.8",
-                                iso: "100",
-                                isConnected: usbManager.isConnected
-                            )
-                            .padding(.bottom, 24)
                         }
                         
                         // Стрелки навигации
@@ -1585,6 +1676,10 @@ public struct USBCameraBrowserView: View {
                     Spacer()
                     
                     clientMonitorPillButton
+                    
+                    if activeFile != nil {
+                        exifPillButton
+                    }
                     
                     selectionMenu
                 }

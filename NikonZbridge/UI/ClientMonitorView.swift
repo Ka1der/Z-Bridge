@@ -114,6 +114,42 @@ public struct ClientMonitorView: View {
         .sheet(isPresented: $isSettingsSheetPresented) {
             ClientMonitorControlSheet(monitorManager: monitorManager, appState: appState)
         }
+        .background(
+            ZStack {
+                Button("") { goToPrevious(); resetHideTimer() }
+                    .keyboardShortcut(.leftArrow, modifiers: [])
+                Button("") { goToNext(); resetHideTimer() }
+                    .keyboardShortcut(.rightArrow, modifiers: [])
+                Button("") { goToPrevious(); resetHideTimer() }
+                    .keyboardShortcut(.upArrow, modifiers: [])
+                Button("") { goToNext(); resetHideTimer() }
+                    .keyboardShortcut(.downArrow, modifiers: [])
+            }
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .allowsHitTesting(false)
+        )
+        .focusable()
+        .onKeyPress(.leftArrow) {
+            goToPrevious()
+            resetHideTimer()
+            return .handled
+        }
+        .onKeyPress(.rightArrow) {
+            goToNext()
+            resetHideTimer()
+            return .handled
+        }
+        .onKeyPress(.upArrow) {
+            goToPrevious()
+            resetHideTimer()
+            return .handled
+        }
+        .onKeyPress(.downArrow) {
+            goToNext()
+            resetHideTimer()
+            return .handled
+        }
         #if os(iOS)
         .statusBarHidden(true)
         #endif

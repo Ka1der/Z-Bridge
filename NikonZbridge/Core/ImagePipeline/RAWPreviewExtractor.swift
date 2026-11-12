@@ -70,9 +70,22 @@ public struct RAWPreviewExtractor: Sendable {
         return nil
     }
     
-    /// Извлечение метаданных EXIF (выдержка, диафрагма, ISO, фокусное расстояние)
+    /// Извлечение метаданных EXIF (выдержка, диафрагма, ISO, фокусное расстояние) из файла на диске
     public static func extractEXIFMetadata(from url: URL) -> [String: Any]? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            return nil
+        }
+        
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] else {
+            return nil
+        }
+        
+        return properties
+    }
+    
+    /// Извлечение метаданных EXIF из буфера памяти Data (например, JPEG-превью)
+    public static func extractEXIFMetadata(from data: Data) -> [String: Any]? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
             return nil
         }
         
