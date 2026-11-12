@@ -50,6 +50,10 @@ public struct USBCameraBrowserView: View {
     @State private var isPhotosPermissionAlertPresented: Bool = false
     @State private var isEXIFSheetPresented: Bool = false
     
+    // Интерактивные выпадающие списки в правом доке (раскрытие вниз внутри окна)
+    @State private var isFormatDropdownExpanded: Bool = false
+    @State private var isSelectionDropdownExpanded: Bool = false
+    
     // Интерактивная 100% Zoom лупа
     @State private var isZoomLoupeEnabled: Bool = false
     @State private var loupeOffset: CGSize = .zero
@@ -884,6 +888,8 @@ public struct USBCameraBrowserView: View {
                         .font(.system(size: AppTheme.macFontSize(12, macAdd: 2), weight: .bold))
                     Text(tr("Клиент", "Client"))
                         .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, AppTheme.isRunningOnMac ? 16 : 14)
@@ -1315,6 +1321,7 @@ public struct USBCameraBrowserView: View {
                     .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
                     .foregroundStyle(Color.white)
                     .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 if stats.inProgressCount > 0 {
                     ProgressView()
                         .controlSize(.mini)
@@ -1365,6 +1372,7 @@ public struct USBCameraBrowserView: View {
                 Text(count > 0 ? tr("Скачать (\(count))", "Download (\(count))") : tr("Скачать", "Download"))
                     .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
                     .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .foregroundStyle(count > 0 ? AppTheme.Colors.onAccent : Color.white.opacity(0.70))
             .padding(.horizontal, AppTheme.isRunningOnMac ? 18 : 16)
@@ -1418,25 +1426,30 @@ public struct USBCameraBrowserView: View {
     
     // MARK: - Right Vertical Toolbar (Фильтрация, Выбор, Лупа, EXIF)
     
+    private var rightDockWidth: CGFloat {
+        let base: CGFloat = AppTheme.isRunningOnMac ? 214 : 194
+        return max(194, base + fontManager.fontOffset * 6)
+    }
+    
     private var rightVerticalToolBar: some View {
-        VStack(spacing: 10) {
-            // 1. Фильтрация
-            formatFilterVerticalButton
-            
-            // 2. Выбор
-            selectionMenuVerticalButton
-            
-            // 3. Лупа
-            loupeVerticalButton
-            
-            // 4. EXIF
-            exifVerticalButton
-            
-            Spacer()
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 10) {
+                // 1. Фильтрация (раскрытие выпадающим списком вниз в этом же окне)
+                formatFilterVerticalDropdown
+                
+                // 2. Выбор (раскрытие выпадающим списком вниз в этом же окне)
+                selectionMenuVerticalDropdown
+                
+                // 3. Лупа
+                loupeVerticalButton
+                
+                // 4. EXIF
+                exifVerticalButton
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 10)
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 10)
-        .frame(width: max(176, (AppTheme.isRunningOnMac ? 186 : 176) + fontManager.fontOffset * 4))
+        .frame(width: rightDockWidth)
         .background(
             Color(red: 18/255.0, green: 20/255.0, blue: 24/255.0).opacity(0.70)
                 .background(.ultraThinMaterial)
@@ -1449,116 +1462,286 @@ public struct USBCameraBrowserView: View {
         )
     }
     
-    // 1. Кнопка фильтрации в правой панели
-    private var formatFilterVerticalButton: some View {
-        Menu {
-            Picker(tr("Формат", "Format"), selection: formatFilterBinding) {
-                ForEach(CameraFileFormatFilter.allCases) { filter in
-                    Label(filter.menuTitle, systemImage: filter.iconName)
-                        .tag(filter)
+    // 1. Кнопка фильтрации в правой панели (раскрытие выпадающим списком вниз в этом же окне)
+    private var formatFilterVerticalDropdown: some View {
+        VStack(spacing: 4) {
+            Button {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                    isFormatDropdownExpanded.toggle()
+                    if isFormatDropdownExpanded {
+                        isSelectionDropdownExpanded = false
+                    }
                 }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: formatFilter.iconName)
+                        .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
+                        .foregroundStyle(formatFilter == .all ? Color.white.opacity(0.85) : AppTheme.Colors.accent)
+                        .frame(width: AppTheme.isRunningOnMac ? 20 : 18)
+                    
+                    Text(formatFilter.shortTitle)
+                        .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .semibold))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    
+                    Spacer(minLength: 4)
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: AppTheme.macFontSize(9, macAdd: 1.5), weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.60))
+                        .rotationEffect(.degrees(isFormatDropdownExpanded ? 180 : 0))
+                }
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity)
+                .frame(height: AppTheme.Dimensions.compactControlHeight)
+                .glassSurface(cornerRadius: 10, tint: (formatFilter != .all || isFormatDropdownExpanded) ? AppTheme.Colors.accent : nil)
             }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: formatFilter.iconName)
-                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
-                    .foregroundStyle(formatFilter == .all ? Color.white.opacity(0.85) : AppTheme.Colors.accent)
-                    .frame(width: AppTheme.isRunningOnMac ? 20 : 18)
-                
-                Text(formatFilter.shortTitle)
-                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .semibold))
-                    .foregroundStyle(Color.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                
-                Spacer(minLength: 4)
-                
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: AppTheme.macFontSize(9, macAdd: 1.5), weight: .bold))
-                    .foregroundStyle(Color.white.opacity(0.45))
+            .buttonStyle(.plain)
+            .accessibilityLabel(tr("Фильтр форматов", "Format Filter"))
+            
+            // Выпадающий список вниз в этом же окне
+            if isFormatDropdownExpanded {
+                VStack(spacing: 2) {
+                    ForEach(CameraFileFormatFilter.allCases) { filter in
+                        let isSelected = formatFilter == filter
+                        Button {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) {
+                                formatFilter = filter
+                                isFormatDropdownExpanded = false
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : filter.iconName)
+                                    .font(.system(size: AppTheme.macFontSize(11, macAdd: 1.5), weight: .bold))
+                                    .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.60))
+                                    .frame(width: 18)
+                                
+                                Text(filter.menuTitle)
+                                    .font(.system(size: AppTheme.macFontSize(12, macAdd: 1.5), weight: isSelected ? .bold : .medium))
+                                    .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+                                
+                                Spacer(minLength: 4)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(isSelected ? AppTheme.Colors.accent.opacity(0.16) : Color.white.opacity(0.04))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(5)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(red: 24/255.0, green: 26/255.0, blue: 32/255.0).opacity(0.95))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(AppTheme.Colors.accent.opacity(0.35), lineWidth: 1)
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity)
-            .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
-            .glassSurface(cornerRadius: 9, tint: formatFilter == .all ? nil : AppTheme.Colors.accent)
         }
-        .menuStyle(.borderlessButton)
-        .accessibilityLabel(tr("Фильтр форматов", "Format Filter"))
     }
     
-    // 2. Кнопка меню выбора в правой панели
-    private var selectionMenuVerticalButton: some View {
-        Menu {
-            if let item = activeFile {
-                Button {
-                    toggleSelect(item)
-                } label: {
-                    Label(
-                        selectedFileIDs.contains(item.id) ? tr("Снять с этого кадра", "Deselect This Photo") : tr("Выбрать этот кадр", "Select This Photo"),
-                        systemImage: selectedFileIDs.contains(item.id) ? "checkmark.circle.fill" : "circle"
-                    )
-                }
-                Divider()
-            }
-            
+    // 2. Кнопка меню выбора в правой панели (раскрытие выпадающим списком вниз в этом же окне)
+    private var selectionMenuVerticalDropdown: some View {
+        VStack(spacing: 4) {
             Button {
-                for f in filteredFiles where f.status == .notImported {
-                    selectedFileIDs.insert(f.id)
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                    isSelectionDropdownExpanded.toggle()
+                    if isSelectionDropdownExpanded {
+                        isFormatDropdownExpanded = false
+                    }
                 }
             } label: {
-                Label(tr("Выбрать все", "Select All"), systemImage: "checklist")
-            }
-            
-            Button {
-                selectedFileIDs.removeAll()
-                for f in usbManager.catalogFiles where f.isRAW && f.status == .notImported {
-                    selectedFileIDs.insert(f.id)
+                HStack(spacing: 8) {
+                    Image(systemName: "checklist")
+                        .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
+                        .foregroundStyle(selectedFileIDs.isEmpty ? Color.white : AppTheme.Colors.accent)
+                        .frame(width: AppTheme.isRunningOnMac ? 20 : 18)
+                    
+                    Text(selectedFileIDs.isEmpty ? tr("Выбор", "Select") : tr("Выбрано: \(selectedFileIDs.count)", "\(selectedFileIDs.count) sel."))
+                        .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .semibold))
+                        .foregroundStyle(selectedFileIDs.isEmpty ? Color.white : AppTheme.Colors.accent)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    
+                    Spacer(minLength: 4)
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: AppTheme.macFontSize(9, macAdd: 1.5), weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.60))
+                        .rotationEffect(.degrees(isSelectionDropdownExpanded ? 180 : 0))
                 }
-            } label: {
-                Label(tr("Только RAW", "RAW Only"), systemImage: "camera.fill")
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity)
+                .frame(height: AppTheme.Dimensions.compactControlHeight)
+                .glassSurface(cornerRadius: 10, tint: (!selectedFileIDs.isEmpty || isSelectionDropdownExpanded) ? AppTheme.Colors.accent : nil)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(tr("Меню выбора", "Selection Menu"))
             
-            Button {
-                selectedFileIDs.removeAll()
-                for f in usbManager.catalogFiles where !f.isRAW && f.status == .notImported {
-                    selectedFileIDs.insert(f.id)
+            // Выпадающий список вниз в этом же окне
+            if isSelectionDropdownExpanded {
+                VStack(spacing: 2) {
+                    if let item = activeFile {
+                        let isThisSelected = selectedFileIDs.contains(item.id)
+                        Button {
+                            toggleSelect(item)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: isThisSelected ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: AppTheme.macFontSize(11, macAdd: 1.5), weight: .bold))
+                                    .foregroundStyle(isThisSelected ? AppTheme.Colors.accent : Color.white.opacity(0.60))
+                                    .frame(width: 18)
+                                Text(isThisSelected ? tr("Снять с этого", "Deselect this") : tr("Выбрать этот кадр", "Select this photo"))
+                                    .font(.system(size: AppTheme.macFontSize(12, macAdd: 1.5), weight: .medium))
+                                    .foregroundStyle(Color.white)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+                                Spacer(minLength: 4)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Divider()
+                            .background(Color.white.opacity(0.12))
+                            .padding(.vertical, 1)
+                    }
+                    
+                    Button {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) {
+                            for f in filteredFiles where f.status == .notImported {
+                                selectedFileIDs.insert(f.id)
+                            }
+                            isSelectionDropdownExpanded = false
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checklist")
+                                .font(.system(size: AppTheme.macFontSize(11, macAdd: 1.5), weight: .bold))
+                                .foregroundStyle(AppTheme.Colors.accent)
+                                .frame(width: 18)
+                            Text(tr("Выбрать все", "Select All"))
+                                .font(.system(size: AppTheme.macFontSize(12, macAdd: 1.5), weight: .medium))
+                                .foregroundStyle(Color.white)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                            Spacer(minLength: 4)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) {
+                            selectedFileIDs.removeAll()
+                            for f in usbManager.catalogFiles where f.isRAW && f.status == .notImported {
+                                selectedFileIDs.insert(f.id)
+                            }
+                            isSelectionDropdownExpanded = false
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: AppTheme.macFontSize(11, macAdd: 1.5), weight: .bold))
+                                .foregroundStyle(Color.purple)
+                                .frame(width: 18)
+                            Text(tr("Только RAW", "RAW Only"))
+                                .font(.system(size: AppTheme.macFontSize(12, macAdd: 1.5), weight: .medium))
+                                .foregroundStyle(Color.white)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                            Spacer(minLength: 4)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) {
+                            selectedFileIDs.removeAll()
+                            for f in usbManager.catalogFiles where !f.isRAW && f.status == .notImported {
+                                selectedFileIDs.insert(f.id)
+                            }
+                            isSelectionDropdownExpanded = false
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "photo")
+                                .font(.system(size: AppTheme.macFontSize(11, macAdd: 1.5), weight: .bold))
+                                .foregroundStyle(Color.blue)
+                                .frame(width: 18)
+                            Text(tr("Только JPEG", "JPEG Only"))
+                                .font(.system(size: AppTheme.macFontSize(12, macAdd: 1.5), weight: .medium))
+                                .foregroundStyle(Color.white)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                            Spacer(minLength: 4)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    if !selectedFileIDs.isEmpty {
+                        Divider()
+                            .background(Color.white.opacity(0.12))
+                            .padding(.vertical, 1)
+                        
+                        Button {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) {
+                                selectedFileIDs.removeAll()
+                                isSelectionDropdownExpanded = false
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "xmark.circle")
+                                    .font(.system(size: AppTheme.macFontSize(11, macAdd: 1.5), weight: .bold))
+                                    .foregroundStyle(AppTheme.Colors.statusRed)
+                                    .frame(width: 18)
+                                Text(tr("Снять выбор", "Deselect All"))
+                                    .font(.system(size: AppTheme.macFontSize(12, macAdd: 1.5), weight: .semibold))
+                                    .foregroundStyle(AppTheme.Colors.statusRed)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+                                Spacer(minLength: 4)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.Colors.statusRed.opacity(0.12)))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-            } label: {
-                Label(tr("Только JPEG", "JPEG Only"), systemImage: "photo")
+                .padding(5)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(red: 24/255.0, green: 26/255.0, blue: 32/255.0).opacity(0.95))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(AppTheme.Colors.accent.opacity(0.35), lineWidth: 1)
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            
-            Divider()
-            
-            Button(role: .destructive) {
-                selectedFileIDs.removeAll()
-            } label: {
-                Label(tr("Снять выбор", "Deselect All"), systemImage: "xmark.circle")
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "checklist")
-                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
-                    .frame(width: AppTheme.isRunningOnMac ? 20 : 18)
-                
-                Text(selectedFileIDs.isEmpty ? tr("Выбор", "Select") : tr("Выбрано: \(selectedFileIDs.count)", "\(selectedFileIDs.count) sel."))
-                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                
-                Spacer(minLength: 4)
-                
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: AppTheme.macFontSize(9, macAdd: 1.5), weight: .bold))
-                    .foregroundStyle(Color.white.opacity(0.45))
-            }
-            .foregroundStyle(selectedFileIDs.isEmpty ? Color.white : AppTheme.Colors.accent)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity)
-            .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
-            .glassSurface(cornerRadius: 9, tint: selectedFileIDs.isEmpty ? nil : AppTheme.Colors.accent)
         }
-        .menuStyle(.borderlessButton)
-        .accessibilityLabel(tr("Меню выбора", "Selection Menu"))
     }
     
     // 3. Кнопка лупы в правой панели
@@ -1580,15 +1763,16 @@ public struct USBCameraBrowserView: View {
                     Text(tr("Лупа", "Loupe"))
                         .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .semibold))
                         .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     Spacer()
                 }
                 .foregroundStyle(isZoomLoupeEnabled ? AppTheme.Colors.onAccent : Color.white)
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
-                .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
+                .frame(height: AppTheme.Dimensions.compactControlHeight)
                 .background(isZoomLoupeEnabled ? AppTheme.Colors.accent : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 9))
-                .glassSurface(cornerRadius: 9, tint: isZoomLoupeEnabled ? AppTheme.Colors.accent : nil)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .glassSurface(cornerRadius: 10, tint: isZoomLoupeEnabled ? AppTheme.Colors.accent : nil)
             }
             .buttonStyle(.plain)
             
@@ -1599,8 +1783,8 @@ public struct USBCameraBrowserView: View {
                     Text(loupeZoomLabel)
                         .font(.system(size: AppTheme.macFontSize(11, macAdd: 1.5), weight: .bold, design: .monospaced))
                         .foregroundStyle(Color.white)
-                        .frame(width: AppTheme.isRunningOnMac ? 42 : 38, height: AppTheme.isRunningOnMac ? 38 : 36)
-                        .glassSurface(cornerRadius: 9)
+                        .frame(width: AppTheme.isRunningOnMac ? 46 : 38, height: AppTheme.Dimensions.compactControlHeight)
+                        .glassSurface(cornerRadius: 10)
                 }
                 .buttonStyle(.plain)
                 .transition(.scale.combined(with: .opacity))
@@ -1619,13 +1803,15 @@ public struct USBCameraBrowserView: View {
                     .frame(width: AppTheme.isRunningOnMac ? 20 : 18)
                 Text(tr("EXIF", "EXIF"))
                     .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 Spacer()
             }
             .foregroundStyle(activeFile != nil ? Color.white : Color.white.opacity(0.35))
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
-            .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
-            .glassSurface(cornerRadius: 9)
+            .frame(height: AppTheme.Dimensions.compactControlHeight)
+            .glassSurface(cornerRadius: 10)
         }
         .buttonStyle(.plain)
         .disabled(activeFile == nil)
@@ -1639,8 +1825,7 @@ public struct USBCameraBrowserView: View {
             // Центральная область большого кадра
             ZStack {
                 if let item = activeFile {
-                    let rightDockW: CGFloat = max(176, (AppTheme.isRunningOnMac ? 186 : 176) + fontManager.fontOffset * 4)
-                    let availWidth = max(geometry.size.width - rightDockW, 320)
+                    let availWidth = max(geometry.size.width - rightDockWidth, 320)
                     let availHeight = max(geometry.size.height - 150, 200)
                     let imageSize = fittedImageSize(for: item, in: CGSize(width: availWidth, height: availHeight))
                     
