@@ -430,13 +430,13 @@ public struct USBCameraBrowserView: View {
                 } else if filteredFiles.isEmpty {
                     emptyStateView
                 } else {
-                    switch viewMode {
-                    case .list:
-                        modernCameraListView(geometry: geometry)
-                    case .gallery:
-                        if isWide {
-                            wideGalleryStudioView(geometry: geometry)
-                        } else {
+                    if isWide {
+                        wideDesktopLayoutView(geometry: geometry)
+                    } else {
+                        switch viewMode {
+                        case .list:
+                            modernCameraListView(geometry: geometry)
+                        case .gallery:
                             narrowStudioThumbZoneView(geometry: geometry)
                         }
                     }
@@ -1263,343 +1263,576 @@ public struct USBCameraBrowserView: View {
     }
 
     
-    // MARK: - 1. iPad Landscape / Wide Studio Layout (согласно референсу iPad)
+    // MARK: - 1. macOS / iPad Wide Unified Desktop Layout
     
-    private func wideGalleryStudioView(geometry: GeometryProxy) -> some View {
+    private func wideDesktopLayoutView(geometry: GeometryProxy) -> some View {
         ZStack {
             AppTheme.Colors.photoBackground
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Верхняя минималистичная плавающая панель инструментов
-                HStack {
-                    // Статус камеры
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(usbManager.isConnected ? AppTheme.Colors.accent : AppTheme.Colors.statusNeutral)
-                            .frame(width: 8, height: 8)
-                        Text(usbManager.cameraName ?? "Nikon Z")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(Color.white)
-                        if stats.inProgressCount > 0 {
-                            ProgressView()
-                                .controlSize(.mini)
+                // 1. Фиксированная верхняя панель инструментов
+                unifiedTopBar
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 8)
+                
+                // Тонкий разделитель Liquid Glass
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 1)
+                
+                // 2. Рабочая область контента + правая вертикальная панель инструментов
+                HStack(spacing: 0) {
+                    Group {
+                        switch viewMode {
+                        case .list:
+                            desktopListView(geometry: geometry)
+                        case .gallery:
+                            desktopStudioView(geometry: geometry)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .glassPill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     
+                    // Фиксированная вертикальная панель инструментов справа
+                    rightVerticalToolBar
+                }
+            }
+        }
+    }
+    
+    // MARK: - Unified Top Bar (macOS / iPad Desktop)
+    
+    private var unifiedTopBar: some View {
+        HStack(spacing: 12) {
+            // 1. Статус и название камеры
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(usbManager.isConnected ? AppTheme.Colors.accent : AppTheme.Colors.statusNeutral)
+                    .frame(width: 8, height: 8)
+                Text(usbManager.cameraName ?? "Nikon Z")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.white)
+                if stats.inProgressCount > 0 {
+                    ProgressView()
+                        .controlSize(.mini)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .glassPill()
+            
+            // 2. Переключатель список-студия (справа от названия камеры)
+            cameraViewModeSelector
+            
+            // 3. Кнопка "Скачать" (правее переключателя, серая и неактивная пока не выбрано фото)
+            topBarDownloadButton
+            
+            Spacer()
+            
+            // 4. Обновить каталог
+            refreshCatalogButton
+            
+            // 5. Клиентский монитор
+            clientMonitorPillButton
+        }
+    }
+    
+    // MARK: - Top Bar Download Button
+    
+    private var topBarDownloadButton: some View {
+        let count = selectedFileIDs.count
+        let isEnabled = count > 0 && !isExportingToPhotos
+        
+        return Button {
+            guard isEnabled else { return }
+            let toExport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
+            exportSelectedFilesToPhotos(toExport)
+        } label: {
+            HStack(spacing: 6) {
+                if isExportingToPhotos {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(count > 0 ? AppTheme.Colors.onAccent : Color.white.opacity(0.4))
+                } else {
+                    Image(systemName: count > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                
+                Text(count > 0 ? tr("Скачать (\(count))", "Download (\(count))") : tr("Скачать", "Download"))
+                    .font(.system(size: 12, weight: .bold))
+            }
+            .foregroundStyle(count > 0 ? AppTheme.Colors.onAccent : Color.white.opacity(0.35))
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .background(
+                Group {
+                    if count > 0 {
+                        AppTheme.Colors.accent
+                    } else {
+                        Color.white.opacity(0.06)
+                    }
+                }
+            )
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(count > 0 ? AppTheme.Colors.accent.opacity(0.4) : Color.white.opacity(0.12), lineWidth: 1)
+            )
+            .shadow(color: count > 0 ? AppTheme.Colors.accent.opacity(0.35) : Color.clear, radius: 6, y: 2)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .accessibilityLabel(tr("Скачать выбранные фотографии", "Download Selected Photos"))
+    }
+    
+    // MARK: - Refresh Catalog Button
+    
+    private var refreshCatalogButton: some View {
+        Button {
+            guard !isRefreshing else { return }
+            isRefreshing = true
+            Task {
+                await usbManager.refreshCatalog()
+                await usbManager.updateTargetSessionName()
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                isRefreshing = false
+            }
+        } label: {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 13, weight: .bold))
+                .rotationEffect(isRefreshing ? .degrees(360) : .zero)
+                .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
+                .foregroundStyle(Color.white)
+                .frame(width: 32, height: 32)
+                .glassSurface(shape: Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isRefreshing)
+        .accessibilityLabel(tr("Обновить каталог", "Refresh Catalog"))
+    }
+    
+    // MARK: - Right Vertical Toolbar (Фильтрация, Выбор, Лупа, EXIF)
+    
+    private var rightVerticalToolBar: some View {
+        VStack(spacing: 8) {
+            // 1. Фильтрация
+            formatFilterVerticalButton
+            
+            // 2. Выбор
+            selectionMenuVerticalButton
+            
+            // 3. Лупа
+            loupeVerticalButton
+            
+            // 4. EXIF
+            exifVerticalButton
+            
+            Spacer()
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 8)
+        .frame(width: 136)
+        .background(
+            Color(red: 18/255.0, green: 20/255.0, blue: 24/255.0).opacity(0.70)
+                .background(.ultraThinMaterial)
+        )
+        .overlay(
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 1),
+            alignment: .leading
+        )
+    }
+    
+    // 1. Кнопка фильтрации в правой панели
+    private var formatFilterVerticalButton: some View {
+        Menu {
+            Picker(tr("Формат", "Format"), selection: formatFilterBinding) {
+                ForEach(CameraFileFormatFilter.allCases) { filter in
+                    Label(filter.menuTitle, systemImage: filter.iconName)
+                        .tag(filter)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: formatFilter.iconName)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(formatFilter == .all ? Color.white.opacity(0.8) : AppTheme.Colors.accent)
+                
+                Text(formatFilter.shortTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.4))
+            }
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity)
+            .frame(height: 34)
+            .glassSurface(cornerRadius: 8, tint: formatFilter == .all ? nil : AppTheme.Colors.accent)
+        }
+        .menuStyle(.borderlessButton)
+        .accessibilityLabel(tr("Фильтр форматов", "Format Filter"))
+    }
+    
+    // 2. Кнопка меню выбора в правой панели
+    private var selectionMenuVerticalButton: some View {
+        Menu {
+            if let item = activeFile {
+                Button {
+                    toggleSelect(item)
+                } label: {
+                    Label(
+                        selectedFileIDs.contains(item.id) ? tr("Снять с этого кадра", "Deselect This Photo") : tr("Выбрать этот кадр", "Select This Photo"),
+                        systemImage: selectedFileIDs.contains(item.id) ? "checkmark.circle.fill" : "circle"
+                    )
+                }
+                Divider()
+            }
+            
+            Button {
+                for f in filteredFiles where f.status == .notImported {
+                    selectedFileIDs.insert(f.id)
+                }
+            } label: {
+                Label(tr("Выбрать все", "Select All"), systemImage: "checklist")
+            }
+            
+            Button {
+                selectedFileIDs.removeAll()
+                for f in usbManager.catalogFiles where f.isRAW && f.status == .notImported {
+                    selectedFileIDs.insert(f.id)
+                }
+            } label: {
+                Label(tr("Только RAW", "RAW Only"), systemImage: "camera.fill")
+            }
+            
+            Button {
+                selectedFileIDs.removeAll()
+                for f in usbManager.catalogFiles where !f.isRAW && f.status == .notImported {
+                    selectedFileIDs.insert(f.id)
+                }
+            } label: {
+                Label(tr("Только JPEG", "JPEG Only"), systemImage: "photo")
+            }
+            
+            Divider()
+            
+            Button(role: .destructive) {
+                selectedFileIDs.removeAll()
+            } label: {
+                Label(tr("Снять выбор", "Deselect All"), systemImage: "xmark.circle")
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "checklist")
+                    .font(.system(size: 11, weight: .bold))
+                
+                Text(selectedFileIDs.isEmpty ? tr("Выбор", "Select") : tr("Выбрано: \(selectedFileIDs.count)", "\(selectedFileIDs.count)"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.4))
+            }
+            .foregroundStyle(selectedFileIDs.isEmpty ? Color.white : AppTheme.Colors.accent)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity)
+            .frame(height: 34)
+            .glassSurface(cornerRadius: 8, tint: selectedFileIDs.isEmpty ? nil : AppTheme.Colors.accent)
+        }
+        .menuStyle(.borderlessButton)
+        .accessibilityLabel(tr("Меню выбора", "Selection Menu"))
+    }
+    
+    // 3. Кнопка лупы в правой панели
+    private var loupeVerticalButton: some View {
+        HStack(spacing: 4) {
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                    isZoomLoupeEnabled.toggle()
+                    if isZoomLoupeEnabled {
+                        loupeOffset = .zero
+                        loupeDragBase = .zero
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isZoomLoupeEnabled ? "viewfinder.circle.fill" : "viewfinder")
+                        .font(.system(size: 12, weight: .bold))
+                    Text(tr("Лупа", "Loupe"))
+                        .font(.system(size: 12, weight: .semibold))
                     Spacer()
+                }
+                .foregroundStyle(isZoomLoupeEnabled ? AppTheme.Colors.onAccent : Color.white)
+                .padding(.horizontal, 10)
+                .frame(maxWidth: .infinity)
+                .frame(height: 34)
+                .background(isZoomLoupeEnabled ? AppTheme.Colors.accent : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .glassSurface(cornerRadius: 8, tint: isZoomLoupeEnabled ? AppTheme.Colors.accent : nil)
+            }
+            .buttonStyle(.plain)
+            
+            if isZoomLoupeEnabled {
+                Button {
+                    toggleLoupeZoom()
+                } label: {
+                    Text(loupeZoomLabel)
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Color.white)
+                        .frame(width: 32, height: 34)
+                        .glassSurface(cornerRadius: 8)
+                }
+                .buttonStyle(.plain)
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+    }
+    
+    // 4. Кнопка EXIF в правой панели
+    private var exifVerticalButton: some View {
+        Button {
+            isEXIFSheetPresented = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 12, weight: .bold))
+                Text(tr("EXIF", "EXIF"))
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+            }
+            .foregroundStyle(activeFile != nil ? Color.white : Color.white.opacity(0.35))
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity)
+            .frame(height: 34)
+            .glassSurface(cornerRadius: 8)
+        }
+        .buttonStyle(.plain)
+        .disabled(activeFile == nil)
+        .accessibilityLabel(tr("Сведения EXIF", "EXIF Data"))
+    }
+    
+    // MARK: - Desktop Studio View (Центральный просмотр + Нижняя лента)
+    
+    private func desktopStudioView(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            // Центральная область большого кадра
+            ZStack {
+                if let item = activeFile {
+                    let availWidth = max(geometry.size.width - 140, 320)
+                    let availHeight = max(geometry.size.height - 150, 200)
+                    let imageSize = fittedImageSize(for: item, in: CGSize(width: availWidth, height: availHeight))
                     
-                    // Панель быстрых действий: Обновить, Фильтр, Режим списка, Выбрать
-                    HStack(spacing: 8) {
-                        // Обновить каталог
-                        Button {
-                            guard !isRefreshing else { return }
-                            isRefreshing = true
-                            Task {
-                                await usbManager.refreshCatalog()
-                                await usbManager.updateTargetSessionName()
-                                try? await Task.sleep(nanoseconds: 500_000_000)
-                                isRefreshing = false
+                    mainImageView(for: item, size: geometry.size)
+                        .frame(width: imageSize.width, height: imageSize.height)
+                        .id(item.id)
+                        .transition(photoSlideTransition)
+                        .contentShape(Rectangle())
+                        .onTapGesture { location in
+                            let targetX = location.x - imageSize.width / 2.0
+                            let targetY = location.y - imageSize.height / 2.0
+                            let maxX = imageSize.width / 2.0
+                            let maxY = imageSize.height / 2.0
+                            let clampedX = min(max(targetX, -maxX), maxX)
+                            let clampedY = min(max(targetY, -maxY), maxY)
+                            
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
+                                if !isZoomLoupeEnabled {
+                                    isZoomLoupeEnabled = true
+                                }
+                                loupeOffset = CGSize(width: clampedX, height: clampedY)
+                                loupeDragBase = loupeOffset
                             }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 13, weight: .bold))
-                                .rotationEffect(isRefreshing ? .degrees(360) : .zero)
-                                .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
-                                .foregroundStyle(Color.white)
-                                .frame(width: 32, height: 32)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Обновить каталог")
-                        
-                        // Фильтр форматов (RAW / JPEG / Все)
-                        formatFilterPicker
-                        
-                        // Выпадающее меню выбора
-                        selectionMenu
-                        
-                        // Переключатель вида Список / Студия
-                        cameraViewModeSelector
-                        
-                        clientMonitorPillButton
-                        
-                        exifPillButton
-                        
-                        // Кнопка включения/выключения 100% Zoom лупы
-                        Button {
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-                                isZoomLoupeEnabled.toggle()
-                                if isZoomLoupeEnabled {
+                    
+                    if isZoomLoupeEnabled {
+                        ZoomLoupeOverlayView(
+                            diameter: 218,
+                            isVisible: true,
+                            labelText: loupeZoomLabel,
+                            magnification: loupeMagnification,
+                            offset: loupeOffset,
+                            displaySize: imageSize,
+                            cgImage: (activeHighResFileID == item.id ? activeHighResImage : nil) ?? item.thumbnail,
+                            onDragChanged: { translation in
+                                let maxX = imageSize.width / 2.0
+                                let maxY = imageSize.height / 2.0
+                                let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
+                                let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
+                                loupeOffset = CGSize(width: newX, height: newY)
+                            },
+                            onDragEnded: { translation in
+                                let maxX = imageSize.width / 2.0
+                                let maxY = imageSize.height / 2.0
+                                let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
+                                let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
+                                loupeOffset = CGSize(width: newX, height: newY)
+                                loupeDragBase = loupeOffset
+                            },
+                            onTap: {
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
                                     loupeOffset = .zero
                                     loupeDragBase = .zero
                                 }
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: isZoomLoupeEnabled ? "viewfinder.circle.fill" : "viewfinder")
-                                    .font(.system(size: 12, weight: .bold))
-                                Text("Лупа")
-                                    .font(.system(size: 11, weight: .bold))
-                            }
-                            .foregroundStyle(isZoomLoupeEnabled ? AppTheme.Colors.onAccent : Color.white)
-                            .padding(.horizontal, 10)
-                            .frame(height: 32)
-                            .background(isZoomLoupeEnabled ? AppTheme.Colors.accent : Color.white.opacity(0.12))
-                            .clipShape(Capsule())
-                            .glassSurface(shape: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(isZoomLoupeEnabled ? "Выключить 100% лупу" : "Включить 100% лупу")
-                        
-                        if isZoomLoupeEnabled {
-                            Button {
+                            },
+                            onToggleZoom: {
                                 toggleLoupeZoom()
-                            } label: {
-                                HStack(spacing: 3) {
-                                    Text(loupeZoomLabel)
-                                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                    Image(systemName: "arrow.triangle.2.circlepath")
-                                        .font(.system(size: 9, weight: .semibold))
+                            },
+                            onClose: {
+                                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                                    isZoomLoupeEnabled = false
                                 }
-                                .foregroundStyle(Color.white)
-                                .padding(.horizontal, 8)
-                                .frame(height: 32)
-                                .background(Color.white.opacity(0.12))
-                                .clipShape(Capsule())
-                                .glassSurface(shape: Capsule())
                             }
-                            .buttonStyle(.plain)
-                            .transition(.scale.combined(with: .opacity))
-                        }
-                        
-                        // Выбор активного кадра
-                        if let item = activeFile {
+                        )
+                    }
+                    
+                    // Верхний левый угол картинки: бейдж RAW и быстрый выбор
+                    VStack {
+                        HStack(spacing: 8) {
+                            Text(item.isRAW ? "RAW" : "JPEG")
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundStyle(Color.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Color.black.opacity(0.65))
+                                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                                )
+                            
                             Button {
                                 toggleSelect(item)
                             } label: {
                                 HStack(spacing: 4) {
                                     Image(systemName: selectedFileIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundStyle(selectedFileIDs.contains(item.id) ? AppTheme.Colors.accent : Color.white)
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(selectedFileIDs.contains(item.id) ? AppTheme.Colors.accent : Color.white.opacity(0.7))
                                     Text(selectedFileIDs.contains(item.id) ? tr("Выбран", "Selected") : tr("Выбрать", "Select"))
                                         .font(.system(size: 11, weight: .bold))
                                         .foregroundStyle(Color.white)
                                 }
                                 .padding(.horizontal, 10)
-                                .frame(height: 32)
+                                .padding(.vertical, 5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Color.black.opacity(0.65))
+                                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(selectedFileIDs.contains(item.id) ? AppTheme.Colors.accent.opacity(0.4) : Color.white.opacity(0.15), lineWidth: 1)
+                                )
                             }
                             .buttonStyle(.plain)
-                        }
-                        
-                        // Быстрая загрузка выбранных в фотогалерею
-                        if selectedStats.count > 0 {
-                            Button {
-                                guard !isExportingToPhotos else { return }
-                                let toExport = usbManager.catalogFiles.filter { selectedFileIDs.contains($0.id) }
-                                exportSelectedFilesToPhotos(toExport)
-                            } label: {
-                                HStack(spacing: 5) {
-                                    if isExportingToPhotos {
-                                        ProgressView().controlSize(.mini).tint(AppTheme.Colors.onAccent)
-                                    } else {
-                                        Image(systemName: "arrow.down.circle.fill")
-                                    }
-                                    Text(tr("Загрузить (\(selectedStats.count))", "Download (\(selectedStats.count))"))
-                                        .font(.system(size: 11, weight: .bold))
-                                }
-                                .foregroundStyle(AppTheme.Colors.onAccent)
-                                .padding(.horizontal, 12)
-                                .frame(height: 32)
-                                .background(AppTheme.Colors.accent)
-                                .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(isExportingToPhotos)
-                        }
-                    }
-                    .padding(.horizontal, 6)
-                    .glassPill()
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 6)
-                
-                // Основная центральная область кадра
-                ZStack {
-                    if let item = activeFile {
-                        let imageSize = fittedImageSize(for: item, in: geometry.size)
-                        
-                        mainImageView(for: item, size: geometry.size)
-                            .frame(width: imageSize.width, height: imageSize.height)
-                            .id(item.id)
-                            .transition(photoSlideTransition)
-                            .contentShape(Rectangle())
-                            .onTapGesture { location in
-                                let targetX = location.x - imageSize.width / 2.0
-                                let targetY = location.y - imageSize.height / 2.0
-                                let maxX = imageSize.width / 2.0
-                                let maxY = imageSize.height / 2.0
-                                let clampedX = min(max(targetX, -maxX), maxX)
-                                let clampedY = min(max(targetY, -maxY), maxY)
-                                
-                                withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
-                                    if !isZoomLoupeEnabled {
-                                        isZoomLoupeEnabled = true
-                                    }
-                                    loupeOffset = CGSize(width: clampedX, height: clampedY)
-                                    loupeDragBase = loupeOffset
-                                }
-                            }
-                        
-                        if isZoomLoupeEnabled {
-                            ZoomLoupeOverlayView(
-                                diameter: 218,
-                                isVisible: true,
-                                labelText: loupeZoomLabel,
-                                magnification: loupeMagnification,
-                                offset: loupeOffset,
-                                displaySize: imageSize,
-                                cgImage: (activeHighResFileID == item.id ? activeHighResImage : nil) ?? item.thumbnail,
-                                onDragChanged: { translation in
-                                    let maxX = imageSize.width / 2.0
-                                    let maxY = imageSize.height / 2.0
-                                    let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
-                                    let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
-                                    loupeOffset = CGSize(width: newX, height: newY)
-                                },
-                                onDragEnded: { translation in
-                                    let maxX = imageSize.width / 2.0
-                                    let maxY = imageSize.height / 2.0
-                                    let newX = min(max(loupeDragBase.width + translation.width, -maxX), maxX)
-                                    let newY = min(max(loupeDragBase.height + translation.height, -maxY), maxY)
-                                    loupeOffset = CGSize(width: newX, height: newY)
-                                    loupeDragBase = loupeOffset
-                                },
-                                onTap: {
-                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
-                                        loupeOffset = .zero
-                                        loupeDragBase = .zero
-                                    }
-                                },
-                                onToggleZoom: {
-                                    toggleLoupeZoom()
-                                },
-                                onClose: {
-                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-                                        isZoomLoupeEnabled = false
-                                    }
-                                }
-                            )
-                        }
-                        
-                        // Верхний левый угол картинки: бейдж RAW и кнопка EXIF
-                        VStack {
-                            HStack(spacing: 8) {
-                                Text(item.isRAW ? "RAW" : "JPEG")
-                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(Color.white)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(Color.black.opacity(0.65))
-                                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                                    )
-                                
-                                Button {
-                                    isEXIFSheetPresented = true
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "info.circle")
-                                            .font(.system(size: 11, weight: .bold))
-                                        Text("EXIF")
-                                            .font(.system(size: 11, weight: .bold))
-                                    }
-                                    .foregroundStyle(Color.white)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(Color.black.opacity(0.65))
-                                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel(tr("Сведения EXIF", "EXIF Data"))
-                                
-                                Spacer()
-                            }
-                            .padding(.leading, 28)
-                            .padding(.top, 16)
                             
                             Spacer()
                         }
+                        .padding(.leading, 24)
+                        .padding(.top, 16)
                         
-                        // Стрелки навигации
-                        HStack {
-                            Button {
-                                selectPreviousFile()
-                            } label: {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 40, height: 40)
-                                    .background(Circle().fill(Color.black.opacity(0.45)))
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(activeFileIndex <= 0)
-                            .opacity(activeFileIndex <= 0 ? 0.2 : 0.85)
-                            .padding(.leading, 12)
-                            
-                            Spacer()
-                            
-                            Button {
-                                selectNextFile()
-                            } label: {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 40, height: 40)
-                                    .background(Circle().fill(Color.black.opacity(0.45)))
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(activeFileIndex >= filteredFiles.count - 1)
-                            .opacity(activeFileIndex >= filteredFiles.count - 1 ? 0.2 : 0.85)
-                            .padding(.trailing, 12)
+                        Spacer()
+                    }
+                    
+                    // Стрелки навигации
+                    HStack {
+                        Button {
+                            selectPreviousFile()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Circle().fill(Color.black.opacity(0.45)))
                         }
+                        .buttonStyle(.plain)
+                        .disabled(activeFileIndex <= 0)
+                        .opacity(activeFileIndex <= 0 ? 0.2 : 0.85)
+                        .padding(.leading, 12)
+                        
+                        Spacer()
+                        
+                        Button {
+                            selectNextFile()
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Circle().fill(Color.black.opacity(0.45)))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(activeFileIndex >= filteredFiles.count - 1)
+                        .opacity(activeFileIndex >= filteredFiles.count - 1 ? 0.2 : 0.85)
+                        .padding(.trailing, 12)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 25)
-                        .onEnded { val in
-                            guard !isZoomLoupeEnabled else { return }
-                            if abs(val.translation.width) > abs(val.translation.height) * 1.2 {
-                                if val.translation.width < -35 {
-                                    selectNextFile()
-                                } else if val.translation.width > 35 {
-                                    selectPreviousFile()
-                                }
-                            }
-                        }
-                )
-                
-                // Нижняя горизонтальная лента кадров
-                filmstripBar
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 25)
+                    .onEnded { val in
+                        guard !isZoomLoupeEnabled else { return }
+                        if abs(val.translation.width) > abs(val.translation.height) * 1.2 {
+                            if val.translation.width < -35 {
+                                selectNextFile()
+                            } else if val.translation.width > 35 {
+                                selectPreviousFile()
+                            }
+                        }
+                    }
+            )
+            
+            // Нижняя лента миниатюр
+            filmstripBar
+        }
+    }
+    
+    // MARK: - Desktop List View
+    
+    private func desktopListView(geometry: GeometryProxy) -> some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(filteredFiles) { item in
+                    CameraGlassListRow(
+                        item: item,
+                        isSelected: selectedFileIDs.contains(item.id),
+                        isActive: activeFile?.id == item.id,
+                        onToggleSelect: {
+                            toggleSelect(item)
+                        },
+                        onInspect: {
+                            activeFileID = item.id
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                viewMode = .gallery
+                            }
+                        },
+                        onRequestThumbnail: {
+                            usbManager.requestThumbnail(for: item)
+                        },
+                        onRetry: {
+                            Task { await usbManager.retryTransfer(for: item) }
+                        }
+                    )
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .padding(.bottom, 40)
         }
     }
     
