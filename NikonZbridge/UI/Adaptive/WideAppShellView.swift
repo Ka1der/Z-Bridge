@@ -18,7 +18,7 @@ public struct WideAppShellView: View {
             // 1. Боковая панель навигации (Pro Slim Rail)
             if !appState.isSidebarCollapsed {
                 proSidebarRail
-                    .frame(width: 88)
+                    .frame(width: 104)
                     .background(
                         Color(red: 20/255.0, green: 22/255.0, blue: 27/255.0).opacity(0.85)
                             .background(.ultraThinMaterial)
@@ -60,10 +60,13 @@ public struct WideAppShellView: View {
     private var proSidebarRail: some View {
         VStack(spacing: 0) {
             // Заголовок приложения: Z-Bridge + иконка меню
-            HStack(alignment: .center, spacing: 4) {
+            HStack(alignment: .center, spacing: 6) {
                 Text("Z-Bridge")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: true, vertical: false)
                 
                 Spacer()
                 
@@ -162,8 +165,10 @@ public struct WideAppShellView: View {
                         .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.65))
                     
                     Text(title)
-                        .font(.system(size: 10, weight: isSelected ? .bold : .medium))
-                        .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.65))
+                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                        .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.75))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)

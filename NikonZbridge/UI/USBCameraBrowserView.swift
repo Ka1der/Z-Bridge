@@ -160,7 +160,7 @@ public struct USBCameraBrowserView: View {
                 .tag(CameraBrowserViewMode.gallery)
         }
         .pickerStyle(.segmented)
-        .frame(minWidth: 140, maxWidth: 170)
+        .frame(minWidth: 160, maxWidth: 200)
     }
     
     public init(
@@ -878,15 +878,15 @@ public struct USBCameraBrowserView: View {
     private var clientMonitorPillButton: some View {
         if let onOpenClientMonitor {
             Button(action: onOpenClientMonitor) {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: "tv")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                     Text(tr("Клиент", "Client"))
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                 }
                 .foregroundStyle(Color.white)
-                .padding(.horizontal, 10)
-                .frame(height: 32)
+                .padding(.horizontal, 14)
+                .frame(height: 36)
                 .glassPill()
             }
             .buttonStyle(.plain)
@@ -1313,17 +1313,19 @@ public struct USBCameraBrowserView: View {
                 Text(usbManager.cameraName ?? "Nikon Z")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(Color.white)
+                    .lineLimit(1)
                 if stats.inProgressCount > 0 {
                     ProgressView()
                         .controlSize(.mini)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 14)
+            .frame(height: 36)
             .glassPill()
             
             // 2. Переключатель список-студия (справа от названия камеры)
             cameraViewModeSelector
+                .frame(height: 36)
             
             // 3. Кнопка "Скачать" (правее переключателя, серая и неактивная пока не выбрано фото)
             topBarDownloadButton
@@ -1353,33 +1355,34 @@ public struct USBCameraBrowserView: View {
                 if isExportingToPhotos {
                     ProgressView()
                         .controlSize(.mini)
-                        .tint(count > 0 ? AppTheme.Colors.onAccent : Color.white.opacity(0.4))
+                        .tint(count > 0 ? AppTheme.Colors.onAccent : Color.white.opacity(0.7))
                 } else {
                     Image(systemName: count > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                 }
                 
                 Text(count > 0 ? tr("Скачать (\(count))", "Download (\(count))") : tr("Скачать", "Download"))
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
+                    .lineLimit(1)
             }
-            .foregroundStyle(count > 0 ? AppTheme.Colors.onAccent : Color.white.opacity(0.35))
-            .padding(.horizontal, 14)
-            .frame(height: 32)
+            .foregroundStyle(count > 0 ? AppTheme.Colors.onAccent : Color.white.opacity(0.70))
+            .padding(.horizontal, 16)
+            .frame(height: 36)
             .background(
                 Group {
                     if count > 0 {
                         AppTheme.Colors.accent
                     } else {
-                        Color.white.opacity(0.06)
+                        Color.white.opacity(0.10)
                     }
                 }
             )
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(count > 0 ? AppTheme.Colors.accent.opacity(0.4) : Color.white.opacity(0.12), lineWidth: 1)
+                    .stroke(count > 0 ? AppTheme.Colors.accent.opacity(0.5) : Color.white.opacity(0.18), lineWidth: 1)
             )
-            .shadow(color: count > 0 ? AppTheme.Colors.accent.opacity(0.35) : Color.clear, radius: 6, y: 2)
+            .shadow(color: count > 0 ? AppTheme.Colors.accent.opacity(0.4) : Color.clear, radius: 8, y: 2)
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
@@ -1400,11 +1403,11 @@ public struct USBCameraBrowserView: View {
             }
         } label: {
             Image(systemName: "arrow.clockwise")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 14, weight: .bold))
                 .rotationEffect(isRefreshing ? .degrees(360) : .zero)
                 .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
                 .foregroundStyle(Color.white)
-                .frame(width: 32, height: 32)
+                .frame(width: 36, height: 36)
                 .glassSurface(shape: Circle())
         }
         .buttonStyle(.plain)
@@ -1415,7 +1418,7 @@ public struct USBCameraBrowserView: View {
     // MARK: - Right Vertical Toolbar (Фильтрация, Выбор, Лупа, EXIF)
     
     private var rightVerticalToolBar: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             // 1. Фильтрация
             formatFilterVerticalButton
             
@@ -1430,9 +1433,9 @@ public struct USBCameraBrowserView: View {
             
             Spacer()
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 8)
-        .frame(width: 136)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
+        .frame(width: 176)
         .background(
             Color(red: 18/255.0, green: 20/255.0, blue: 24/255.0).opacity(0.70)
                 .background(.ultraThinMaterial)
@@ -1455,26 +1458,28 @@ public struct USBCameraBrowserView: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: formatFilter.iconName)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(formatFilter == .all ? Color.white.opacity(0.8) : AppTheme.Colors.accent)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(formatFilter == .all ? Color.white.opacity(0.85) : AppTheme.Colors.accent)
+                    .frame(width: 18)
                 
                 Text(formatFilter.shortTitle)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.white)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 
-                Spacer()
+                Spacer(minLength: 4)
                 
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(Color.white.opacity(0.4))
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.45))
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
-            .frame(height: 34)
-            .glassSurface(cornerRadius: 8, tint: formatFilter == .all ? nil : AppTheme.Colors.accent)
+            .frame(height: 36)
+            .glassSurface(cornerRadius: 9, tint: formatFilter == .all ? nil : AppTheme.Colors.accent)
         }
         .menuStyle(.borderlessButton)
         .accessibilityLabel(tr("Фильтр форматов", "Format Filter"))
@@ -1529,25 +1534,27 @@ public struct USBCameraBrowserView: View {
                 Label(tr("Снять выбор", "Deselect All"), systemImage: "xmark.circle")
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: "checklist")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(width: 18)
                 
-                Text(selectedFileIDs.isEmpty ? tr("Выбор", "Select") : tr("Выбрано: \(selectedFileIDs.count)", "\(selectedFileIDs.count)"))
-                    .font(.system(size: 12, weight: .semibold))
+                Text(selectedFileIDs.isEmpty ? tr("Выбор", "Select") : tr("Выбрано: \(selectedFileIDs.count)", "\(selectedFileIDs.count) sel."))
+                    .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 
-                Spacer()
+                Spacer(minLength: 4)
                 
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(Color.white.opacity(0.4))
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.45))
             }
             .foregroundStyle(selectedFileIDs.isEmpty ? Color.white : AppTheme.Colors.accent)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
-            .frame(height: 34)
-            .glassSurface(cornerRadius: 8, tint: selectedFileIDs.isEmpty ? nil : AppTheme.Colors.accent)
+            .frame(height: 36)
+            .glassSurface(cornerRadius: 9, tint: selectedFileIDs.isEmpty ? nil : AppTheme.Colors.accent)
         }
         .menuStyle(.borderlessButton)
         .accessibilityLabel(tr("Меню выбора", "Selection Menu"))
@@ -1555,7 +1562,7 @@ public struct USBCameraBrowserView: View {
     
     // 3. Кнопка лупы в правой панели
     private var loupeVerticalButton: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Button {
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                     isZoomLoupeEnabled.toggle()
@@ -1565,20 +1572,22 @@ public struct USBCameraBrowserView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: isZoomLoupeEnabled ? "viewfinder.circle.fill" : "viewfinder")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
+                        .frame(width: 18)
                     Text(tr("Лупа", "Loupe"))
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
                     Spacer()
                 }
                 .foregroundStyle(isZoomLoupeEnabled ? AppTheme.Colors.onAccent : Color.white)
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
-                .frame(height: 34)
+                .frame(height: 36)
                 .background(isZoomLoupeEnabled ? AppTheme.Colors.accent : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .glassSurface(cornerRadius: 8, tint: isZoomLoupeEnabled ? AppTheme.Colors.accent : nil)
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+                .glassSurface(cornerRadius: 9, tint: isZoomLoupeEnabled ? AppTheme.Colors.accent : nil)
             }
             .buttonStyle(.plain)
             
@@ -1587,10 +1596,10 @@ public struct USBCameraBrowserView: View {
                     toggleLoupeZoom()
                 } label: {
                     Text(loupeZoomLabel)
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(Color.white)
-                        .frame(width: 32, height: 34)
-                        .glassSurface(cornerRadius: 8)
+                        .frame(width: 38, height: 36)
+                        .glassSurface(cornerRadius: 9)
                 }
                 .buttonStyle(.plain)
                 .transition(.scale.combined(with: .opacity))
@@ -1603,18 +1612,19 @@ public struct USBCameraBrowserView: View {
         Button {
             isEXIFSheetPresented = true
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(width: 18)
                 Text(tr("EXIF", "EXIF"))
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                 Spacer()
             }
             .foregroundStyle(activeFile != nil ? Color.white : Color.white.opacity(0.35))
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
-            .frame(height: 34)
-            .glassSurface(cornerRadius: 8)
+            .frame(height: 36)
+            .glassSurface(cornerRadius: 9)
         }
         .buttonStyle(.plain)
         .disabled(activeFile == nil)
@@ -1628,7 +1638,7 @@ public struct USBCameraBrowserView: View {
             // Центральная область большого кадра
             ZStack {
                 if let item = activeFile {
-                    let availWidth = max(geometry.size.width - 140, 320)
+                    let availWidth = max(geometry.size.width - 176, 320)
                     let availHeight = max(geometry.size.height - 150, 200)
                     let imageSize = fittedImageSize(for: item, in: CGSize(width: availWidth, height: availHeight))
                     
