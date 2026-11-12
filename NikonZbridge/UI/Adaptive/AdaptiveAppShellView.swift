@@ -43,6 +43,7 @@ public struct AdaptiveAppShellView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
             .id(locManager.activeLanguage.rawValue)
             .environment(\.locale, Locale(identifier: locManager.activeLanguage.rawValue))
+            .dynamicTypeSize(AppTheme.isRunningOnMac ? .xLarge : dynamicTypeSize)
         }
         .background(AppTheme.Colors.background.ignoresSafeArea())
         // MARK: - Централизованные модальные окна (сохраняются при вращении и ресайзе)

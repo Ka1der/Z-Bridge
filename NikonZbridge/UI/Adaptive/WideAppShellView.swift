@@ -18,7 +18,7 @@ public struct WideAppShellView: View {
             // 1. Боковая панель навигации (Pro Slim Rail)
             if !appState.isSidebarCollapsed {
                 proSidebarRail
-                    .frame(width: 104)
+                    .frame(width: AppTheme.isRunningOnMac ? 108 : 96)
                     .background(
                         Color(red: 20/255.0, green: 22/255.0, blue: 27/255.0).opacity(0.85)
                             .background(.ultraThinMaterial)
@@ -59,36 +59,12 @@ public struct WideAppShellView: View {
     
     private var proSidebarRail: some View {
         VStack(spacing: 0) {
-            // Заголовок приложения: Z-Bridge + иконка меню
-            HStack(alignment: .center, spacing: 6) {
-                Text("Z-Bridge")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                    .fixedSize(horizontal: true, vertical: false)
-                
-                Spacer()
-                
-                Button {
-                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
-                        appState.toggleSidebar()
-                    }
-                } label: {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.85))
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Свернуть боковую панель")
-            }
-            .padding(.horizontal, 10)
-            .padding(.top, 16)
-            .padding(.bottom, 24)
+            // Верхний отступ панели (на macOS оставляет место под элементы управления окном)
+            Spacer()
+                .frame(height: AppTheme.isRunningOnMac ? 36 : 18)
             
             // 4 вертикальных раздела
-            VStack(spacing: 14) {
+            VStack(spacing: AppTheme.isRunningOnMac ? 16 : 14) {
                 // 1. Tether (Съемка)
                 proRailItem(
                     title: tr("Съемка", "Tether"),
@@ -155,23 +131,23 @@ public struct WideAppShellView: View {
                 if isSelected {
                     Capsule()
                         .fill(AppTheme.Colors.accent)
-                        .frame(width: 3, height: 24)
+                        .frame(width: 3.5, height: AppTheme.isRunningOnMac ? 28 : 24)
                         .offset(x: -6)
                 }
                 
-                VStack(spacing: 4) {
+                VStack(spacing: 5) {
                     Image(systemName: iconName)
-                        .font(.system(size: 18, weight: isSelected ? .bold : .medium))
+                        .font(.system(size: AppTheme.macFontSize(18, macAdd: 4), weight: isSelected ? .bold : .medium))
                         .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.65))
                     
                     Text(title)
-                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                        .font(.system(size: AppTheme.macFontSize(11, macAdd: 2.5), weight: isSelected ? .bold : .medium))
                         .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.75))
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                .padding(.vertical, AppTheme.isRunningOnMac ? 12 : 10)
                 .background(
                     Group {
                         if isSelected {

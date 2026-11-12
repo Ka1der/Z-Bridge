@@ -160,7 +160,7 @@ public struct USBCameraBrowserView: View {
                 .tag(CameraBrowserViewMode.gallery)
         }
         .pickerStyle(.segmented)
-        .frame(minWidth: 160, maxWidth: 200)
+        .frame(minWidth: AppTheme.isRunningOnMac ? 175 : 160, maxWidth: AppTheme.isRunningOnMac ? 215 : 200)
     }
     
     public init(
@@ -880,13 +880,13 @@ public struct USBCameraBrowserView: View {
             Button(action: onOpenClientMonitor) {
                 HStack(spacing: 6) {
                     Image(systemName: "tv")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: AppTheme.macFontSize(12, macAdd: 2), weight: .bold))
                     Text(tr("Клиент", "Client"))
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
                 }
                 .foregroundStyle(Color.white)
-                .padding(.horizontal, 14)
-                .frame(height: 36)
+                .padding(.horizontal, AppTheme.isRunningOnMac ? 16 : 14)
+                .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
                 .glassPill()
             }
             .buttonStyle(.plain)
@@ -1309,9 +1309,9 @@ public struct USBCameraBrowserView: View {
             HStack(spacing: 8) {
                 Circle()
                     .fill(usbManager.isConnected ? AppTheme.Colors.accent : AppTheme.Colors.statusNeutral)
-                    .frame(width: 8, height: 8)
+                    .frame(width: AppTheme.isRunningOnMac ? 9 : 8, height: AppTheme.isRunningOnMac ? 9 : 8)
                 Text(usbManager.cameraName ?? "Nikon Z")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
                     .foregroundStyle(Color.white)
                     .lineLimit(1)
                 if stats.inProgressCount > 0 {
@@ -1319,13 +1319,13 @@ public struct USBCameraBrowserView: View {
                         .controlSize(.mini)
                 }
             }
-            .padding(.horizontal, 14)
-            .frame(height: 36)
+            .padding(.horizontal, AppTheme.isRunningOnMac ? 16 : 14)
+            .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
             .glassPill()
             
             // 2. Переключатель список-студия (справа от названия камеры)
             cameraViewModeSelector
-                .frame(height: 36)
+                .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
             
             // 3. Кнопка "Скачать" (правее переключателя, серая и неактивная пока не выбрано фото)
             topBarDownloadButton
@@ -1358,16 +1358,16 @@ public struct USBCameraBrowserView: View {
                         .tint(count > 0 ? AppTheme.Colors.onAccent : Color.white.opacity(0.7))
                 } else {
                     Image(systemName: count > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: AppTheme.macFontSize(14, macAdd: 2), weight: .bold))
                 }
                 
                 Text(count > 0 ? tr("Скачать (\(count))", "Download (\(count))") : tr("Скачать", "Download"))
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
                     .lineLimit(1)
             }
             .foregroundStyle(count > 0 ? AppTheme.Colors.onAccent : Color.white.opacity(0.70))
-            .padding(.horizontal, 16)
-            .frame(height: 36)
+            .padding(.horizontal, AppTheme.isRunningOnMac ? 18 : 16)
+            .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
             .background(
                 Group {
                     if count > 0 {
@@ -1403,11 +1403,11 @@ public struct USBCameraBrowserView: View {
             }
         } label: {
             Image(systemName: "arrow.clockwise")
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: AppTheme.macFontSize(14, macAdd: 2), weight: .bold))
                 .rotationEffect(isRefreshing ? .degrees(360) : .zero)
                 .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
                 .foregroundStyle(Color.white)
-                .frame(width: 36, height: 36)
+                .frame(width: AppTheme.isRunningOnMac ? 38 : 36, height: AppTheme.isRunningOnMac ? 38 : 36)
                 .glassSurface(shape: Circle())
         }
         .buttonStyle(.plain)
@@ -1435,7 +1435,7 @@ public struct USBCameraBrowserView: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 10)
-        .frame(width: 176)
+        .frame(width: AppTheme.isRunningOnMac ? 186 : 176)
         .background(
             Color(red: 18/255.0, green: 20/255.0, blue: 24/255.0).opacity(0.70)
                 .background(.ultraThinMaterial)
@@ -1460,12 +1460,12 @@ public struct USBCameraBrowserView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: formatFilter.iconName)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
                     .foregroundStyle(formatFilter == .all ? Color.white.opacity(0.85) : AppTheme.Colors.accent)
-                    .frame(width: 18)
+                    .frame(width: AppTheme.isRunningOnMac ? 20 : 18)
                 
                 Text(formatFilter.shortTitle)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .semibold))
                     .foregroundStyle(Color.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
@@ -1473,12 +1473,12 @@ public struct USBCameraBrowserView: View {
                 Spacer(minLength: 4)
                 
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: AppTheme.macFontSize(9, macAdd: 1.5), weight: .bold))
                     .foregroundStyle(Color.white.opacity(0.45))
             }
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
-            .frame(height: 36)
+            .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
             .glassSurface(cornerRadius: 9, tint: formatFilter == .all ? nil : AppTheme.Colors.accent)
         }
         .menuStyle(.borderlessButton)
@@ -1536,24 +1536,24 @@ public struct USBCameraBrowserView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "checklist")
-                    .font(.system(size: 13, weight: .bold))
-                    .frame(width: 18)
+                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
+                    .frame(width: AppTheme.isRunningOnMac ? 20 : 18)
                 
                 Text(selectedFileIDs.isEmpty ? tr("Выбор", "Select") : tr("Выбрано: \(selectedFileIDs.count)", "\(selectedFileIDs.count) sel."))
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                 
                 Spacer(minLength: 4)
                 
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: AppTheme.macFontSize(9, macAdd: 1.5), weight: .bold))
                     .foregroundStyle(Color.white.opacity(0.45))
             }
             .foregroundStyle(selectedFileIDs.isEmpty ? Color.white : AppTheme.Colors.accent)
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
-            .frame(height: 36)
+            .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
             .glassSurface(cornerRadius: 9, tint: selectedFileIDs.isEmpty ? nil : AppTheme.Colors.accent)
         }
         .menuStyle(.borderlessButton)
@@ -1574,17 +1574,17 @@ public struct USBCameraBrowserView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: isZoomLoupeEnabled ? "viewfinder.circle.fill" : "viewfinder")
-                        .font(.system(size: 13, weight: .bold))
-                        .frame(width: 18)
+                        .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
+                        .frame(width: AppTheme.isRunningOnMac ? 20 : 18)
                     Text(tr("Лупа", "Loupe"))
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .semibold))
                         .lineLimit(1)
                     Spacer()
                 }
                 .foregroundStyle(isZoomLoupeEnabled ? AppTheme.Colors.onAccent : Color.white)
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
-                .frame(height: 36)
+                .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
                 .background(isZoomLoupeEnabled ? AppTheme.Colors.accent : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 9))
                 .glassSurface(cornerRadius: 9, tint: isZoomLoupeEnabled ? AppTheme.Colors.accent : nil)
@@ -1596,9 +1596,9 @@ public struct USBCameraBrowserView: View {
                     toggleLoupeZoom()
                 } label: {
                     Text(loupeZoomLabel)
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .font(.system(size: AppTheme.macFontSize(11, macAdd: 1.5), weight: .bold, design: .monospaced))
                         .foregroundStyle(Color.white)
-                        .frame(width: 38, height: 36)
+                        .frame(width: AppTheme.isRunningOnMac ? 42 : 38, height: AppTheme.isRunningOnMac ? 38 : 36)
                         .glassSurface(cornerRadius: 9)
                 }
                 .buttonStyle(.plain)
@@ -1614,16 +1614,16 @@ public struct USBCameraBrowserView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 13, weight: .bold))
-                    .frame(width: 18)
+                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .bold))
+                    .frame(width: AppTheme.isRunningOnMac ? 20 : 18)
                 Text(tr("EXIF", "EXIF"))
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: AppTheme.macFontSize(13, macAdd: 2), weight: .semibold))
                 Spacer()
             }
             .foregroundStyle(activeFile != nil ? Color.white : Color.white.opacity(0.35))
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
-            .frame(height: 36)
+            .frame(height: AppTheme.isRunningOnMac ? 38 : 36)
             .glassSurface(cornerRadius: 9)
         }
         .buttonStyle(.plain)
@@ -1638,7 +1638,8 @@ public struct USBCameraBrowserView: View {
             // Центральная область большого кадра
             ZStack {
                 if let item = activeFile {
-                    let availWidth = max(geometry.size.width - 176, 320)
+                    let rightDockW: CGFloat = AppTheme.isRunningOnMac ? 186 : 176
+                    let availWidth = max(geometry.size.width - rightDockW, 320)
                     let availHeight = max(geometry.size.height - 150, 200)
                     let imageSize = fittedImageSize(for: item, in: CGSize(width: availWidth, height: availHeight))
                     
@@ -2443,7 +2444,7 @@ public struct CameraGlassListRow: View, Equatable {
             // Чекбокс выбора
             Button(action: onToggleSelect) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: AppTheme.macFontSize(20, macAdd: 2), weight: .bold))
                     .foregroundStyle(isSelected ? AppTheme.Colors.accent : Color.white.opacity(0.45))
                     .frame(width: 32, height: 32)
             }
@@ -2458,7 +2459,7 @@ public struct CameraGlassListRow: View, Equatable {
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                         #elseif canImport(AppKit)
-                        Image(nsImage: NSImage(cgImage: thumb, size: NSSize(width: 72, height: 50)))
+                        Image(nsImage: NSImage(cgImage: thumb, size: NSSize(width: AppTheme.isRunningOnMac ? 82 : 72, height: AppTheme.isRunningOnMac ? 56 : 50)))
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                         #else
@@ -2471,12 +2472,12 @@ public struct CameraGlassListRow: View, Equatable {
                             .fill(Color(white: 0.18))
                             .overlay(
                                 Image(systemName: item.isRAW ? "camera.fill" : "photo")
-                                    .font(.system(size: 14))
+                                    .font(.system(size: AppTheme.macFontSize(14, macAdd: 2)))
                                     .foregroundStyle(Color.white.opacity(0.35))
                             )
                     }
                 }
-                .frame(width: 72, height: 50)
+                .frame(width: AppTheme.isRunningOnMac ? 82 : 72, height: AppTheme.isRunningOnMac ? 56 : 50)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .onAppear {
                     if item.thumbnail == nil {
@@ -2486,10 +2487,10 @@ public struct CameraGlassListRow: View, Equatable {
                 
                 // Бейдж формата в углу превью
                 Text(item.isRAW ? "RAW" : "JPG")
-                    .font(.system(size: 8, weight: .black, design: .monospaced))
+                    .font(.system(size: AppTheme.macFontSize(8, macAdd: 2), weight: .black, design: .monospaced))
                     .foregroundStyle(Color.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
+                    .padding(.horizontal, AppTheme.isRunningOnMac ? 6 : 4)
+                    .padding(.vertical, AppTheme.isRunningOnMac ? 2 : 1)
                     .background(item.isRAW ? Color.purple.opacity(0.85) : Color.blue.opacity(0.85))
                     .clipShape(RoundedRectangle(cornerRadius: 3))
                     .padding(3)
@@ -2498,21 +2499,21 @@ public struct CameraGlassListRow: View, Equatable {
             // Метаданные файла
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.filename)
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .font(.system(size: AppTheme.macFontSize(14, macAdd: 2), weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.white)
                     .lineLimit(1)
                 
                 HStack(spacing: 6) {
                     Text(item.formattedSize)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: AppTheme.macFontSize(11, macAdd: 2), weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.7))
                     
                     if let date = item.creationDate {
                         Text("•")
-                            .font(.system(size: 10))
+                            .font(.system(size: AppTheme.macFontSize(10, macAdd: 2)))
                             .foregroundStyle(Color.white.opacity(0.4))
                         Text(date.formatted(date: .abbreviated, time: .shortened))
-                            .font(.system(size: 11))
+                            .font(.system(size: AppTheme.macFontSize(11, macAdd: 2)))
                             .foregroundStyle(Color.white.opacity(0.65))
                     }
                 }
@@ -2522,7 +2523,7 @@ public struct CameraGlassListRow: View, Equatable {
                     HStack(spacing: 1) {
                         ForEach(1...5, id: \.self) { star in
                             Image(systemName: star <= item.rating ? "star.fill" : "star")
-                                .font(.system(size: 8))
+                                .font(.system(size: AppTheme.macFontSize(8, macAdd: 3)))
                                 .foregroundStyle(star <= item.rating ? AppTheme.Colors.ratingActive : Color.white.opacity(0.2))
                         }
                     }
@@ -2535,8 +2536,8 @@ public struct CameraGlassListRow: View, Equatable {
             // Статус импорта
             statusBadge(for: item.status)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, AppTheme.isRunningOnMac ? 14 : 12)
+        .padding(.vertical, AppTheme.isRunningOnMac ? 10 : 8)
         .background(
             RoundedRectangle(cornerRadius: 14)
                 .fill(isActive ? AppTheme.Colors.accent.opacity(0.12) : Color.white.opacity(0.06))
@@ -2563,10 +2564,10 @@ public struct CameraGlassListRow: View, Equatable {
                 Image(systemName: "checkmark.circle.fill")
                 Text(tr("Загружен", "Imported"))
             }
-            .font(.system(size: 10, weight: .bold))
+            .font(.system(size: AppTheme.macFontSize(10, macAdd: 2), weight: .bold))
             .foregroundStyle(AppTheme.Colors.statusGreen)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, AppTheme.isRunningOnMac ? 10 : 8)
+            .padding(.vertical, AppTheme.isRunningOnMac ? 5 : 4)
             .background(AppTheme.Colors.statusGreen.opacity(0.15))
             .clipShape(Capsule())
             
@@ -2575,10 +2576,10 @@ public struct CameraGlassListRow: View, Equatable {
                 ProgressView().controlSize(.mini).tint(AppTheme.Colors.accent)
                 Text("\(Int(progress * 100))%")
             }
-            .font(.system(size: 10, weight: .bold))
+            .font(.system(size: AppTheme.macFontSize(10, macAdd: 2), weight: .bold))
             .foregroundStyle(AppTheme.Colors.accent)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, AppTheme.isRunningOnMac ? 10 : 8)
+            .padding(.vertical, AppTheme.isRunningOnMac ? 5 : 4)
             .background(AppTheme.Colors.accent.opacity(0.15))
             .clipShape(Capsule())
             
@@ -2587,10 +2588,10 @@ public struct CameraGlassListRow: View, Equatable {
                 Image(systemName: "clock")
                 Text(tr("В очереди", "Queued"))
             }
-            .font(.system(size: 10, weight: .bold))
+            .font(.system(size: AppTheme.macFontSize(10, macAdd: 2), weight: .bold))
             .foregroundStyle(Color.cyan)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, AppTheme.isRunningOnMac ? 10 : 8)
+            .padding(.vertical, AppTheme.isRunningOnMac ? 5 : 4)
             .background(Color.cyan.opacity(0.15))
             .clipShape(Capsule())
 
@@ -2601,10 +2602,10 @@ public struct CameraGlassListRow: View, Equatable {
                     Image(systemName: "exclamationmark.arrow.circlepath")
                     Text(tr("Повтор", "Retry"))
                 }
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: AppTheme.macFontSize(10, macAdd: 2), weight: .bold))
                 .foregroundStyle(AppTheme.Colors.statusRed)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, AppTheme.isRunningOnMac ? 10 : 8)
+                .padding(.vertical, AppTheme.isRunningOnMac ? 5 : 4)
                 .background(AppTheme.Colors.statusRed.opacity(0.15))
                 .clipShape(Capsule())
             }
@@ -2612,10 +2613,10 @@ public struct CameraGlassListRow: View, Equatable {
             
         case .notImported:
             Text(tr("Новый", "New"))
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: AppTheme.macFontSize(10, macAdd: 2), weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.55))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, AppTheme.isRunningOnMac ? 10 : 8)
+                .padding(.vertical, AppTheme.isRunningOnMac ? 5 : 4)
                 .background(Color.white.opacity(0.08))
                 .clipShape(Capsule())
         }

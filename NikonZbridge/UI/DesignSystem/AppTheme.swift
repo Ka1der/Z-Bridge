@@ -204,32 +204,86 @@ public enum AppTheme {
         public static let borderWidthHighContrast: CGFloat = 1.5
     }
     
+    // MARK: - 4.1 Платформенная адаптация под macOS
+    
+    /// Флаг запуска приложения в среде macOS (Apple Silicon "Designed for iPad", Mac Catalyst или нативный macOS)
+    public static var isRunningOnMac: Bool {
+        #if targetEnvironment(macCatalyst) || os(macOS)
+        return true
+        #else
+        if #available(iOS 14.0, *) {
+            return ProcessInfo.processInfo.isiOSAppOnMac
+        } else {
+            return false
+        }
+        #endif
+    }
+    
+    /// Адаптивный размер шрифта с автоматической прибавкой для macOS (где iPad-пиксели рендерятся визуально мельче)
+    public static func macFontSize(_ baseSize: CGFloat, macAdd: CGFloat = 2.0) -> CGFloat {
+        isRunningOnMac ? (baseSize + macAdd) : baseSize
+    }
+    
     // MARK: - 5. Типографика (Typography)
     
     public enum Typography {
-        public static let largeTitle = Font.largeTitle.bold()
-        public static let title1 = Font.title.bold()
-        public static let title2 = Font.title2.bold()
-        public static let title3 = Font.title3.bold()
+        public static var largeTitle: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 38, weight: .bold) : Font.largeTitle.bold()
+        }
+        public static var title1: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 30, weight: .bold) : Font.title.bold()
+        }
+        public static var title2: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 24, weight: .bold) : Font.title2.bold()
+        }
+        public static var title3: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 21, weight: .bold) : Font.title3.bold()
+        }
         
-        public static let headline = Font.headline
-        public static let subheadline = Font.subheadline
-        public static let subheadlineBold = Font.subheadline.bold()
+        public static var headline: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 18, weight: .semibold) : Font.headline
+        }
+        public static var subheadline: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 16, weight: .regular) : Font.subheadline
+        }
+        public static var subheadlineBold: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 16, weight: .bold) : Font.subheadline.bold()
+        }
         
-        public static let body = Font.body
-        public static let bodyBold = Font.body.bold()
+        public static var body: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 18, weight: .regular) : Font.body
+        }
+        public static var bodyBold: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 18, weight: .bold) : Font.body.bold()
+        }
         
-        public static let callout = Font.callout
-        public static let footnote = Font.footnote
+        public static var callout: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 17, weight: .regular) : Font.callout
+        }
+        public static var footnote: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 14.5, weight: .regular) : Font.footnote
+        }
         
-        public static let caption = Font.caption
-        public static let captionBold = Font.caption.bold()
-        public static let caption2 = Font.caption2
-        public static let caption2Bold = Font.caption2.bold()
+        public static var caption: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 13.5, weight: .regular) : Font.caption
+        }
+        public static var captionBold: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 13.5, weight: .bold) : Font.caption.bold()
+        }
+        public static var caption2: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 12.5, weight: .regular) : Font.caption2
+        }
+        public static var caption2Bold: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 12.5, weight: .bold) : Font.caption2.bold()
+        }
         
         /// Моноширинный шрифт для IP, портов, скорости и метрик
-        public static let code = Font.system(.caption, design: .monospaced)
-        public static let metricNumber = Font.system(.title3, design: .default, weight: .bold).monospacedDigit()
+        public static var code: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 13.5, weight: .regular, design: .monospaced) : Font.system(.caption, design: .monospaced)
+        }
+        public static var metricNumber: Font {
+            AppTheme.isRunningOnMac ? Font.system(size: 23, weight: .bold, design: .default).monospacedDigit() : Font.system(.title3, design: .default, weight: .bold).monospacedDigit()
+        }
     }
     
     // MARK: - 6. Стили кнопок (Button Styles)

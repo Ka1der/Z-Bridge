@@ -82,12 +82,12 @@ public struct PhotoEXIFSheetView: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(item.filename)
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .font(.system(size: AppTheme.macFontSize(16, macAdd: 2), weight: .bold, design: .monospaced))
                         .foregroundStyle(Color.white)
                         .lineLimit(1)
                     
                     Text(item.isRAW ? "RAW" : "JPEG")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.system(size: AppTheme.macFontSize(10, macAdd: 2), weight: .bold, design: .monospaced))
                         .foregroundStyle(Color.black)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -162,15 +162,15 @@ public struct PhotoEXIFSheetView: View {
         VStack(spacing: 4) {
             HStack(spacing: 3) {
                 Image(systemName: icon)
-                    .font(.system(size: 9))
+                    .font(.system(size: AppTheme.macFontSize(9, macAdd: 2)))
                     .foregroundStyle(AppTheme.Colors.accent)
                 Text(title)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: AppTheme.macFontSize(10, macAdd: 2), weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.60))
             }
             
             Text(value)
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .font(.system(size: AppTheme.macFontSize(17, macAdd: 3), weight: .bold, design: .rounded))
                 .foregroundStyle(Color.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
